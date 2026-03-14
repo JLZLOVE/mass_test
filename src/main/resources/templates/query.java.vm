@@ -1,0 +1,43 @@
+package untiy.query;
+
+import untiy.utils.Query;
+import java.io.Serializable;
+import java.util.Date;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+/**
+ * ${table.comment} 查询参数
+ *
+ * @author ${author}
+ * @since ${date}
+ */
+@Data
+@EqualsAndHashCode(callSuper = true)
+public class ${entity}Query extends Query implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    ## ---------- 实体字段作为精确/模糊查询条件 ----------
+    #foreach($field in $table.fields)
+        /**
+         * ${field.comment}
+         */
+        private ${field.propertyType} ${field.propertyName};
+    #end
+
+    ## ---------- 自动生成日期范围字段 ----------
+    #foreach($field in $table.fields)
+        #if("$field.propertyType" == "Date")
+            /**
+             * ${field.comment} 开始时间
+             */
+            private Date ${field.propertyName}Start;
+
+            /**
+             * ${field.comment} 结束时间
+             */
+            private Date ${field.propertyName}End;
+        #end
+    #end
+}

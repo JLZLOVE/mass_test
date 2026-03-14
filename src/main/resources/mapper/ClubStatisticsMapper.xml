@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="untiy.mapper.ClubStatisticsMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="untiy.entity.ClubStatistics">
+        <id column="id" property="id" />
+        <result column="club_id" property="clubId" />
+        <result column="stat_date" property="statDate" />
+        <result column="total_members" property="totalMembers" />
+        <result column="new_members" property="newMembers" />
+        <result column="activity_count" property="activityCount" />
+        <result column="total_participants" property="totalParticipants" />
+        <result column="total_budget" property="totalBudget" />
+        <result column="avg_score" property="avgScore" />
+        <result column="create_time" property="createTime" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, club_id, stat_date, total_members, new_members, activity_count, total_participants, total_budget, avg_score, create_time
+    </sql>
+
+</mapper>

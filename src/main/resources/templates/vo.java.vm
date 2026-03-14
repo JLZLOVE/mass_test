@@ -1,0 +1,29 @@
+package untiy.vo;
+
+#foreach($pkg in ${table.importPackages})
+import ${pkg};
+#end
+import java.io.Serializable;
+import lombok.Data;
+
+/**
+ * $!{table.comment} 视图对象
+ *
+ * @author ${author}
+ * @since ${date}
+ */
+@Data
+public class ${entity}VO implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    ## ---------- 遍历字段，排除敏感字段 ----------
+    #foreach($field in ${table.fields})
+        #if(${field.propertyName} != "password" && ${field.propertyName} != "idCard" && ${field.propertyName} != "id_card")
+            /**
+             * ${field.comment}
+             */
+            private ${field.propertyType} ${field.propertyName};
+        #end
+    #end
+}

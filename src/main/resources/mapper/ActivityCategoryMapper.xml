@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="untiy.mapper.ActivityCategoryMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="untiy.entity.ActivityCategory">
+        <id column="id" property="id" />
+        <result column="category_name" property="categoryName" />
+        <result column="approve_flow_id" property="approveFlowId" />
+        <result column="need_location" property="needLocation" />
+        <result column="need_report" property="needReport" />
+        <result column="status" property="status" />
+        <result column="create_time" property="createTime" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, category_name, approve_flow_id, need_location, need_report, status, create_time
+    </sql>
+
+</mapper>

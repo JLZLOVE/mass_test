@@ -1,0 +1,35 @@
+## 自动把首字母转小写
+#set($entityName = $entity)
+#set($firstChar = $entityName.substring(0, 1).toLowerCase())
+#set($restChar = $entityName.substring(1))
+#set($entityVar = $firstChar + $restChar)
+
+package untiy.entity.view;
+
+import untiy.entity.${entity};
+import com.baomidou.mybatisplus.annotation.TableName;
+import java.io.Serializable;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import org.springframework.beans.BeanUtils;
+
+/**
+ * $!{table.comment} View
+ *
+ * @author ${author}
+ * @since ${date}
+ */
+@Data
+@EqualsAndHashCode(callSuper = true)
+@TableName("${table.name}")
+public class ${entity}View extends ${entity} implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    public ${entity}View() {
+    }
+
+    public ${entity}View(${entity} ${entityVar}) {
+        BeanUtils.copyProperties(${entityVar}, this);
+    }
+}

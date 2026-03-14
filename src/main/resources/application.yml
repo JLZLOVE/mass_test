@@ -1,0 +1,94 @@
+server:
+  tomcat:
+    uri-encoding: UTF-8
+  port: 100
+  servlet:
+    context-path: /Mass_Test
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/mass_test1?useUnicode=true&characterEncoding=utf-8&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8
+    username: root
+    password: 123456
+  servlet:
+    multipart:
+      max-file-size: 300MB
+      max-request-size: 300MB
+    resource:
+      static-locations: classpath:static/,file:static/
+  security:
+    user:
+      name: admin
+      password: 123456
+  redis:
+    host: 127.0.0.1
+    port: 6379
+    password:
+    database: 0
+    timeout: 5000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1ms
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliasserver:
+    tomcat:
+      uri-encoding: UTF-8
+    port: 100
+    servlet:
+      context-path: /Mass_Test
+
+    spring:
+      datasource:
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        url: jdbc:mysql://127.0.0.1:3306/mass_test1?useUnicode=true&characterEncoding=utf-8&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8
+        username: root
+        password: 123456
+      servlet:
+        multipart:
+          max-file-size: 300MB
+          max-request-size: 300MB
+        resource:
+          static-locations: classpath:static/,file:static/
+      security:
+        user:
+          name: admin
+          password: 123456
+
+    mybatis-plus:
+      mapper-locations: classpath:mapper/*.xml
+      type-aliases-package: unity.entity
+      configuration:
+        map-underscore-to-camel-case: true
+        log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    logging:
+      level:
+        unity.mapper: debug
+    Knife4j:
+      basic:
+        enable: false
+      setting:
+        enable-swagger-models: false
+        enable-document-manage: false
+      production: false
+      enable:
+        truees-package: unity.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+logging:
+  level:
+    unity.mapper: debug
+Knife4j:
+  basic:
+    enable: false
+  setting:
+    enable-swagger-models: false
+    enable-document-manage: false
+  production: false
+  enable: true

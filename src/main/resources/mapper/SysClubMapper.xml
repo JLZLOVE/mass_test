@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="untiy.mapper.SysClubMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="untiy.entity.SysClub">
+        <id column="id" property="id" />
+        <result column="club_name" property="clubName" />
+        <result column="club_code" property="clubCode" />
+        <result column="category" property="category" />
+        <result column="college_id" property="collegeId" />
+        <result column="advisor_id" property="advisorId" />
+        <result column="description" property="description" />
+        <result column="logo" property="logo" />
+        <result column="status" property="status" />
+        <result column="create_time" property="createTime" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, club_name, club_code, category, college_id, advisor_id, description, logo, status, create_time
+    </sql>
+
+</mapper>

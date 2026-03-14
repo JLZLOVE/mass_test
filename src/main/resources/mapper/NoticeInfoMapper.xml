@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="untiy.mapper.NoticeInfoMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="untiy.entity.NoticeInfo">
+        <id column="id" property="id" />
+        <result column="title" property="title" />
+        <result column="content" property="content" />
+        <result column="category_id" property="categoryId" />
+        <result column="publisher_id" property="publisherId" />
+        <result column="publisher_name" property="publisherName" />
+        <result column="importance" property="importance" />
+        <result column="urgency" property="urgency" />
+        <result column="receiver_type" property="receiverType" />
+        <result column="receiver_values" property="receiverValues" />
+        <result column="need_confirm" property="needConfirm" />
+        <result column="publish_time" property="publishTime" />
+        <result column="expire_time" property="expireTime" />
+        <result column="status" property="status" />
+        <result column="create_time" property="createTime" />
+        <result column="update_time" property="updateTime" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, title, content, category_id, publisher_id, publisher_name, importance, urgency, receiver_type, receiver_values, need_confirm, publish_time, expire_time, status, create_time, update_time
+    </sql>
+
+</mapper>

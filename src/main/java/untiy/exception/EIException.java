@@ -1,5 +1,5 @@
 
-package untiy.entity;
+package untiy.exception;
 
 /**
  * 自定义异常

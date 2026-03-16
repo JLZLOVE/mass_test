@@ -1,17 +1,12 @@
 package untiy.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
-import untiy.config.ErrorConfig;
-import untiy.entity.EIException;
+import untiy.exception.ErrorConfig;
+import untiy.exception.EIException;
 import untiy.entity.RegisterDTO;
-import untiy.entity.SysUser;
 import untiy.service.SysUserService;
 import untiy.utils.R;
-
-import javax.websocket.server.PathParam;
-import java.util.HashMap;
 
 @RestController
 @RequestMapping("register")

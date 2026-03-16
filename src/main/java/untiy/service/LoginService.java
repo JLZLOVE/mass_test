@@ -1,18 +1,20 @@
 package untiy.service;
 
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.GrantedAuthoritiesContainer;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 
-public interface LoginService {
+public interface LoginService extends UserDetails {
     String getPassword();
 
-   Long getId();
+    Long getId();
 
-    Boolean isAccountNonExpired();
-    Boolean isAcoountNotLock();
-    Collection<? extends GrantedAuthority > getAuthority();
+    boolean isAccountNonExpired();
+
+    Collection<? extends GrantedAuthority> getAuthority();
+
     boolean isCredentialNonExpired();
+
     boolean isEnabled();
 }

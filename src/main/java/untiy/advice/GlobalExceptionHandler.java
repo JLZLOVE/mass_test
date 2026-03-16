@@ -1,8 +1,8 @@
-package untiy.controller;
+package untiy.advice;
 
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import untiy.entity.EIException;
+import untiy.exception.EIException;
 import untiy.utils.R;
 
 @RestControllerAdvice  // 相当于@ControllerAdvice + @ResponseBody

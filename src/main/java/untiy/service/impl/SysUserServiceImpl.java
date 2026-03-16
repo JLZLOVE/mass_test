@@ -3,15 +3,14 @@ package untiy.service.impl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
-import untiy.config.ErrorConfig;
-import untiy.entity.EIException;
+import untiy.exception.ErrorConfig;
+import untiy.exception.EIException;
 import untiy.entity.RegisterDTO;
 import untiy.entity.SysUser;
 import untiy.mapper.SysUserMapper;
 import untiy.service.SysUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
-import untiy.utils.StudentIdGeneratorUtil;
 
 import java.util.HashMap;
 

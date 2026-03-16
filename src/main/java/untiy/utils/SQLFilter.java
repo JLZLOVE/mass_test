@@ -3,8 +3,8 @@ package untiy.utils;
 
 
 import org.apache.commons.lang3.StringUtils;
-import untiy.config.ErrorConfig;
-import untiy.entity.EIException;
+import untiy.exception.ErrorConfig;
+import untiy.exception.EIException;
 
 /**
  * SQL过滤

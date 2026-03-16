@@ -113,15 +113,7 @@ public class SysUserController {
         return R.ok("添加成功").put("data", sysUser);
     }
 
-    /**
-     * 前端增加（公开）
-     */
-    @IgnoreAuth
-    @PostMapping("/add_F")
-    public R add_F(@Valid @RequestBody SysUser sysUser) {
-            sysUserService.save(sysUser);
-        return R.ok("添加成功").put("data", sysUser);
-    }
+
 
     /**
      * 后端批量更新

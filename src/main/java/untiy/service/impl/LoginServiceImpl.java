@@ -1,20 +1,33 @@
 package untiy.service.impl;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.stereotype.Service;
 import untiy.entity.SysUser;
+import untiy.service.AuthorService;
 import untiy.service.LoginService;
 
 import java.util.Collection;
+import java.util.List;
 
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
+@Getter
+
 public class LoginServiceImpl implements LoginService {
     private SysUser sysUser;
+
+    private AuthorService authorService;
+
+    public LoginServiceImpl(SysUser sysUser, AuthorService authorService) {
+        this.sysUser = sysUser;
+        this.authorService = authorService;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return authorService.getAuthoritiesByUserId(sysUser.getId());
+    }
 
     @Override
     public String getPassword() {
@@ -22,26 +35,38 @@ public class LoginServiceImpl implements LoginService {
     }
 
     @Override
+    public String getUsername() {
+        return sysUser.getUsername();
+    }
+
+    @Override
     public Long getId() {
         return sysUser.getId();
     }
 
-    //账户是否过期
     @Override
-    public Boolean isAccountNonExpired() {
-        return null;
+    public boolean isAccountNonExpired() {
+        return sysUser.getStatus() == 1;
     }
 
-    //账户锁定
     @Override
-    public Boolean isAcoountNotLock() {
-        return sysUser.getStatus() == 1;
+    public boolean isAccountNonLocked() {
+        return false;
+    }
+
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return false;
     }
 
     //权限集合
     @Override
     public Collection<? extends GrantedAuthority> getAuthority() {
-        return null;
+        Long sysUserId = sysUser.getId();
+        List<GrantedAuthority> authoritiesByUserId = authorService.getAuthoritiesByUserId(sysUserId);
+
+        return authoritiesByUserId;
     }
 
     //凭证是否过期

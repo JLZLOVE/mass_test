@@ -1,9 +1,9 @@
 server:
-  tomcat:
-    uri-encoding: UTF-8
   port: 100
   servlet:
     context-path: /Mass_Test
+  tomcat:
+    uri-encoding: UTF-8
 
 spring:
   datasource:
@@ -15,7 +15,8 @@ spring:
     multipart:
       max-file-size: 300MB
       max-request-size: 300MB
-    resource:
+  web:
+    resources:
       static-locations: classpath:static/,file:static/
   security:
     user:
@@ -33,64 +34,50 @@ spring:
         max-idle: 8
         min-idle: 0
         max-wait: -1ms
+security:
+  ignore:
+    urls:
+      - /v2/api-docs/**
+      - /v3/api-docs/**
+      - /swagger-resources/**
+      - /swagger-ui/**
+      - /swagger-ui.html
+      - /doc.html
+      - /webjars/**
+      - /favicon.ico
+      - /js/**
+      - /css/**
+      - /img/**
+      - /allocation/**
+      - /login/**
+      # 其他公共接口
 jwt:
   secret: d1UP1yD2HgqiVA1NlAQt4N559jtfjCczZqA0M4lSvSQFUieDVIQzqYMdt6mF7IofGgRjJsRLUKTscM9FQ+3S2Q==
   expiration: 360000
+
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
-  type-aliasserver:
-    tomcat:
-      uri-encoding: UTF-8
-    port: 100
-    servlet:
-      context-path: /Mass_Test
-
-    spring:
-      datasource:
-        driver-class-name: com.mysql.cj.jdbc.Driver
-        url: jdbc:mysql://127.0.0.1:3306/mass_test1?useUnicode=true&characterEncoding=utf-8&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8
-        username: root
-        password: 123456
-      servlet:
-        multipart:
-          max-file-size: 300MB
-          max-request-size: 300MB
-        resource:
-          static-locations: classpath:static/,file:static/
-      security:
-        user:
-          name: admin
-          password: 123456
-
-    mybatis-plus:
-      mapper-locations: classpath:mapper/*.xml
-      type-aliases-package: unity.entity
-      configuration:
-        map-underscore-to-camel-case: true
-        log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-    logging:
-      level:
-        unity.mapper: debug
-    Knife4j:
-      basic:
-        enable: false
-      setting:
-        enable-swagger-models: false
-        enable-document-manage: false
-      production: false
-      enable:
-        truees-package: unity.entity
+  type-aliases-package: unity.entity
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
 logging:
   level:
     unity.mapper: debug
-Knife4j:
+    org.springframework.security: DEBUG
+knife4j:
   basic:
     enable: false
   setting:
-    enable-swagger-models: false
-    enable-document-manage: false
+    enable-swagger-models: true
+    enable-document-manage: true
+    enable-dynamic-parameter: false
   production: false
+
   enable: true
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

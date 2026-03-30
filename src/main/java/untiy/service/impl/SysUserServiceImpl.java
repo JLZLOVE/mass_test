@@ -28,7 +28,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     PasswordEncoder passwordEncoder;
     @Autowired
     SysUserMapper sysUserMapper;
-@Transactional
+/*@Transactional
 //注册
 @Override
     public void register(RegisterDTO registerDTO) {
@@ -53,5 +53,5 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
 //        注册成功
 
-    }
+    }*/
 }

@@ -26,9 +26,14 @@
         id, username, password, real_name, gender, phone, email, avatar, user_type, student_no, teacher_no, id_card, status, create_time, update_time
     </sql>
 
-    
     <select id="selectByStatusId" resultType="untiy.entity.view.SysUserView">
 select * from sys_user where username=#{nameid}
 
+    </select>
+
+    <select id="selectByUsername" resultType="untiy.entity.SysUser">
+        select *
+        from sys_user
+        where username = #{username}
     </select>
 </mapper>

@@ -7,7 +7,7 @@ import untiy.exception.EIException;
 import untiy.entity.RegisterDTO;
 import untiy.service.SysUserService;
 import untiy.utils.R;
-
+//废弃,不再提供注册接口
 @RestController
 @RequestMapping("register")
 public class RegisterController {
@@ -24,7 +24,7 @@ public class RegisterController {
             sysUserService.register(name, password);
             return R.ok("注册成功");
         }*/
-    @PostMapping("single")
+/*    @PostMapping("single")
     public R register(@RequestBody RegisterDTO registerDTO) {
         String realName = registerDTO.getRealName();
         String password = registerDTO.getPassword();
@@ -33,5 +33,5 @@ public class RegisterController {
         }
         sysUserService.register(registerDTO);
         return R.ok("注册成功");
-    }
+    }*/
 }

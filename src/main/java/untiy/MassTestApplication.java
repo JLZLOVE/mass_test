@@ -22,10 +22,10 @@ public class MassTestApplication {
         System.out.println("排序字段：" + orderItem.getColumn());
         System.out.println("是否升序：" + orderItem.isAsc());
         System.out.println("OrderItem 类使用成功！");*/
-        byte[] keyBytes = new byte[64]; // 64 bytes = 512 bits
+ /*       byte[] keyBytes = new byte[64]; // 64 bytes = 512 bits
         new SecureRandom().nextBytes(keyBytes);
         String secret = Base64.getEncoder().encodeToString(keyBytes);
         System.out.println(secret);
+    }*/
     }
-
 }

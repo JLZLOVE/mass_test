@@ -5,12 +5,13 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.AllArgsConstructor;
+import org.springframework.stereotype.Component;
 import untiy.exception.ErrorConfig;
 import untiy.config.JwtConfig;
 import untiy.exception.EIException;
 
 import java.util.Date;
-
+@Component
 @AllArgsConstructor
 public class JwtUtil {
     private final JwtConfig jwtConfig;

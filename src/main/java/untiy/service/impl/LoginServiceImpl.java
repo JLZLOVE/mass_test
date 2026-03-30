@@ -51,13 +51,13 @@ public class LoginServiceImpl implements LoginService {
 
     @Override
     public boolean isAccountNonLocked() {
-        return false;
+        return sysUser.getStatus()==1;
     }
 
 
     @Override
     public boolean isCredentialsNonExpired() {
-        return false;
+        return true;
     }
 
     //权限集合

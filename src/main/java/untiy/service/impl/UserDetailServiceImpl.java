@@ -51,6 +51,11 @@ public class UserDetailServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        return null;
+        // 这里 username 是登录时传入的学号/工号，
+        SysUser sysUser = sysUserMapper.selectByUsername(username);
+        if (sysUser == null) {
+            throw new UsernameNotFoundException(ErrorConfig.RGEISTER_STATUS_CODE_MSG);
+        }
+        return new LoginServiceImpl(sysUser, authorService);
     }
 }

@@ -18,9 +18,11 @@ import java.util.HashMap;
  */
 @Mapper
 public interface SysUserMapper extends BaseMapper<SysUser> {
-
-    boolean addNewUser(HashMap<String, Object> map);
+//
+//    boolean addNewUser(HashMap<String, Object> map);
 
 
     SysUserView selectByStatusId(String nameid);
+
+    SysUser selectByUsername(String username);
 }

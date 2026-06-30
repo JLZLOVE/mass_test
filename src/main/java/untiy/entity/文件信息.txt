@@ -1,0 +1,84 @@
+Folder PATH listing for volume D盘
+Volume serial number is 000000F5 4679:F3AD
+D:.
+│   ActivityApply.java
+│   ActivityApproveFlow.java
+│   ActivityCategory.java
+│   ActivitySign.java
+│   ClubStatistics.java
+│   NoticeCategory.java
+│   NoticeInfo.java
+│   NoticeReadRecord.java
+│   RegisterDTO.java
+│   SysClub.java
+│   SysCollege.java
+│   SysDataPermission.java
+│   SysDepartment.java
+│   SysMajor.java
+│   SysMenu.java
+│   SysRole.java
+│   SysRoleMenu.java
+│   SysUser.java
+│   SysUserRole.java
+│   文件信息.txt
+│   
+├───model
+│       ActivityApply.java
+│       ActivityApproveFlow.java
+│       ActivityCategory.java
+│       ActivitySign.java
+│       ClubStatistics.java
+│       NoticeCategory.java
+│       NoticeInfo.java
+│       NoticeReadRecord.java
+│       SysClub.java
+│       SysCollege.java
+│       SysDataPermission.java
+│       SysDepartment.java
+│       SysMajor.java
+│       SysMenu.java
+│       SysRole.java
+│       SysRoleMenu.java
+│       SysUser.java
+│       SysUserRole.java
+│       
+├───view
+│       ActivityApplyView.java
+│       ActivityApproveFlowView.java
+│       ActivityCategoryView.java
+│       ActivitySignView.java
+│       ClubStatisticsView.java
+│       NoticeCategoryView.java
+│       NoticeInfoView.java
+│       NoticeReadRecordView.java
+│       SysClubView.java
+│       SysCollegeView.java
+│       SysDataPermissionView.java
+│       SysDepartmentView.java
+│       SysMajorView.java
+│       SysMenuView.java
+│       SysRoleMenuView.java
+│       SysRoleView.java
+│       SysUserRoleView.java
+│       SysUserView.java
+│       
+└───vo
+        ActivityApplyVO.java
+        ActivityApproveFlowVO.java
+        ActivityCategoryVO.java
+        ActivitySignVO.java
+        ClubStatisticsVO.java
+        NoticeCategoryVO.java
+        NoticeInfoVO.java
+        NoticeReadRecordVO.java
+        SysClubVO.java
+        SysCollegeVO.java
+        SysDataPermissionVO.java
+        SysDepartmentVO.java
+        SysMajorVO.java
+        SysMenuVO.java
+        SysRoleMenuVO.java
+        SysRoleVO.java
+        SysUserRoleVO.java
+        SysUserVO.java
+        

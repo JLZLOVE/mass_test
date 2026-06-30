@@ -47,4 +47,8 @@ public class ActivityCategoryVO implements Serializable {
              * 
              */
             private LocalDateTime createTime;
+        /**
+         *
+         */
+        private String codeSuffix;
 }

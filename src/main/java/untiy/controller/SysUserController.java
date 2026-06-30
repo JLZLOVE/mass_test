@@ -49,6 +49,7 @@ public class SysUserController {
      */
     @IgnoreAuth
     @GetMapping("/listSysUser_F")
+
     public R listSysUser_F(@RequestParam Map<String, Object> param, SysUser sysUser) {
         QueryWrapper<SysUser> queryWrapper = new QueryWrapper<>();
         MPUtil.likeOrEq(queryWrapper, sysUser);
@@ -56,6 +57,7 @@ public class SysUserController {
         MPUtil.sort(queryWrapper, param);
         Page<SysUser> page = MPUtil.getPage(param);             
         IPage<SysUser> page1 = sysUserService.page(page, queryWrapper);
+
         return R.ok().put("data", page1);
     }
 
@@ -64,6 +66,7 @@ public class SysUserController {
      */
     @GetMapping("/listSysUser_B")
     public R listSysUser_B(@RequestParam Map<String, Object> param, SysUser sysUser) {
+
         Page<SysUser> page = MPUtil.getPage(param);
         IPage<SysUser> page1 = sysUserService.page(page, MPUtil.sort(
                 MPUtil.between(
@@ -72,6 +75,7 @@ public class SysUserController {
                 ),
                 param
         ));
+
         return R.ok().put("data", page1);
     }
 

@@ -38,7 +38,7 @@ public class AuthorServiceImpl implements AuthorService {
         }
 //        查询角色对应角色id
         List<SysUserRole> userRoles = sysUserRoleMapper.selectList(new LambdaQueryWrapper<SysUserRole>()
-                .eq(SysUserRole::getRoleId, userId));
+                .eq(SysUserRole::getUserId, userId));
 //        检查集合, 空和非空处理
         if ((userRoles.isEmpty())){
             return Collections.emptyList();

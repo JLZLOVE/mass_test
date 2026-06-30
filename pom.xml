@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <!-- 您的项目坐标（完全保留） -->
+
     <groupId>com.unity</groupId>
     <artifactId>Mass_Test1</artifactId>
     <version>0.0.1-SNAPSHOT</version>
@@ -22,7 +22,7 @@
         <java.version>1.8</java.version>
         <fastjson.version>1.2.83</fastjson.version>
         <mysql.version>8.0.33</mysql.version>
-        <!-- ★★★ 核心修正：MyBatis-Plus 全套锁定 3.2.0 ★★★ -->
+        <!-- ：MyBatis-Plus 全套锁定 3.2.0 ★★★ -->
         <mybatis-plus.version>3.2.0</mybatis-plus.version>
         <!-- Knife4j 保持不变（与 3.2.0 兼容） -->
         <knife4j.version>4.3.0</knife4j.version>
@@ -205,6 +205,12 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <optional>true</optional>        <!-- 防止依赖传递到生产环境 -->
+            <scope>runtime</scope>           <!-- 运行时有效，不影响编译 -->
         </dependency>
     </dependencies>
 

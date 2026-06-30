@@ -15,6 +15,26 @@ import java.util.Map;
  */
 public class MPUtil {
 
+    /**
+     * 将 Java 驼峰字段名转为数据库下划线列名（如 userId → user_id）。
+     * QueryWrapper 使用字符串列名时会直接拼入 SQL，必须映射为真实列名。
+     */
+    public static String camelToUnderline(String camel) {
+        if (StringUtils.isBlank(camel)) {
+            return camel;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < camel.length(); i++) {
+            char c = camel.charAt(i);
+            if (Character.isUpperCase(c)) {
+                sb.append('_').append(Character.toLowerCase(c));
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     // ==================== 分页相关 ====================
 
     /**
@@ -39,10 +59,11 @@ public class MPUtil {
         String sidx = (String) params.get("sidx");
         String order = (String) params.get("order");
         if (StringUtils.isNotBlank(sidx) && StringUtils.isNotBlank(order)) {
+            String column = camelToUnderline(sidx);
             if ("asc".equalsIgnoreCase(order)) {
-                page.addOrder(OrderItem.asc(sidx));
+                page.addOrder(OrderItem.asc(column));
             } else {
-                page.addOrder(OrderItem.desc(sidx));
+                page.addOrder(OrderItem.desc(column));
             }
         }
         return page;
@@ -76,10 +97,12 @@ public class MPUtil {
                 continue;
             }
             if (value == null) continue;
+            // 使用数据库列名（下划线），避免 BadSqlGrammarException
+            String columnName = camelToUnderline(fieldName);
             if (value instanceof String && StringUtils.isNotBlank((String) value)) {
-                wrapper.like(fieldName, value);
+                wrapper.like(columnName, value);
             } else if (!(value instanceof String)) {
-                wrapper.eq(fieldName, value);
+                wrapper.eq(columnName, value);
             }
         }
         return wrapper;
@@ -110,10 +133,8 @@ public class MPUtil {
      * 重载：自动处理常见范围字段（如 createTime, updateTime），可根据需求扩展
      */
     public static <T> QueryWrapper<T> between(QueryWrapper<T> wrapper, Map<String, Object> params) {
-        // 可在此添加常用范围字段，例如 createTime
-        between(wrapper, params, "createTime");
-        between(wrapper, params, "updateTime");
-        // 如果有其他范围字段，继续添加...
+        between(wrapper, params, camelToUnderline("createTime"));
+        between(wrapper, params, camelToUnderline("updateTime"));
         return wrapper;
     }
 /*
@@ -145,10 +166,11 @@ public class MPUtil {
         String sidx = (String) params.get("sidx");
         String order = (String) params.get("order");
         if (StringUtils.isNotBlank(sidx) && StringUtils.isNotBlank(order)) {
+            String column = camelToUnderline(sidx);
             if ("asc".equalsIgnoreCase(order)) {
-                wrapper.orderByAsc(sidx);
+                wrapper.orderByAsc(column);
             } else {
-                wrapper.orderByDesc(sidx);
+                wrapper.orderByDesc(column);
             }
         }
         return wrapper;

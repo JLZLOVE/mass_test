@@ -1,5 +1,6 @@
 package untiy.mapper;
 
+import com.baomidou.mybatisplus.annotation.TableId;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import untiy.entity.SysUser;
@@ -22,7 +23,7 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
 //    boolean addNewUser(HashMap<String, Object> map);
 
 
-    SysUserView selectByStatusId(String nameid);
+SysUserView selectByStatusId(@Param("nameId")String nameId);
 
-    SysUser selectByUsername(String username);
+    SysUser selectByUsername(@Param("username")String username);
 }

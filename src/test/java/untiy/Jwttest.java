@@ -3,6 +3,7 @@ package untiy;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import untiy.config.JwtConfig;
 import untiy.utils.JwtUtil;
 
@@ -19,8 +20,14 @@ public class Jwttest {
 
         boolean b = util.validateToken(s);
         if (b) {
-            String userIdFromToken = util.getUserIdFromToken(s);
-            System.out.println(userIdFromToken);
+            String usernameFromToken = util.getUsernameFromToken(s);
+            System.out.println(usernameFromToken);
         }
+    }
+    @Test
+    public void  testjwtpassword(){
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        String pwd = encoder.encode("123456");
+        System.out.println(pwd);
     }
 }

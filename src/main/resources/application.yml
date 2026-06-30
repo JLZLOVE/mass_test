@@ -8,6 +8,10 @@ server:
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
+    druid:
+      max-active: 20
+      min-idle: 5
+      max-wait: 6000
     url: jdbc:mysql://127.0.0.1:3306/mass_test1?useUnicode=true&characterEncoding=utf-8&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8
     username: root
     password: 123456
@@ -22,10 +26,15 @@ spring:
     user:
       name: admin
       password: 123456
+  devtools:
+    restart:
+      enabled: true
+      additional-paths: src/main/java
+      exclude: static/**,public/**
   redis:
     host: 127.0.0.1
     port: 6379
-    password:
+    password: 123456
     database: 0
     timeout: 5000ms
     lettuce:
@@ -50,21 +59,27 @@ security:
       - /img/**
       - /allocation/**
       - /login/**
-      # 其他公共接口
+      - /register/**
+      # 如有其他公开接口，在此追加
 jwt:
   secret: d1UP1yD2HgqiVA1NlAQt4N559jtfjCczZqA0M4lSvSQFUieDVIQzqYMdt6mF7IofGgRjJsRLUKTscM9FQ+3S2Q==
   expiration: 360000
 
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: unity.entity
+  type-aliases-package: untiy.entity
+  global-config:
+    db-config:
+      table-underline: true
+      column-underline: true
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 logging:
   level:
-    unity.mapper: debug
+    untiy.mapper: debug
+    untiy.filter: debug
     org.springframework.security: DEBUG
 knife4j:
   basic:

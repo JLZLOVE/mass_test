@@ -84,7 +84,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                         ,  "/doc.html"
                         ).permitAll()
                 // ✅ 放行业务接口（登录/分配等）
-                .antMatchers("/allocation/**", "/login/**","/webjars/**").permitAll()
+                .antMatchers("/allocation/**", "/login/**", "/register/**", "/webjars/**").permitAll()
                 // 其他接口必须认证
                 .anyRequest().authenticated()
                 .and()

@@ -113,16 +113,16 @@ public class ActivityApproveFlowController {
         return R.ok("添加成功").put("data", activityApproveFlow);
     }
 
-    /**
+ /*   *//**
      * 前端增加（公开）
-     */
+     *//*
     @IgnoreAuth
     @PostMapping("/add_F")
     public R add_F(@Valid @RequestBody ActivityApproveFlow activityApproveFlow) {
             activityApproveFlowService.save(activityApproveFlow);
         return R.ok("添加成功").put("data", activityApproveFlow);
     }
-
+*/
     /**
      * 后端批量更新
      */
@@ -135,12 +135,14 @@ public class ActivityApproveFlowController {
     /**
      * 前端单个更新（公开）
      */
+/*
     @IgnoreAuth
     @PutMapping("/updateActivityApproveFlow_F")
     public R updateActivityApproveFlow_F(@Valid @RequestBody ActivityApproveFlow activityApproveFlow) {
             activityApproveFlowService.updateById(activityApproveFlow);
         return R.ok();
     }
+*/
 
     /**
      * 后端批量删除
@@ -154,9 +156,9 @@ public class ActivityApproveFlowController {
     /**
      * 前端单个删除（公开）
      */
-    @DeleteMapping("/deleteActivityApproveFlow_F/{id}")
+/*    @DeleteMapping("/deleteActivityApproveFlow_F/{id}")
     public R deleteActivityApproveFlow_F(@PathVariable Long id) {
             activityApproveFlowService.removeById(id);
         return R.ok();
-    }
+    }*/
 }

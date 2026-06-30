@@ -534,4 +534,11 @@ INSERT INTO `sys_user_role` VALUES (4, 3, 5, 2, 1, '2026-02-11 21:48:57');
 INSERT INTO `sys_user_role` VALUES (5, 5, 1, NULL, NULL, '2026-02-11 21:48:57');
 INSERT INTO `sys_user_role` VALUES (6, 4, 5, 2, 2, '2026-02-11 21:48:57');
 
+-- ----------------------------
+-- 后置说明（可选）
+-- 种子数据中 password 为明文，Spring Security 使用 BCryptPasswordEncoder。
+-- 导入后请通过 POST /register/single 注册新用户，或执行 mysql/fix_bcrypt_passwords.sql
+-- （需先用 BCryptPasswordEncoder.encode("123456") 生成哈希后更新该脚本）
+-- ----------------------------
+
 SET FOREIGN_KEY_CHECKS = 1;

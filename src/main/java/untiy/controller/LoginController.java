@@ -13,7 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import untiy.service.impl.LoginServiceImpl;
 import untiy.utils.JwtUtil;
 import untiy.utils.R;
-
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -23,8 +24,12 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * 认证成功后：签发 JWT（subject = username）、将权限集合写入 Redis（Key: user:{username}）。
  */
+
+
+
 @Slf4j
 @RestController
+@Tag(name = "登录认证", description = "用户登录接口，获取JWT令牌")
 @RequestMapping("/login")
 public class LoginController {
 
@@ -50,6 +55,7 @@ public class LoginController {
      * @param password 密码
      * @return token 与 username，前端通过 Header「Token」携带 JWT 访问受保护接口
      */
+    @Operation(summary = "用户登录", description = "使用学号/工号和密码进行身份认证，成功返回JWT令牌和用户名")
     @PostMapping("/allocation")
     public R login(@RequestParam String name, @RequestParam String password) {
         log.info("用户 {} 尝试登录", name);

@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import java.math.BigDecimal;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -22,7 +22,7 @@ import lombok.experimental.Accessors;
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
 @TableName("activity_apply")
-public class ActivityApply implements Serializable {
+public class ActivityApplyDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 

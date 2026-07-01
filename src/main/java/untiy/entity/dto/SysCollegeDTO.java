@@ -1,19 +1,17 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
-
 import java.time.LocalDateTime;
 import java.io.Serializable;
-
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 活动分类表
+ * 学院表
  * </p>
  *
  * @author 玖
@@ -22,37 +20,32 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("activity_category")
-public class ActivityCategory implements Serializable {
+@TableName("sys_college")
+public class SysCollegeDTO implements Serializable {
 
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID=1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 分类名称
+     * 学院名称
      */
-    private String categoryName;
+    private String collegeName;
 
     /**
-     * 审批流程模板ID
+     * 学院代码
      */
-    private Long approveFlowId;
+    private String collegeCode;
 
     /**
-     * 是否需要定位签到
+     * 院长ID（关联sys_user）
      */
-    private Integer needLocation;
-
-    /**
-     * 是否需要活动报告
-     */
-    private Integer needReport;
+    private Long deanId;
 
     private Integer status;
 
     private LocalDateTime createTime;
-    private String codeSuffix;
+
 
 }

@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 社团表
+ * 活动审批流程表
  * </p>
  *
  * @author 玖
@@ -20,53 +20,45 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("sys_club")
-public class SysClub implements Serializable {
+@TableName("activity_approve_flow")
+public class ActivityApproveFlowDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 社团名称
-     */
-    private String clubName;
+    private Long activityId;
 
     /**
-     * 社团编号
+     * 步骤序号
      */
-    private String clubCode;
+    private Integer step;
 
     /**
-     * 社团类别（学术科技/文化体育/公益等）
+     * 审批角色ID
      */
-    private String category;
+    private Long approveRoleId;
 
     /**
-     * 挂靠学院（可为空）
+     * 实际审批人ID
      */
-    private Long collegeId;
+    private Long approveUserId;
 
     /**
-     * 指导老师ID
+     * 1:通过 2:驳回
      */
-    private Long advisorId;
+    private Integer approveResult;
 
     /**
-     * 社团简介
+     * 审批意见
      */
-    private String description;
+    private String approveOpinion;
 
     /**
-     * 社团logo
+     * 审批时间
      */
-    private String logo;
-
-    /**
-     * 状态 0:解散 1:正常
-     */
-    private Integer status;
+    private LocalDateTime approveTime;
 
     private LocalDateTime createTime;
 

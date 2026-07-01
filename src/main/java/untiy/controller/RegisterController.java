@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import untiy.annotion.IgnoreAuth;
+import untiy.annotation.IgnoreAuth;
 import untiy.entity.RegisterDTO;
 import untiy.service.SysUserService;
 import untiy.utils.R;

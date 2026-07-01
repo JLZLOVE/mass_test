@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 学院表
+ * 角色菜单关联表
  * </p>
  *
  * @author 玖
@@ -20,30 +20,17 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("sys_college")
-public class SysCollege implements Serializable {
+@TableName("sys_role_menu")
+public class SysRoleMenuDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 学院名称
-     */
-    private String collegeName;
+    private Long roleId;
 
-    /**
-     * 学院代码
-     */
-    private String collegeCode;
-
-    /**
-     * 院长ID（关联sys_user）
-     */
-    private Long deanId;
-
-    private Integer status;
+    private Long menuId;
 
     private LocalDateTime createTime;
 

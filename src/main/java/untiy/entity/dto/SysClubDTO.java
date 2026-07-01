@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 活动签到表
+ * 社团表
  * </p>
  *
  * @author 玖
@@ -20,39 +20,53 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("activity_sign")
-public class ActivitySign implements Serializable {
+@TableName("sys_club")
+public class SysClubDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    private Long activityId;
-
-    private Long userId;
+    /**
+     * 社团名称
+     */
+    private String clubName;
 
     /**
-     * 1:自动定位 2:手动签到 3:补签
+     * 社团编号
      */
-    private Integer signType;
-
-    private LocalDateTime signTime;
+    private String clubCode;
 
     /**
-     * 签到经纬度
+     * 社团类别（学术科技/文化体育/公益等）
      */
-    private Integer signLocation;
+    private String category;
 
     /**
-     * 签到地址文本
+     * 挂靠学院（可为空）
      */
-    private String address;
+    private Long collegeId;
 
     /**
-     * 1:正常 2:迟到 3:早退
+     * 指导老师ID
      */
-    private Integer signStatus;
+    private Long advisorId;
+
+    /**
+     * 社团简介
+     */
+    private String description;
+
+    /**
+     * 社团logo
+     */
+    private String logo;
+
+    /**
+     * 状态 0:解散 1:正常
+     */
+    private Integer status;
 
     private LocalDateTime createTime;
 

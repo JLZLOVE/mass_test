@@ -1,17 +1,19 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+
 import java.time.LocalDateTime;
 import java.io.Serializable;
+
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 数据权限规则表
+ * 活动分类表
  * </p>
  *
  * @author 玖
@@ -20,49 +22,37 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("sys_data_permission")
-public class SysDataPermission implements Serializable {
+@TableName("activity_category")
+public class ActivityCategoryDTO implements Serializable {
 
-    private static final long serialVersionUID=1L;
+    private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 角色ID
+     * 分类名称
      */
-    private Long roleId;
+    private String categoryName;
 
     /**
-     * 表名
+     * 审批流程模板ID
      */
-    private String tableName;
+    private Long approveFlowId;
 
     /**
-     * 字段名
+     * 是否需要定位签到
      */
-    private String fieldName;
+    private Integer needLocation;
 
     /**
-     * 是否可见 0:隐藏 1:可见 2:只读
+     * 是否需要活动报告
      */
-    private Integer visible;
-
-    /**
-     * 行级条件 1:全部 2:本部门 3:本人
-     */
-    private Integer conditionType;
-
-    /**
-     * 自定义条件
-     */
-    private String conditionValue;
-
-    private String description;
+    private Integer needReport;
 
     private Integer status;
 
     private LocalDateTime createTime;
-
+    private String codeSuffix;
 
 }

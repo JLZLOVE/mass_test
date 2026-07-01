@@ -1,9 +1,7 @@
-package untiy.model;
+package untiy.entity.dto;
 
-import java.math.BigDecimal;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
-import java.time.LocalDate;
 import com.baomidou.mybatisplus.annotation.TableId;
 import java.time.LocalDateTime;
 import java.io.Serializable;
@@ -13,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 社团统计表
+ * 菜单权限表
  * </p>
  *
  * @author 玖
@@ -22,50 +20,55 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("club_statistics")
-public class ClubStatistics implements Serializable {
+@TableName("sys_menu")
+public class SysMenuDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    private Long clubId;
+    /**
+     * 父菜单ID
+     */
+    private Long parentId;
 
     /**
-     * 统计日期
+     * 菜单名称
      */
-    private LocalDate statDate;
+    private String menuName;
 
     /**
-     * 当前总成员数
+     * 类型 1:目录 2:菜单 3:按钮
      */
-    private Integer totalMembers;
+    private Integer menuType;
 
     /**
-     * 新增成员数
+     * 权限标识（如 user:list, activity:approve）
      */
-    private Integer newMembers;
+    private String permissionCode;
 
     /**
-     * 活动次数
+     * 前端组件路径
      */
-    private Integer activityCount;
+    private String componentPath;
 
     /**
-     * 参与人次
+     * 路由路径
      */
-    private Integer totalParticipants;
+    private String routePath;
 
     /**
-     * 总预算
+     * 图标
      */
-    private BigDecimal totalBudget;
+    private String icon;
 
     /**
-     * 活动平均评分
+     * 排序
      */
-    private BigDecimal avgScore;
+    private Integer sort;
+
+    private Integer status;
 
     private LocalDateTime createTime;
 

@@ -11,7 +11,7 @@ import untiy.entity.NoticeCategory;
 import untiy.service.NoticeCategoryService;
 import untiy.utils.MPUtil;
 import untiy.utils.R;
-import untiy.annotion.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
+import untiy.annotation.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import javax.validation.Valid;

@@ -10,16 +10,14 @@ package untiy.controller;
 #set($PageEntity = "Page<${Entity}>")
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import untiy.entity.${entity};
+${entity};
 import untiy.service.${entity}Service;
 import untiy.utils.MPUtil;
 import untiy.utils.R;
-import untiy.annotion.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
+import untiy.annotation.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
 
 import javax.validation.Valid;
 import java.util.List;
@@ -28,7 +26,6 @@ import java.util.Map;
 #if(${restControllerStyle})
 import org.springframework.web.bind.annotation.RestController;
 #else
-import org.springframework.stereotype.Controller;
 #end
 
 /**

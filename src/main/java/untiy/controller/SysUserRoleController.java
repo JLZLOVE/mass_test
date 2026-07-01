@@ -12,7 +12,7 @@ import untiy.entity.SysUserRole;
 import untiy.service.SysUserRoleService;
 import untiy.utils.MPUtil;
 import untiy.utils.R;
-import untiy.annotion.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
+import untiy.annotation.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
 
 import javax.validation.Valid;
 import java.util.List;

@@ -11,7 +11,7 @@ import untiy.entity.ClubStatistics;
 import untiy.service.ClubStatisticsService;
 import untiy.utils.MPUtil;
 import untiy.utils.R;
-import untiy.annotion.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
+import untiy.annotation.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
 
 import javax.validation.Valid;
 import java.util.List;
@@ -125,16 +125,7 @@ public class ClubStatisticsController {
         return R.ok("添加成功").put("data", clubStatistics);
     }
 
-    /**
-     * 前端增加（公开）
-     */
-    @IgnoreAuth
-    @Operation(summary = "新增社团统计（公开）", description = "用户自行提交，无需登录")
-    @PostMapping("/add_F")
-    public R add_F(@Valid @RequestBody ClubStatistics clubStatistics) {
-        clubStatisticsService.save(clubStatistics);
-        return R.ok("添加成功").put("data", clubStatistics);
-    }
+
 
     /**
      * 后端批量更新
@@ -146,16 +137,7 @@ public class ClubStatisticsController {
         return R.ok();
     }
 
-    /**
-     * 前端单个更新（公开）
-     */
-/*    @IgnoreAuth
-    @Operation(summary = "更新单个社团统计（公开）", description = "根据ID修改，无需登录")
-    @PutMapping("/updateClubStatistics_F")
-    public R updateClubStatistics_F(@Valid @RequestBody ClubStatistics clubStatistics) {
-        clubStatisticsService.updateById(clubStatistics);
-        return R.ok();
-    }*/
+
 
     /**
      * 后端批量删除
@@ -167,13 +149,5 @@ public class ClubStatisticsController {
         return R.ok();
     }
 
-    /**
-     * 前端单个删除（公开）
-     */
-/*    @Operation(summary = "删除单个社团统计（公开）", description = "根据ID删除，无需登录")
-    @DeleteMapping("/deleteClubStatistics_F/{id}")
-    public R deleteClubStatistics_F(@PathVariable Long id) {
-        clubStatisticsService.removeById(id);
-        return R.ok();
-    }*/
+
 }

@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import untiy.annotation.IgnoreAuth;
 import untiy.service.impl.LoginServiceImpl;
 import untiy.utils.JwtUtil;
 import untiy.utils.R;
@@ -55,6 +56,7 @@ public class LoginController {
      * @param password 密码
      * @return token 与 username，前端通过 Header「Token」携带 JWT 访问受保护接口
      */
+    @IgnoreAuth
     @Operation(summary = "用户登录", description = "使用学号/工号和密码进行身份认证，成功返回JWT令牌和用户名")
     @PostMapping("/allocation")
     public R login(@RequestParam String name, @RequestParam String password) {

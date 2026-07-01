@@ -11,7 +11,7 @@ import untiy.entity.ActivityApproveFlow;
 import untiy.service.ActivityApproveFlowService;
 import untiy.utils.MPUtil;
 import untiy.utils.R;
-import untiy.annotion.IgnoreAuth;
+import untiy.annotation.IgnoreAuth;
 
 import javax.validation.Valid;
 import java.util.List;

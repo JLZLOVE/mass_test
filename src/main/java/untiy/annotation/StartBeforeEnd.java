@@ -1,4 +1,4 @@
-package untiy.annotion;
+package untiy.annotation;
 
 
 import javax.validation.Constraint;

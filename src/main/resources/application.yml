@@ -57,10 +57,7 @@ security:
       - /js/**
       - /css/**
       - /img/**
-      - /allocation/**
-      - /login/**
-      - /register/**
-      # 如有其他公开接口，在此追加
+#       业务接口免登录由 @IgnoreAuth 控制，不在此配置
 jwt:
   secret: d1UP1yD2HgqiVA1NlAQt4N559jtfjCczZqA0M4lSvSQFUieDVIQzqYMdt6mF7IofGgRjJsRLUKTscM9FQ+3S2Q==
   expiration: 360000

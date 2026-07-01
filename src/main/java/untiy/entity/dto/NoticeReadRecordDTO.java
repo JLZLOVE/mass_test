@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -21,7 +21,7 @@ import lombok.experimental.Accessors;
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
 @TableName("notice_read_record")
-public class NoticeReadRecord implements Serializable {
+public class NoticeReadRecordDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 

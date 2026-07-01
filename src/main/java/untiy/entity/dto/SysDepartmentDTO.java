@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 专业表
+ * 社团部门表
  * </p>
  *
  * @author 玖
@@ -20,8 +20,8 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("sys_major")
-public class SysMajor implements Serializable {
+@TableName("sys_department")
+public class SysDepartmentDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
@@ -29,24 +29,29 @@ public class SysMajor implements Serializable {
     private Long id;
 
     /**
-     * 专业名称
+     * 部门名称
      */
-    private String majorName;
+    private String deptName;
 
     /**
-     * 专业代码
+     * 所属社团
      */
-    private String majorCode;
+    private Long clubId;
 
     /**
-     * 所属学院
+     * 父部门ID（用于部门层级）
      */
-    private Long collegeId;
+    private Long parentId;
 
     /**
-     * 专业负责人ID
+     * 部长ID
      */
-    private Long headTeacherId;
+    private Long leaderId;
+
+    /**
+     * 部门职责
+     */
+    private String description;
 
     private Integer status;
 

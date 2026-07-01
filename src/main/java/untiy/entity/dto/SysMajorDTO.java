@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 通知分类表
+ * 专业表
  * </p>
  *
  * @author 玖
@@ -20,8 +20,8 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("notice_category")
-public class NoticeCategory implements Serializable {
+@TableName("sys_major")
+public class SysMajorDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
@@ -29,16 +29,24 @@ public class NoticeCategory implements Serializable {
     private Long id;
 
     /**
-     * 分类名称
+     * 专业名称
      */
-    private String categoryName;
+    private String majorName;
 
     /**
-     * 默认优先级
+     * 专业代码
      */
-    private Integer priority;
+    private String majorCode;
 
-    private String icon;
+    /**
+     * 所属学院
+     */
+    private Long collegeId;
+
+    /**
+     * 专业负责人ID
+     */
+    private Long headTeacherId;
 
     private Integer status;
 

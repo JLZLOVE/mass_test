@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 活动审批流程表
+ * 活动签到表
  * </p>
  *
  * @author 玖
@@ -20,8 +20,8 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("activity_approve_flow")
-public class ActivityApproveFlow implements Serializable {
+@TableName("activity_sign")
+public class ActivitySignDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
@@ -30,35 +30,29 @@ public class ActivityApproveFlow implements Serializable {
 
     private Long activityId;
 
-    /**
-     * 步骤序号
-     */
-    private Integer step;
+    private Long userId;
 
     /**
-     * 审批角色ID
+     * 1:自动定位 2:手动签到 3:补签
      */
-    private Long approveRoleId;
+    private Integer signType;
+
+    private LocalDateTime signTime;
 
     /**
-     * 实际审批人ID
+     * 签到经纬度
      */
-    private Long approveUserId;
+    private Integer signLocation;
 
     /**
-     * 1:通过 2:驳回
+     * 签到地址文本
      */
-    private Integer approveResult;
+    private String address;
 
     /**
-     * 审批意见
+     * 1:正常 2:迟到 3:早退
      */
-    private String approveOpinion;
-
-    /**
-     * 审批时间
-     */
-    private LocalDateTime approveTime;
+    private Integer signStatus;
 
     private LocalDateTime createTime;
 

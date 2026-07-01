@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 角色菜单关联表
+ * 数据权限规则表
  * </p>
  *
  * @author 玖
@@ -20,17 +20,47 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("sys_role_menu")
-public class SysRoleMenu implements Serializable {
+@TableName("sys_data_permission")
+public class SysDataPermissionDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
+    /**
+     * 角色ID
+     */
     private Long roleId;
 
-    private Long menuId;
+    /**
+     * 表名
+     */
+    private String tableName;
+
+    /**
+     * 字段名
+     */
+    private String fieldName;
+
+    /**
+     * 是否可见 0:隐藏 1:可见 2:只读
+     */
+    private Integer visible;
+
+    /**
+     * 行级条件 1:全部 2:本部门 3:本人
+     */
+    private Integer conditionType;
+
+    /**
+     * 自定义条件
+     */
+    private String conditionValue;
+
+    private String description;
+
+    private Integer status;
 
     private LocalDateTime createTime;
 

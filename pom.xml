@@ -19,7 +19,7 @@
     <description>springboot学习框架</description>
 
     <properties>
-        <java.version>1.8</java.version>
+        <java.version>17</java.version>
         <fastjson.version>1.2.83</fastjson.version>
         <mysql.version>8.0.33</mysql.version>
         <!-- ：MyBatis-Plus 全套锁定 3.2.0 ★★★ -->
@@ -48,7 +48,27 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Spring Security（可选） -->
+
+
+
+<!--        MapStruct-->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>1.5.5.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <version>1.5.5.Final</version>
+            <scope>provided</scope>
+        </dependency>
+
+
+
+
+
+        <!-- Spring Security -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
@@ -226,8 +246,37 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>1.5.5.Final</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.30</version> <!-- 已在 parent 中定义 -->
+                        </path>
+                        <!-- 若同时使用 Lombok 和 MapStruct，还需额外组合处理器（可选） -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>0.2.0</version>
+                        </path>
+                    </annotationProcessorPaths>
+
+
                 </configuration>
             </plugin>
+
+
+
+
+
+
+
+
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

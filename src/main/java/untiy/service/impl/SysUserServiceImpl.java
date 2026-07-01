@@ -1,8 +1,15 @@
 package untiy.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import untiy.converter.SysUserConverter;
+import untiy.entity.dto.SysUserDTO;
 import untiy.exception.ErrorConfig;
 import untiy.exception.EIException;
 import untiy.entity.RegisterDTO;
@@ -11,6 +18,11 @@ import untiy.mapper.SysUserMapper;
 import untiy.service.SysUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
+import untiy.utils.MPUtil;
+import untiy.utils.R;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -22,10 +34,14 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
+
+    @Autowired
+    private SysUserConverter sysUserConverter;
     @Autowired
     PasswordEncoder passwordEncoder;
     @Autowired
     SysUserMapper sysUserMapper;
+
     @Transactional
     @Override
 //    注册逻辑
@@ -53,4 +69,47 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         user.setStatus(1);
         save(user);
     }
+
+    @Override
+    public IPage<SysUserDTO> pageQueryDTO(Map<String, Object> param, SysUser sysUser) {
+        // 1. 分页逻辑
+        Page<SysUser> page = MPUtil.getPage(param);
+
+        // 2. 条件构建
+        QueryWrapper<SysUser> wrapper = MPUtil.sort(
+                MPUtil.between(
+                        MPUtil.likeOrEq(new QueryWrapper<>(), sysUser),
+                        param
+                ),
+                param
+        );
+
+        // 3. 调 baseMapper.selectPage()
+        //
+        IPage<SysUser> entityPage = baseMapper.selectPage(page, wrapper);
+
+        // 4. 实体转 DTO（用你的 MapStruct）
+
+        return entityPage.convert(sysUserConverter::toDto);
+    }
+
+    @Override
+    public IPage<SysUser> pageQueryFront(Map<String, Object> param, SysUser sysUser) {
+
+        QueryWrapper<SysUser> queryWrapper = new QueryWrapper<>();
+        MPUtil.likeOrEq(queryWrapper, sysUser);
+        MPUtil.between(queryWrapper, param);
+        MPUtil.sort(queryWrapper, param);
+        Page<SysUser> page = MPUtil.getPage(param);
+        // 用 baseMapper.selectPage，不要调 this.page()
+        return baseMapper.selectPage(page, queryWrapper);
+    }
+
+    @Override
+    public List<SysUser> queryByCondition(SysUser sysUser) {
+        QueryWrapper<SysUser> queryWrapper = new QueryWrapper<>();
+        MPUtil.likeOrEq(queryWrapper, sysUser);
+        return baseMapper.selectList(queryWrapper);
+    }
+
 }

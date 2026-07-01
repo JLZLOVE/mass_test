@@ -1,4 +1,4 @@
-package untiy.model;
+package untiy.entity.dto;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
 
 /**
  * <p>
- * 用户角色关联表
+ * 角色表
  * </p>
  *
  * @author 玖
@@ -20,8 +20,8 @@ import lombok.experimental.Accessors;
 @Data
 @EqualsAndHashCode(callSuper = false)
 @Accessors(chain = true)
-@TableName("sys_user_role")
-public class SysUserRole implements Serializable {
+@TableName("sys_role")
+public class SysRoleDTO implements Serializable {
 
     private static final long serialVersionUID=1L;
 
@@ -29,24 +29,28 @@ public class SysUserRole implements Serializable {
     private Long id;
 
     /**
-     * 用户ID
+     * 角色名称
      */
-    private Long userId;
+    private String roleName;
 
     /**
-     * 角色ID
+     * 角色编码（如：CLUB_PRESIDENT）
      */
-    private Long roleId;
+    private String roleCode;
 
     /**
-     * 范围类型 1:学院 2:社团 3:部门 4:专业 5:班级
+     * 角色等级（数字越小权限越高）
      */
-    private Integer scopeType;
+    private Integer roleLevel;
 
     /**
-     * 具体范围ID
+     * 默认数据范围 1:全部 2:本学院 3:本社团 4:本部门 5:仅自己
      */
-    private Long scopeId;
+    private Integer dataScope;
+
+    private String description;
+
+    private Integer status;
 
     private LocalDateTime createTime;
 

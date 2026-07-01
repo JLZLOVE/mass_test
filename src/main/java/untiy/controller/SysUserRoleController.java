@@ -144,17 +144,7 @@ public class SysUserRoleController {
         return R.ok();
     }
 
-    /**
-     * 前端单个更新（公开） - 已注释，前端仅保留查询功能
-     */
-    /*
-    @IgnoreAuth
-    @PutMapping("/updateSysUserRole_F")
-    public R updateSysUserRole_F(@Valid @RequestBody SysUserRole sysUserRole) {
-            sysUserRoleService.updateById(sysUserRole);
-        return R.ok();
-    }
-    */
+
 
     /**
      * 后端批量删除

@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import untiy.annotation.RequiresLevel;
 import untiy.entity.ActivityApply;
 import untiy.service.ActivityApplyService;
 import untiy.utils.MPUtil;
@@ -67,6 +68,7 @@ public class ActivityApplyController {
     /**
      * 后端查询（需鉴权）
      */
+
     @Operation(summary = "后端鉴权查询活动申请", description = "支持分页、条件筛选、排序，仅管理员可用")
     @GetMapping("/listActivityApply_B")
     public R listActivityApply_B(@RequestParam Map<String, Object> param, ActivityApply activityApply) {
@@ -116,6 +118,7 @@ public class ActivityApplyController {
     /**
      * 后端增加
      */
+    @RequiresLevel(minLevel = 1)
     @Operation(summary = "新增活动申请（后端）", description = "管理员添加记录")
     @PostMapping("/add_B")
     public R add_B(@Valid @RequestBody ActivityApply activityApply) {

@@ -3,11 +3,11 @@ package untiy.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
+import org.springframework.stereotype.Service;
 import untiy.converter.SysUserConverter;
 import untiy.entity.dto.SysUserDTO;
 import untiy.exception.ErrorConfig;
@@ -15,36 +15,27 @@ import untiy.exception.EIException;
 import untiy.entity.RegisterDTO;
 import untiy.entity.SysUser;
 import untiy.mapper.SysUserMapper;
+import untiy.security.DataScopeHelper;
+import untiy.security.FieldMaskHelper;
+import untiy.security.LoginUserDetails;
 import untiy.service.SysUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import org.springframework.stereotype.Service;
 import untiy.utils.MPUtil;
-import untiy.utils.R;
 
 import java.util.List;
 import java.util.Map;
 
-/**
- * <p>
- * 用户基础表 服务实现类
- * </p>
- *
- * @author 玖
- * @since 2026-02-19
- */
 @Service
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
 
     @Autowired
     private SysUserConverter sysUserConverter;
+
     @Autowired
-    PasswordEncoder passwordEncoder;
-    @Autowired
-    SysUserMapper sysUserMapper;
+    private PasswordEncoder passwordEncoder;
 
     @Transactional
     @Override
-//    注册逻辑
     public void register(RegisterDTO registerDTO) {
         String username = registerDTO.getUsername();
         String realName = registerDTO.getRealName();
@@ -71,11 +62,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
-    public IPage<SysUserDTO> pageQueryDTO(Map<String, Object> param, SysUser sysUser) {
-        // 1. 分页逻辑
+    public IPage<SysUserDTO> pageQuery(Map<String, Object> param, SysUser sysUser) {
         Page<SysUser> page = MPUtil.getPage(param);
-
-        // 2. 条件构建
         QueryWrapper<SysUser> wrapper = MPUtil.sort(
                 MPUtil.between(
                         MPUtil.likeOrEq(new QueryWrapper<>(), sysUser),
@@ -83,33 +71,81 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 ),
                 param
         );
+        DataScopeHelper.applySysUserScope(wrapper);
 
-        // 3. 调 baseMapper.selectPage()
-        //
         IPage<SysUser> entityPage = baseMapper.selectPage(page, wrapper);
-
-        // 4. 实体转 DTO（用你的 MapStruct）
-
-        return entityPage.convert(sysUserConverter::toDto);
+        LoginUserDetails viewer = DataScopeHelper.currentUser();
+        return entityPage.convert(entity -> toMaskedDto(entity, viewer));
     }
 
     @Override
-    public IPage<SysUser> pageQueryFront(Map<String, Object> param, SysUser sysUser) {
-
-        QueryWrapper<SysUser> queryWrapper = new QueryWrapper<>();
-        MPUtil.likeOrEq(queryWrapper, sysUser);
-        MPUtil.between(queryWrapper, param);
-        MPUtil.sort(queryWrapper, param);
-        Page<SysUser> page = MPUtil.getPage(param);
-        // 用 baseMapper.selectPage，不要调 this.page()
-        return baseMapper.selectPage(page, queryWrapper);
+    public SysUserDTO getDetail(Long id) {
+        SysUser entity = findInScope(id);
+        if (entity == null) {
+            return null;
+        }
+        return toMaskedDto(entity, DataScopeHelper.currentUser());
     }
 
+    @Transactional
     @Override
-    public List<SysUser> queryByCondition(SysUser sysUser) {
-        QueryWrapper<SysUser> queryWrapper = new QueryWrapper<>();
-        MPUtil.likeOrEq(queryWrapper, sysUser);
-        return baseMapper.selectList(queryWrapper);
+    public void saveUser(SysUser sysUser) {
+        if (sysUser.getPassword() != null && !sysUser.getPassword().isEmpty()) {
+            sysUser.setPassword(passwordEncoder.encode(sysUser.getPassword()));
+        }
+        save(sysUser);
     }
 
+    @Transactional
+    @Override
+    public void updateUsers(List<SysUser> sysUsers) {
+        assertUsersInScope(sysUsers);
+        for (SysUser user : sysUsers) {
+            if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+                user.setPassword(passwordEncoder.encode(user.getPassword()));
+            }
+        }
+        updateBatchById(sysUsers);
+    }
+
+    @Transactional
+    @Override
+    public void deleteUsers(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        for (Long id : ids) {
+            if (findInScope(id) == null) {
+                throw new AccessDeniedException("无权删除用户：" + id);
+            }
+        }
+        removeByIds(ids);
+    }
+
+    private SysUser findInScope(Long id) {
+        QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
+        wrapper.eq("id", id);
+        DataScopeHelper.applySysUserScope(wrapper);
+        return baseMapper.selectOne(wrapper);
+    }
+
+    private void assertUsersInScope(List<SysUser> sysUsers) {
+        if (sysUsers == null) {
+            return;
+        }
+        for (SysUser user : sysUsers) {
+            if (user.getId() == null) {
+                continue;
+            }
+            if (findInScope(user.getId()) == null) {
+                throw new AccessDeniedException("无权修改用户：" + user.getId());
+            }
+        }
+    }
+
+    private SysUserDTO toMaskedDto(SysUser entity, LoginUserDetails viewer) {
+        SysUserDTO dto = sysUserConverter.toDto(entity);
+        FieldMaskHelper.maskSysUserDto(dto, viewer);
+        return dto;
+    }
 }

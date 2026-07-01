@@ -1,5 +1,6 @@
 package untiy.advice;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import untiy.exception.EIException;
@@ -7,6 +8,11 @@ import untiy.utils.R;
 
 @RestControllerAdvice  // 相当于@ControllerAdvice + @ResponseBody
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public R handleAccessDeniedException(AccessDeniedException e) {
+        return R.error(403, e.getMessage() != null ? e.getMessage() : "权限不足");
+    }
 
     // 处理自定义的业务异常
     @ExceptionHandler(EIException.class)

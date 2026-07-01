@@ -10,20 +10,24 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * <p>
- * 用户基础表 服务类
- * </p>
- *
- * @author 玖
- * @since 2026-02-19
+ * 用户业务服务：数据范围过滤与 DTO 脱敏均在此层完成。
  */
 public interface SysUserService extends IService<SysUser> {
 
     void register(RegisterDTO registerDTO);
 
-    IPage<SysUserDTO> pageQueryDTO(Map<String, Object> param, SysUser sysUser);
+    /** 分页查询（行级范围过滤 + DTO 脱敏） */
+    IPage<SysUserDTO> pageQuery(Map<String, Object> param, SysUser sysUser);
 
-    IPage<SysUser> pageQueryFront(Map<String, Object> param, SysUser sysUser);
+    /** 详情（行级范围校验 + DTO 脱敏） */
+    SysUserDTO getDetail(Long id);
 
-    List<SysUser> queryByCondition(SysUser sysUser);
+    /** 新增用户 */
+    void saveUser(SysUser sysUser);
+
+    /** 批量更新（校验数据范围） */
+    void updateUsers(List<SysUser> sysUsers);
+
+    /** 批量删除（校验数据范围） */
+    void deleteUsers(List<Long> ids);
 }

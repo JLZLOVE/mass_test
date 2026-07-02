@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import untiy.entity.view.SysUserView;
 
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * <p>
@@ -26,4 +27,8 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
 SysUserView selectByStatusId(@Param("nameId")String nameId);
 
     SysUser selectByUsername(@Param("username")String username);
+
+    int deleteByUsername(@Param("username") String username);
+
+    int deleteByUsernames(@Param("usernames") List<String> usernames);
 }

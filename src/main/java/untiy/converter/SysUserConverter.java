@@ -17,4 +17,7 @@ public interface SysUserConverter {
      * DTO → Entity（新增/更新时用）
      */
     SysUser toEntity(SysUserDTO dto);
+
+
+    SysUser selectByUsername(String name);
 }

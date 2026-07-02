@@ -12,6 +12,7 @@ import untiy.converter.SysUserConverter;
 import untiy.entity.dto.SysUserDTO;
 import untiy.exception.ErrorConfig;
 import untiy.exception.EIException;
+import untiy.exception.UserPermissionCode;
 import untiy.entity.RegisterDTO;
 import untiy.entity.SysUser;
 import untiy.mapper.SysUserMapper;
@@ -22,6 +23,7 @@ import untiy.service.SysUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import untiy.utils.MPUtil;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -34,6 +36,20 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+/*    @Override
+    public void enableOrDisable(String username, Integer status) {
+this.lambdaUpdate()
+//
+        .set(SysUser::getStatus,status)
+//        更新时间
+        .set(SysUser::getUpdateTime, LocalDate.now())
+        .set()
+        //更新的人员是?
+        .eq(SysUser::getUsername,username);
+//更新名字
+    }*/
+
+    //注册逻辑
     @Transactional
     @Override
     public void register(RegisterDTO registerDTO) {
@@ -46,7 +62,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (username != null && !username.isEmpty()) {
             SysUser existing = lambdaQuery().eq(SysUser::getUsername, username).one();
             if (existing != null) {
-                throw new EIException(ErrorConfig.RGEISTER_ADD_NEW_USER_CODE, "用户名已存在");
+                throw new EIException(ErrorConfig.RGEISTER_ADD_NEW_USER_CODE, ErrorConfig.Author_ID_MSG);
             }
         } else {
             username = realName;
@@ -61,6 +77,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         save(user);
     }
 
+    //分页查询
     @Override
     public IPage<SysUserDTO> pageQuery(Map<String, Object> param, SysUser sysUser) {
         Page<SysUser> page = MPUtil.getPage(param);
@@ -78,15 +95,17 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         return entityPage.convert(entity -> toMaskedDto(entity, viewer));
     }
 
+    //查询细节
     @Override
-    public SysUserDTO getDetail(Long id) {
-        SysUser entity = findInScope(id);
+    public SysUserDTO getDetail(String username) {
+        SysUser entity = sysUserConverter.selectByUsername(username);
         if (entity == null) {
             return null;
         }
         return toMaskedDto(entity, DataScopeHelper.currentUser());
     }
 
+    // 添加用户
     @Transactional
     @Override
     public void saveUser(SysUser sysUser) {
@@ -107,27 +126,75 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
         updateBatchById(sysUsers);
     }
-
-    @Transactional
-    @Override
-    public void deleteUsers(List<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return;
-        }
-        for (Long id : ids) {
-            if (findInScope(id) == null) {
-                throw new AccessDeniedException("无权删除用户：" + id);
-            }
-        }
-        removeByIds(ids);
-    }
-
-    private SysUser findInScope(Long id) {
+    private SysUser findInScope(String username) {
         QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
-        wrapper.eq("id", id);
+        wrapper.eq("username", username);
         DataScopeHelper.applySysUserScope(wrapper);
         return baseMapper.selectOne(wrapper);
     }
+    @Transactional
+    @Override
+    public void deleteUsers(List<String> names) {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        for (String name : names) {
+            if (findInScope(name) == null) {
+                throw new AccessDeniedException(ErrorConfig.NO_PERM_DELETE_USER_MSG + names);
+            }
+        }
+        baseMapper.deleteByUsernames(names);
+    }
+
+    @Transactional
+    @Override
+    public void deleteByUsername(String username) {
+        if (username == null || username.isEmpty()) {
+            return;
+        }
+        if (findInScope(username) == null) {
+            throw new AccessDeniedException(ErrorConfig.NO_PERM_DELETE_USER_MSG + username);
+        }
+        baseMapper.deleteByUsername(username);
+    }
+//更新自己
+    @Transactional
+    @Override
+    public void updateUser(SysUser sysUser) {
+        // 1. 获取当前登录用户
+        LoginUserDetails currentUser = DataScopeHelper.currentUser();
+        if (currentUser == null) {
+            throw new EIException(ErrorConfig.NOT_LOGGED_IN_CODE, ErrorConfig.NOT_LOGGED_IN_MSG);
+        }
+
+        // 2. 参数校验：必须有 username 才能定位目标
+        if (sysUser == null || sysUser.getUsername() == null || sysUser.getUsername().trim().isEmpty()) {
+            throw new EIException(UserPermissionCode.TARGET_NOT_FOUND_CODE, UserPermissionCode.TARGET_NOT_FOUND_MSG);
+        }
+
+        // 3. 安全防护：只能改自己
+        if (!currentUser.getUsername().equals(sysUser.getUsername())) {
+            throw new EIException(UserPermissionCode.PERMISSION_DENIED_CODE, UserPermissionCode.PERMISSION_DENIED_MSG);
+        }
+
+        // 4. 从数据库查出最新的完整实体（防止缓存/脏数据）
+        SysUser dbUser = lambdaQuery().eq(SysUser::getUsername, sysUser.getUsername()).one();
+        if (dbUser == null) {
+            throw new EIException(UserPermissionCode.TARGET_NOT_FOUND_CODE, UserPermissionCode.TARGET_NOT_FOUND_MSG);
+        }
+
+        // 5. 仅提取白名单字段，其他全部当空气
+        lambdaUpdate()
+                .eq(SysUser::getUsername, dbUser.getUsername())
+                .set(SysUser::getRealName, sysUser.getRealName())
+                .set(SysUser::getGender, sysUser.getGender())
+                .set(SysUser::getPhone, sysUser.getPhone())
+                .set(SysUser::getEmail, sysUser.getEmail())
+                .set(SysUser::getAvatar, sysUser.getAvatar())
+                .update();
+    }
+
+
 
     private void assertUsersInScope(List<SysUser> sysUsers) {
         if (sysUsers == null) {
@@ -137,8 +204,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             if (user.getId() == null) {
                 continue;
             }
-            if (findInScope(user.getId()) == null) {
-                throw new AccessDeniedException("无权修改用户：" + user.getId());
+            if (findInScope(user.getUsername()) == null) {
+                throw new AccessDeniedException(ErrorConfig.NO_PERM_DELETE_USER_MSG + user.getId());
             }
         }
     }

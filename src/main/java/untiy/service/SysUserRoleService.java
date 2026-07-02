@@ -13,4 +13,13 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface SysUserRoleService extends IService<SysUserRole> {
 
+    /**
+     * 分配用户角色
+     */
+    void assign(Long userId, Long roleId, Integer scopeType, Long scopeId);
+
+    /**
+     * 撤销用户角色
+     */
+    void revoke(Long id);
 }

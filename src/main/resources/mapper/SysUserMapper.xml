@@ -35,4 +35,17 @@
         from sys_user
         where username = #{username}
     </select>
+
+    <delete id="deleteByUsername">
+        delete from sys_user
+        where username = #{username}
+    </delete>
+
+    <delete id="deleteByUsernames">
+        delete from sys_user
+        where username in
+        <foreach collection="usernames" item="username" open="(" separator="," close=")">
+            #{username}
+        </foreach>
+    </delete>
 </mapper>

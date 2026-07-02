@@ -13,6 +13,8 @@ import untiy.service.SysUserRoleService;
 import untiy.utils.MPUtil;
 import untiy.utils.R;
 import untiy.annotation.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
+import untiy.annotation.RequiresLevel;
+import untiy.exception.Level;
 
 import javax.validation.Valid;
 import java.util.List;
@@ -122,17 +124,7 @@ public class SysUserRoleController {
         return R.ok("添加成功").put("data", sysUserRole);
     }
 
-    /**
-     * 前端增加（公开） - 已注释，前端仅保留查询功能
-     */
-    /*
-    @IgnoreAuth
-    @PostMapping("/add_F")
-    public R add_F(@Valid @RequestBody SysUserRole sysUserRole) {
-            sysUserRoleService.save(sysUserRole);
-        return R.ok("添加成功").put("data", sysUserRole);
-    }
-    */
+
 
     /**
      * 后端批量更新
@@ -156,14 +148,28 @@ public class SysUserRoleController {
         return R.ok();
     }
 
+
+
     /**
-     * 前端单个删除（公开） - 已注释，前端仅保留查询功能
+     * 分配用户角色
      */
-    /*
-    @DeleteMapping("/deleteSysUserRole_F/{id}")
-    public R deleteSysUserRole_F(@PathVariable Long id) {
-            sysUserRoleService.removeById(id);
-        return R.ok();
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "分配用户角色", description = "为指定用户分配角色，PRESIDENT仅限学生，ADMIN仅限老师")
+    @PostMapping("/assign")
+    public R assign(@RequestParam Long userId, @RequestParam Long roleId,
+                    @RequestParam Integer scopeType, @RequestParam Long scopeId) {
+        sysUserRoleService.assign(userId, roleId, scopeType, scopeId);
+        return R.ok("分配成功");
     }
-    */
+
+    /**
+     * 撤销用户角色
+     */
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "撤销用户角色", description = "根据ID删除用户角色关联记录")
+    @DeleteMapping("/revoke")
+    public R revoke(@RequestParam Long id) {
+        sysUserRoleService.revoke(id);
+        return R.ok("撤销成功");
+    }
 }

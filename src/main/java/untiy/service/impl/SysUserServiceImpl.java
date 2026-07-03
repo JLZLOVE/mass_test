@@ -3,6 +3,7 @@ package untiy.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,8 +28,11 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
+    @Autowired
+    private SysUserMapper sysUserMapper;
 
     @Autowired
     private SysUserConverter sysUserConverter;
@@ -98,10 +102,32 @@ this.lambdaUpdate()
     //查询细节
     @Override
     public SysUserDTO getDetail(String username) {
-        SysUser entity = sysUserConverter.selectByUsername(username);
-        if (entity == null) {
-            return null;
+        SysUser entity = sysUserMapper.selectByUsername(username);
+//        log.info("========== 打印 entity ==========");
+//        log.info("entity 本身: {}", entity);
+        if (entity != null) {
+           /* log.info("entity.getId() = {}", entity.getId());
+            log.info("entity.getUsername() = '{}'", entity.getUsername());  // 注意用引号包裹，以便看到空字符串
+            log.info("entity.getRealName() = {}", entity.getRealName());
+            log.info("entity.getPhone() = {}", entity.getPhone());
+*/
+
+        } else {
+//            log.info("entity 为 null !");
+            throw new EIException(ErrorConfig.USER_EMPTY_CODE,ErrorConfig.USER_EMPTY_MSG);
         }
+
+
+
+
+        if ( entity.getUsername() == null) {
+//            log.info("或 username 为 null，返回 null");
+            throw new EIException(ErrorConfig.USERNAME_BLANK_CODE,ErrorConfig.USERNAME_BLANK_MSG);
+        }
+
+//        log.info(" entity 正常，准备转换");
+        SysUserDTO dto = sysUserConverter.toDto(entity);
+//        log.info("转换后 dto = {}", dto);
         return toMaskedDto(entity, DataScopeHelper.currentUser());
     }
 
@@ -126,12 +152,14 @@ this.lambdaUpdate()
         }
         updateBatchById(sysUsers);
     }
+
     private SysUser findInScope(String username) {
         QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
         wrapper.eq("username", username);
         DataScopeHelper.applySysUserScope(wrapper);
         return baseMapper.selectOne(wrapper);
     }
+
     @Transactional
     @Override
     public void deleteUsers(List<String> names) {
@@ -157,7 +185,8 @@ this.lambdaUpdate()
         }
         baseMapper.deleteByUsername(username);
     }
-//更新自己
+
+    //更新自己
     @Transactional
     @Override
     public void updateUser(SysUser sysUser) {
@@ -193,7 +222,6 @@ this.lambdaUpdate()
                 .set(SysUser::getAvatar, sysUser.getAvatar())
                 .update();
     }
-
 
 
     private void assertUsersInScope(List<SysUser> sysUsers) {

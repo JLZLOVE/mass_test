@@ -182,7 +182,8 @@ public class JwtFilter extends OncePerRequestFilter {
 
             request.setAttribute(IgnoreAuthConstants.REQUEST_ATTR, Boolean.TRUE);
 
-            setPublicAuthentication();
+
+            setPublicAuthentication(); //放入一个已认证的 Authentication
 
             chain.doFilter(request, response);
 
@@ -194,16 +195,13 @@ public class JwtFilter extends OncePerRequestFilter {
 
         // 3. 需鉴权：校验 Token
 
-        String token = request.getHeader("Token");
+        String token = request.getHeader("Authorization");
 
-        if (token == null || token.trim().isEmpty()) {
-
-            log.warn("请求缺少 Token：{} {}", request.getMethod(), lookupPath);
-
-            sendUnauthorizedJson(response);
-
-            return;
-
+        if (token != null && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        } else {
+            // 可降级兼容旧版 Token 头
+            token = request.getHeader("Token");
         }
 
 

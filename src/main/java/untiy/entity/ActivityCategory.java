@@ -59,7 +59,7 @@ public class ActivityCategory implements Serializable {
     @NotNull(message = "状态不得为空")
     private Integer status;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+
     private LocalDateTime createTime;
 //    编码后缀类型
 

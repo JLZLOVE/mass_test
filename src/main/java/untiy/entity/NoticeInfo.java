@@ -115,10 +115,10 @@ public class NoticeInfo implements Serializable {
     @Max(value = 2, message = "状态只能为0、1、2")
     private Integer status;           // 有默认值0，不加 @NotNull
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+
     private LocalDateTime createTime; // 自动填充，无校验
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+
     private LocalDateTime updateTime; // 自动填充，无校验
 
 }

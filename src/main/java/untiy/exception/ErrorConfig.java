@@ -25,7 +25,13 @@ public class ErrorConfig {
     // 用户名已存在
     public static final Integer USERNAME_EXIST_CODE = 1006;
     public static final String USERNAME_EXIST_MSG = "用户名已存在";
+    // 用户实体为空
+    public static final Integer USER_EMPTY_CODE = 1007;
+    public static final String USER_EMPTY_MSG = "用户实体为空";
 
+    // 用户名为空
+    public static final Integer USERNAME_BLANK_CODE = 1008;
+    public static final String USERNAME_BLANK_MSG = "用户名为空";
 
     //非法字符
     public static final Integer ILLEGAL_Character_CODE = 2001;
@@ -35,7 +41,8 @@ public class ErrorConfig {
 //无权删除用户
 
     public static final Integer NO_PERM_DELETE_USER_CODE = 0002;
-    public static final String NO_PERM_DELETE_USER_MSG = "无权删除用户: ";
+    public static final String NO_PERM_DELETE_USER_MSG = "无权改变用户: ";
+
 
 
     /*

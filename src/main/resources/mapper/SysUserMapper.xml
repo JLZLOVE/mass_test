@@ -27,7 +27,7 @@
     </sql>
 
     <select id="selectByStatusId" resultType="untiy.entity.view.SysUserView">
-        select * from sys_user where username = #{nameId}
+        select * from sys_user where username = #{id}
     </select>
 
     <select id="selectByUsername" resultType="untiy.entity.SysUser">

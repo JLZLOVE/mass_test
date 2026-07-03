@@ -49,8 +49,7 @@ public class NoticeCategory implements Serializable {
 
     private Integer status;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    // 由SQL自动注入，无需校验注解
+
     private LocalDateTime createTime;
 
 }

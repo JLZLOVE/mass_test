@@ -74,7 +74,7 @@ public class SysDataPermission implements Serializable {
     @Max(value = 1, message = "状态只能为0或1")
     private Integer status;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+
     private LocalDateTime createTime;
 
 }

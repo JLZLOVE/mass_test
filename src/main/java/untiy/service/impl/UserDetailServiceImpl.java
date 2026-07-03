@@ -44,8 +44,8 @@ public class UserDetailServiceImpl implements UserDetailsService {
 
     @Autowired
     private AuthorService authorService;
-
-    @Transactional(readOnly = true)
+//只用工号查找
+/*    @Transactional(readOnly = true)
     public LoginUserDetails loadUserById(String id, String password) {
         log.info("进入 loadUserById，参数：{}", id);
         if (Objects.isNull(password) || Objects.isNull(id) || id.isEmpty() || password.isEmpty()) {
@@ -56,7 +56,7 @@ public class UserDetailServiceImpl implements UserDetailsService {
             throw new EIException(ErrorConfig.RGEISTER_STATUS_CODE, ErrorConfig.RGEISTER_STATUS_CODE_MSG);
         }
         return buildLoginUserDetails(sysUser);
-    }
+    }*/
 
     @Override
     @Transactional(readOnly = true)

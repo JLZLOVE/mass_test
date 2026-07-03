@@ -19,5 +19,5 @@ public interface SysUserConverter {
     SysUser toEntity(SysUserDTO dto);
 
 
-    SysUser selectByUsername(String name);
+//    SysUser selectByUsername(String name);
 }

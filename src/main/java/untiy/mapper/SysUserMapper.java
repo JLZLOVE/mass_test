@@ -24,9 +24,9 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
 //    boolean addNewUser(HashMap<String, Object> map);
 
 
-SysUserView selectByStatusId(@Param("nameId")String nameId);
+//    SysUserView selectByStatusId(@Param("nameId") String nameId);
 
-    SysUser selectByUsername(@Param("username")String username);
+    SysUser selectByUsername(@Param("username") String username);
 
     int deleteByUsername(@Param("username") String username);
 

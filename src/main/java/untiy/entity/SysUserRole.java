@@ -62,8 +62,8 @@ public class SysUserRole implements Serializable {
     @TableField("scope_id")
     private Long scopeId;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    @TableField("create_time")
+
+
     private LocalDateTime createTime; // 自动填充，无校验
 
 }

@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
-> 本文档基于 `.cursor/skills/项目.md` 分析框架自动生成，用于团队沟通与后续重构参考。  
-> 生成时间：2026-06-27  
+> 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
+> 更新时间：2026-07-03  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -36,7 +36,7 @@
 | 状态管理 | Pinia | — |
 | 路由 | Vue Router 5（Hash 模式） | — |
 | 图表 | ECharts | — |
-| 工具 | Lombok、Fastjson | 1.2.83 |
+| 工具 | Lombok、Fastjson、MapStruct | 1.2.83 |
 | Java 版本 | JDK | 1.8 |
 
 ### 1.3 关键配置（`application.yml`）
@@ -48,7 +48,7 @@
 | 数据库 URL | `jdbc:mysql://127.0.0.1:3306/mass_test1` |
 | 数据库用户 | `root` / `123456` |
 | Redis | `127.0.0.1:6379`，password `123456`，database `0` |
-| JWT 过期时间 | `360000` ms（6 分钟，可配置） |
+| **JWT 过期时间** | **`3600000` ms（1 小时）** ← 已由原 `360000` ms（6 分钟）延长 |
 | JWT Secret | `jwt.secret`（见配置文件，生产环境需更换） |
 | 文件上传限制 | 300MB |
 | MyBatis-Plus | `table-underline: true`，`column-underline: true` |
@@ -58,29 +58,19 @@
 
 ```
 Mass_Test/
-├── pom.xml                         # Maven 构建（后端）
-├── mvnw / mvnw.cmd                 # Maven Wrapper
-├── PROJECT_OVERVIEW.md             # 项目概览（根目录副本）
-├── img.png
-│
+├── pom.xml
+├── PROJECT_OVERVIEW.md             # 根目录副本
 ├── src/                            # 后端源码
-│   ├── main/java/untiy/            # Java 业务代码
-│   ├── main/resources/             # 配置、Mapper XML、代码生成模板
-│   ├── test/java/untiy/            # 单元测试
-│   └── api/spec/api-docs.json      # OpenAPI 规范
-│
 ├── club-admin-frontend/            # Vue 3 管理端
-│
 ├── mysql/                          # 数据库脚本
-│   ├── mass_test1.sql              # 全量建表 + 种子数据
-│   └── fix_bcrypt_passwords.sql    # BCrypt 密码迁移模板（可选）
-│
-└── .cursor/skills/                 # Cursor 技能与项目文档
+└── .cursor/skills/
     ├── PROJECT_OVERVIEW.md         # 本文档
+    ├── 更新信息.md                 # 文档更新扫描清单
     ├── 项目.md                     # 项目分析指令
     ├── login.md                    # JWT/登录规范
-    ├── skill.md                    # 前端开发规范
-    └── 接口文档.docx               # 接口 Word 文档
+    ├── jwt.md                      # JWT 安全重构说明
+    ├── 权限过滤.md                 # 五级可见范围与权限过滤方案
+    └── skill.md                    # 前端开发规范
 ```
 
 ---
@@ -92,109 +82,41 @@ Mass_Test/
 ### 2.1 表间关系
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    RBAC 权限体系                          │
-│  sys_user ←→ sys_user_role ←→ sys_role                  │
-│                    ↓                                      │
-│              sys_role_menu ←→ sys_menu                   │
-│              sys_data_permission                         │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│                    组织架构                              │
-│  sys_college → sys_major                                 │
-│  sys_club → sys_department                               │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│                    活动模块                              │
-│  activity_category → activity_apply → activity_approve_flow │
-│                              ↓                           │
-│                       activity_sign                      │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│                    通知模块                              │
-│  notice_category → notice_info → notice_read_record    │
-└─────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────┐
-│                    统计                                  │
-│  club_statistics（按 club_id + stat_date）               │
-└─────────────────────────────────────────────────────────┘
+RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sys_menu
+组织架构：sys_college → sys_major；sys_club → sys_department
+活动：activity_category → activity_apply → activity_approve_flow / activity_sign
+通知：notice_category → notice_info → notice_read_record
+统计：club_statistics（club_id + stat_date）
 ```
 
 ### 2.2 全表清单（18 张）
 
-| 表名 | 说明 | 主要关联 |
-|---|---|---|
-| `sys_user` | 用户基础表（username=学号/工号） | → sys_user_role |
-| `sys_role` | 角色表（role_code、role_level、data_scope） | → sys_user_role、sys_role_menu |
-| `sys_user_role` | 用户-角色关联（含 scope_type/scope_id 数据范围） | user_id, role_id |
-| `sys_menu` | 菜单（route_path、component_path、permission_code） | → sys_role_menu |
-| `sys_role_menu` | 角色-菜单关联 | role_id, menu_id |
-| `sys_data_permission` | 数据权限规则 | role_id |
-| `sys_college` | 学院 | → sys_major, sys_club |
-| `sys_department` | 社团部门 | club_id |
-| `sys_major` | 专业 | college_id |
-| `sys_club` | 社团 | college_id, advisor_id |
-| `activity_category` | 活动分类 | → activity_apply |
-| `activity_apply` | 活动申请（审批状态、预算等） | club_id, category_id |
-| `activity_approve_flow` | 审批流程步骤 | activity_id |
-| `activity_sign` | 活动签到（含 GPS point） | activity_id, user_id |
-| `notice_category` | 通知分类 | → notice_info |
-| `notice_info` | 通知内容（富文本、接收范围 JSON） | category_id |
-| `notice_read_record` | 阅读/确认记录 | notice_id, user_id |
-| `club_statistics` | 社团日统计 | club_id |
+| 表名 | 说明 |
+|---|---|
+| `sys_user` | 用户（username=学号/工号） |
+| `sys_role` | 角色（role_code、role_level、data_scope） |
+| `sys_user_role` | 用户-角色（scope_type/scope_id 数据范围） |
+| `sys_menu` / `sys_role_menu` | 菜单与角色菜单 |
+| `sys_data_permission` | 数据权限规则 |
+| `sys_college` / `sys_major` / `sys_club` / `sys_department` | 组织架构 |
+| `activity_*` | 活动分类、申请、审批、签到 |
+| `notice_*` | 通知分类、内容、阅读记录 |
+| `club_statistics` | 社团日统计 |
 
-### 2.3 核心表字段说明
+### 2.3 实体时间字段序列化
 
-#### `sys_user` — 用户基础表
+所有含 `createTime` / `updateTime`（及其他 `time` 类字段）的实体类已统一添加：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | bigint | 主键 |
-| `username` | varchar(50) | 登录账号（学号/工号），唯一 |
-| `password` | varchar(255) | 加密密码（BCrypt） |
-| `real_name` | varchar(50) | 真实姓名 |
-| `gender` | tinyint | 0未知 1男 2女 |
-| `user_type` | tinyint | 1学生 2老师 3管理员 |
-| `student_no` / `teacher_no` | varchar(50) | 学号/工号冗余 |
-| `status` | tinyint | 0禁用 1正常 |
-| `create_time` / `update_time` | datetime | 时间戳 |
+```java
+@JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+```
 
-#### `sys_user_role` — 用户角色关联
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `user_id` | bigint | 用户 ID |
-| `role_id` | bigint | 角色 ID |
-| `scope_type` | tinyint | 范围类型：1学院 2社团 3部门 4专业 5班级 |
-| `scope_id` | bigint | 具体范围 ID |
-
-#### `activity_apply` — 活动申请
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `activity_no` | varchar(50) | 活动编号，唯一 |
-| `club_id` | bigint | 主办社团 |
-| `approve_status` | tinyint | 1草稿 2待审批 3审批中 4已通过 5已驳回 6已取消 |
-| `current_approve_step` | int | 当前审批步骤 |
-| `budget` | decimal(10,2) | 预算金额 |
-
-#### `notice_info` — 通知信息
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `receiver_type` | tinyint | 1全体学生 2全体老师 3指定角色 4指定社团 5指定人员 |
-| `receiver_values` | json | 接收者值（角色/社团/用户 ID 列表） |
-| `need_confirm` | tinyint | 是否需要确认阅读 |
-| `status` | tinyint | 0草稿 1已发布 2已撤回 |
+涉及实体（代码已修改，本文档仅记录）：`SysUser`、`SysRole`、`SysUserRole`、`SysClub`、`SysCollege`、`SysDepartment`、`SysMajor`、`SysMenu`、`SysRoleMenu`、`SysDataPermission`、`ActivityApply`、`ActivityApproveFlow`、`ActivityCategory`、`ActivitySign`、`NoticeCategory`、`NoticeInfo`、`NoticeReadRecord`、`ClubStatistics` 等。
 
 ### 2.4 种子数据说明
 
-- SQL 种子文件中部分 `password` 为**明文**（如 `123456`），应用使用 `BCryptPasswordEncoder` 校验。
-- 导入后建议通过 `POST /register/single` 注册新用户，或执行 `mysql/fix_bcrypt_passwords.sql`（需填入 BCrypt 哈希）。
+- SQL 种子部分 `password` 为明文，应用使用 `BCryptPasswordEncoder` 校验。
+- 建议通过 `POST /register/single` 注册，或执行 `mysql/fix_bcrypt_passwords.sql`。
 
 ---
 
@@ -204,335 +126,343 @@ Mass_Test/
 
 ```
 untiy/
-├── MassTestApplication.java        # @SpringBootApplication 入口
-│
 ├── controller/          (21)       # REST 接口层
-├── service/             (18)       # 业务接口定义
-├── service/impl/        (20)       # 业务实现（含 UserDetailServiceImpl）
+├── service/ + impl/                # 业务逻辑
 ├── mapper/              (19)       # MyBatis-Plus 数据访问
-│
-├── entity/              (19+)      # 实体、DTO、View、VO
-│   ├── view/                       # 查询视图对象
-│   └── vo/                         # 前端展示对象
-├── model/               (18)       # MyBatis-Plus @TableName 模型
-│
-├── config/              (5)        # Spring / JWT / Redis / CORS / OpenAPI
-├── security/            (1)        # SecurityConfig
+├── entity/                         # 实体、DTO、VO
+├── annotation/          (6)        # 自定义注解 + LevelAspect
+├── config/              (9)        # Spring / JWT / Redis / CORS 等
+├── security/            (6)        # SecurityConfig + 权限工具
 ├── filter/              (2)        # JwtFilter、IgnorePathsProperties
-├── advice/              (1)        # GlobalExceptionHandler
-├── exception/           (3)        # EIException、ErrorConfig
-├── annotion/            (3)        # @IgnoreAuth 等自定义注解
-└── utils/               (14)       # R、JwtUtil、MPUtil、分页等工具
+├── converter/           (1)        # MapStruct 转换器
+├── advice/                         # GlobalExceptionHandler
+├── exception/                      # EIException、ErrorConfig、Level 常量
+└── utils/                          # R、JwtUtil、MPUtil 等
 ```
 
-### 3.2 分层职责
+### 3.2 权限三层分离（当前架构）
 
-| 包 | 职责 |
-|---|---|
-| `controller` | 接收 HTTP 请求，参数绑定，调用 Service，返回 `R` |
-| `service` / `service.impl` | 业务逻辑、事务、权限组装 |
-| `mapper` | 数据库 CRUD，自定义 SQL |
-| `entity` | 与数据库表映射的 Java 对象、DTO |
-| `model` | MyBatis-Plus 代码生成模型 |
-| `filter` | JWT 认证过滤器 |
-| `config` | Spring 配置类 |
-| `utils` | 公共工具（响应封装、JWT、分页、SQL 过滤等） |
-
-### 3.3 核心类说明
-
-| 类 | 路径 | 职责 |
+| 层级 | 职责 | 实现位置 |
 |---|---|---|
-| `R` | `utils/R.java` | 统一响应 `{ code, msg, data }` |
-| `GlobalExceptionHandler` | `advice/GlobalExceptionHandler.java` | 全局异常 → `R.error()` |
-| `JwtUtil` | `utils/JwtUtil.java` | JWT 签发 / 校验 / 解析 username |
-| `JwtFilter` | `filter/JwtFilter.java` | Token 拦截、Redis 权限、SecurityContext |
-| `SecurityConfig` | `security/SecurityConfig.java` | 无状态 Security、白名单、过滤器链 |
-| `UserDetailServiceImpl` | `service/impl/UserDetailServiceImpl.java` | Spring Security 用户加载 |
-| `LoginController` | `controller/LoginController.java` | 登录、Token 签发、Redis 权限缓存 |
-| `MPUtil` | `utils/MPUtil.java` | 分页、动态条件、驼峰→下划线列名 |
-| `IgnorePathsProperties` | `filter/IgnorePathsProperties.java` | `security.ignore.urls` 白名单 |
+| **准入鉴权** | 控制哪些等级可调用接口 | `@RequiresLevel` + `LevelAspect` |
+| **数据行过滤** | 按等级拼接查询条件 | `DataScopeHelper`（Service 层调用） |
+| **字段脱敏** | 低权限隐藏敏感 DTO 字段 | `FieldMaskHelper`（Service 层调用） |
 
-### 3.4 Mapper 与 XML 对应
+> 设计原则：同一业务仅保留单一 Controller 接口；`@RequiresLevel` 不做数据/字段差异化。  
+> **已完成重构**：`SysUserController`  
+> **待重构**：其余 Controller 仍保留 `_F` / `_B` 双接口模式。
 
-| Mapper | 表 | XML |
+### 3.3 权限等级常量（`untiy.exception.Level`）
+
+| 常量 | 值 | 含义 |
 |---|---|---|
-| `SysUserMapper` | sys_user | SysUserMapper.xml（含 selectByUsername） |
-| `SysUserRoleMapper` | sys_user_role | SysUserRoleMapper.xml |
-| `SysRoleMapper` | sys_role | SysRoleMapper.xml |
-| `SysRoleMenuMapper` | sys_role_menu | SysRoleMenuMapper.xml |
-| `SysMenuMapper` | sys_menu | SysMenuMapper.xml |
-| `SysDataPermissionMapper` | sys_data_permission | SysDataPermissionMapper.xml |
-| `SysCollegeMapper` | sys_college | SysCollegeMapper.xml |
-| `SysDepartmentMapper` | sys_department | SysDepartmentMapper.xml |
-| `SysMajorMapper` | sys_major | SysMajorMapper.xml |
-| `SysClubMapper` | sys_club | SysClubMapper.xml |
-| `ActivityCategoryMapper` | activity_category | ActivityCategoryMapper.xml |
-| `ActivityApplyMapper` | activity_apply | ActivityApplyMapper.xml |
-| `ActivityApproveFlowMapper` | activity_approve_flow | ActivityApproveFlowMapper.xml |
-| `ActivitySignMapper` | activity_sign | ActivitySignMapper.xml |
-| `NoticeCategoryMapper` | notice_category | NoticeCategoryMapper.xml |
-| `NoticeInfoMapper` | notice_info | NoticeInfoMapper.xml |
-| `NoticeReadRecordMapper` | notice_read_record | NoticeReadRecordMapper.xml |
-| `ClubStatisticsMapper` | club_statistics | ClubStatisticsMapper.xml |
-| `CommonMapper` | 通用 | CommonMapper.xml |
+| `SUPER_ADMIN` | 0 | 超级管理员，可见全部 |
+| `ADMIN` | 1 | 管理员/导员，可见全部学生 |
+| `CLUB_LEADER` | 2 | 社长，可见本社团 |
+| `DEPT_LEADER` | 3 | 部长，可见本部门 |
+| `STUDENT` | 4 | 普通学生，仅可见自己 |
 
-### 3.5 前端结构（`club-admin-frontend/src`）
-
-```
-src/
-├── main.ts                 # 入口：Pinia、Router、Element Plus
-├── App.vue
-│
-├── api/                    # 22 个 API 模块（与后端 Controller 对应）
-│   ├── index.ts            # 统一导出
-│   ├── crudFactory.ts      # 通用 CRUD 工厂
-│   ├── login.ts            # 登录/注册
-│   └── (各业务 api/*.ts)
-│
-├── views/                  # 页面视图
-│   ├── login/index.vue     # 登录/注册
-│   ├── dashboard/index.vue # 首页仪表盘
-│   ├── member/index.vue    # 成员管理
-│   ├── club/list.vue       # 社团列表
-│   ├── activity/           # 活动申请、审批、签到
-│   ├── notice/index.vue    # 通知管理
-│   └── statistics/index.vue# 统计图表（ECharts）
-│
-├── router/
-│   ├── index.ts            # 静态路由 + 登录守卫
-│   └── dynamic.ts          # 后端菜单驱动的动态路由
-│
-├── stores/
-│   ├── user.ts             # token、username、角色、clubScope
-│   └── menu.ts             # 菜单树 → 动态路由
-│
-├── layouts/MainLayout.vue  # 侧边栏 + 顶栏 + router-view
-├── components/SidebarMenu.vue
-│
-├── utils/
-│   ├── request.ts          # Axios（baseURL=/Mass_Test，Token 注入）
-│   ├── permission.ts       # 权限指令、预算可见性
-│   └── format.ts           # 树形数据格式化
-│
-└── types/
-    ├── api.ts              # R 响应类型
-    └── generated.ts        # OpenAPI 生成的实体类型
-```
-
-**前端开发服务器：** 端口 `5173`，代理 `/Mass_Test` → `http://localhost:100`
+`effectiveLevel` 由 `UserScopeResolver` 根据 `sys_role.role_code` 解析（取所有角色中最高权限，即数值最小）。
 
 ---
 
-## 4. 接口清单
+## 4. 自定义注解（`annotation` 包）
 
-> 完整路径前缀：`/Mass_Test`  
-> 统一响应格式：`R { code: 0, msg?, data?, token?, username?, ... }`  
-> 认证 Header：`Token: <jwt>`（前端同时设置 `Authorization: Bearer <jwt>`）
-
-### 4.1 认证模块
-
-| 接口路径 | 方法 | 描述 | 权限 | 请求参数 | 响应 |
-|---|---|---|---|---|---|
-| `/login/allocation` | POST | 用户登录 | 公开 | `name`, `password`（RequestParam） | `{ code:0, token, username }` |
-| `/register/single` | POST | 用户注册 | 公开（@IgnoreAuth） | `RegisterDTO`（RequestBody） | `{ code:0, msg:"注册成功" }` |
-
-### 4.2 通用 CRUD 模式
-
-各业务 Controller 均遵循以下接口约定（以 `SysUser` 为例，其他模块将 `SysUser` 替换为对应实体名）：
-
-| 接口路径 | 方法 | 描述 | 权限 | 说明 |
-|---|---|---|---|---|
-| `/sys-user/listSysUser` | GET | 全量列表 | 需认证 | 无分页 |
-| `/sys-user/listSysUser_F` | GET | 前端分页查询 | 公开（@IgnoreAuth） | param + 实体字段，支持 page/limit/sidx/order |
-| `/sys-user/listSysUser_B` | GET | 后端分页查询 | 需认证 | 同上 |
-| `/sys-user/query` | GET | 条件查询 | 需认证 | 实体字段模糊/精确匹配 |
-| `/sys-user/detailSysUser_F/{id}` | GET | 前端详情 | 公开（@IgnoreAuth） | PathVariable id |
-| `/sys-user/detailSysUser_B/{id}` | GET | 后端详情 | 需认证 | PathVariable id |
-| `/sys-user/add_F` | POST | 前端新增 | 公开（@IgnoreAuth） | RequestBody 实体 |
-| `/sys-user/add_B` | POST | 后端新增 | 需认证 | RequestBody 实体 |
-| `/sys-user/updateSysUser_F` | PUT | 前端更新 | 公开（@IgnoreAuth） | RequestBody 实体 |
-| `/sys-user/updateSysUser_B` | PUT | 后端批量更新 | 需认证 | RequestBody List |
-| `/sys-user/deleteSysUser_F/{id}` | DELETE | 前端删除 | 公开（@IgnoreAuth） | PathVariable id |
-| `/sys-user/deleteSysUser_B` | DELETE | 后端批量删除 | 需认证 | RequestBody List\<Long\> ids |
-
-### 4.3 Controller 模块与根路径
-
-| Controller | 根路径 | 实体 |
-|---|---|---|
-| `SysUserController` | `/sys-user` | SysUser |
-| `SysUserRoleController` | `/sys-user-role` | SysUserRole |
-| `SysRoleController` | `/sys-role` | SysRole |
-| `SysRoleMenuController` | `/sys-role-menu` | SysRoleMenu |
-| `SysMenuController` | `/sys-menu` | SysMenu |
-| `SysDataPermissionController` | `/sys-data-permission` | SysDataPermission |
-| `SysCollegeController` | `/sys-college` | SysCollege |
-| `SysDepartmentController` | `/sys-department` | SysDepartment |
-| `SysMajorController` | `/sys-major` | SysMajor |
-| `SysClubController` | `/sys-club` | SysClub |
-| `ActivityCategoryController` | `/activity-category` | ActivityCategory |
-| `ActivityApplyController` | `/activity-apply` | ActivityApply |
-| `ActivityApproveFlowController` | `/activity-approve-flow` | ActivityApproveFlow |
-| `ActivitySignController` | `/activity-sign` | ActivitySign |
-| `NoticeCategoryController` | `/notice-category` | NoticeCategory |
-| `NoticeInfoController` | `/notice-info` | NoticeInfo |
-| `NoticeReadRecordController` | `/notice-read-record` | NoticeReadRecord |
-| `ClubStatisticsController` | `/club-statistics` | ClubStatistics |
-
-> 注：`@IgnoreAuth` 标注的方法在 JwtFilter 白名单之外仍可访问，但标注了该注解的 `_F` 系列接口通常对前端开放。实际鉴权以 `SecurityConfig` + `JwtFilter` 为准。
+| 注解 / 类 | 作用域 | 属性 | 用途 |
+|---|---|---|---|
+| `@IgnoreAuth` | METHOD, TYPE | 无 | 标记接口免 Token；由 `IgnoreAuthRegistry` 启动扫描，`JwtFilter` 路径匹配放行 |
+| `@RequiresLevel` | METHOD, TYPE | `minLevel`（默认 0） | **仅做接口准入**：`effectiveLevel ≤ minLevel` 才允许访问 |
+| `@StartBeforeEnd` | TYPE | `startField`、`endField`、`message` | JSR-303 校验：开始时间必须早于结束时间 |
+| `StartBeforeEndValidator` | — | — | `@StartBeforeEnd` 校验器实现 |
+| `LevelAspect` | — | — | AOP 环绕 `@RequiresLevel`，反射读取方法/类级注解，不介入数据过滤 |
+| `IgnoreAuthConstants` | — | `REQUEST_ATTR = "IGNORE_AUTH"` | Filter 写入免鉴权请求标记 |
 
 ---
 
-## 5. 安全链路
+## 5. 配置类（`config` 包）
 
-### 5.1 JWT 认证流程
-
-```
-1. 客户端 POST /login/allocation?name={username}&password={password}
-2. LoginController → AuthenticationManager.authenticate()
-3. UserDetailServiceImpl.loadUserByUsername(username) 从 DB 加载用户
-4. 密码 BCrypt 校验通过后，JwtUtil.generateToken(username) 签发 JWT
-   - subject = username（学号/工号，禁止存数据库主键 ID）
-5. Redis 写入：Key = user:{username}，Value = Collection<GrantedAuthority>，TTL = 1h
-6. 返回 { code:0, token, username }
-```
-
-### 5.2 请求授权流程
-
-```
-1. 请求进入 JwtFilter
-2. 检查 request.getServletPath() 是否匹配 security.ignore.urls 白名单 → 放行
-3. 从 Header「Token」提取 JWT
-4. JwtUtil.validateToken() 校验签名与有效期 → 失败返回 401
-5. JwtUtil.getUsernameFromToken() 解析 username
-6. Redis GET user:{username} 读取权限集合
-   - 未命中 → loadUserByUsername(username) 回源 DB 并补写缓存
-7. 构建 UsernamePasswordAuthenticationToken(username, null, authorities)
-8. SecurityContextHolder.setAuthentication() → chain.doFilter() 放行
-```
-
-### 5.3 权限与数据范围
-
-| 机制 | 实现 |
+| 类 | 关键配置 |
 |---|---|
-| 角色权限 | `sys_user_role` → `sys_role.role_code` → `GrantedAuthority("ROLE_xxx")` |
-| 菜单权限 | `sys_role_menu` → `sys_menu`（route_path、component_path） |
-| 数据范围 | `sys_user_role.scope_type` + `scope_id`（学院/社团/部门等） |
-| 数据权限规则 | `sys_data_permission`（表名、字段、条件类型） |
-| 动态查询 | `MPUtil.likeOrEq` / `between` / `sort` + MyBatis-Plus `QueryWrapper` |
+| `JwtConfig` | `@ConfigurationProperties(prefix="jwt")`：`secret`、`expiration`（毫秒） |
+| `SecurityConfig` | 见 §7.1 |
+| `RedisConfig` | `RedisTemplate<String,Object>`，Jackson2Json 序列化 |
+| `MybatisPlusConfig` | `PaginationInterceptor` 分页插件 |
+| `CorsConfig` | 跨域配置 |
+| `OpenApiConfig` | Knife4j / springdoc OpenAPI |
+| `ConverterConfig` | MapStruct 组件扫描 |
+| `WebMvcConfig` | 注册 `IgnoreAuthInterceptor` |
+| `IgnoreAuthRegistry` | 启动扫描 `@IgnoreAuth`，注册 HTTP 方法 + Ant 路径 |
+| `IgnoreAuthInterceptor` | DispatcherServlet 阶段设置 `IGNORE_AUTH` 请求属性 |
 
-### 5.4 白名单路径（`security.ignore.urls`）
+---
+
+## 6. 过滤器（`filter` 包）
+
+| 类 | 执行顺序 | 职责 |
+|---|---|---|
+| `JwtFilter` | `SecurityConfig` 中置于 `UsernamePasswordAuthenticationFilter` **之前** | 静态白名单 → `@IgnoreAuth` 匹配 → Token 校验 → Redis/`loadUserByUsername` 加载 `LoginUserDetails` → 写入 SecurityContext |
+| `IgnorePathsProperties` | — | 绑定 `security.ignore.urls`（Swagger/静态资源，不含业务路径） |
+
+**JwtFilter 流程摘要：**
+
+1. `IgnorePathsProperties` 白名单 → 直接放行  
+2. `IgnoreAuthRegistry.matches(request)` → 设置 `IGNORE_AUTH`，注入占位 Authentication  
+3. 读取 Header `Token` → `JwtUtil.validateToken()`  
+4. Redis Key `user:{username}`：优先读 `LoginUserDetails.CacheSnapshot`；旧版 `Collection` 缓存则回源 DB 并升级  
+5. `SecurityContext` principal = `LoginUserDetails`
+
+---
+
+## 7. 安全模块（`security` 包）
+
+| 类 | 职责 |
+|---|---|
+| `SecurityConfig` | 无状态 Session；仅 Swagger/静态 `permitAll()`；`AuthenticationEntryPoint` 返回 401 JSON；注册 `JwtFilter` |
+| `LoginUserDetails` | 继承 `LoginServiceImpl`；组合 `SysUser` + `effectiveLevel` + `primaryClubId` + `primaryDepartmentId`；含 Redis 可序列化 `CacheSnapshot` |
+| `UserScopeResolver` | 从角色列表解析 effectiveLevel、主社团/部门 scope_id |
+| `DataScopeHelper` | Service 层行级过滤：`applySysUserScope(QueryWrapper)`、`currentUser()` |
+| `FieldMaskHelper` | Service 层 DTO 脱敏：`maskSysUserDto(dto, viewer)` |
+| `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、等级比较、同社团 scope 等） |
+
+### 7.1 JWT 认证与 Redis 缓存
+
+```
+登录：POST /login/allocation → AuthenticationManager → UserDetailServiceImpl
+     → JwtUtil.generateToken(username) → Redis 写入 user:{username}
+请求：JwtFilter → 校验 Token → 加载 LoginUserDetails → SecurityContext
+```
+
+| Redis 项 | 规范 |
+|---|---|
+| Key | `user:{username}` |
+| Value（新） | `LoginUserDetails.CacheSnapshot`（Jackson 序列化） |
+| Value（旧，兼容） | `Collection<GrantedAuthority>`，命中后回源并升级 |
+| TTL | 1 小时（Filter / LoginController 常量 `CACHE_TTL_HOURS = 1`） |
+| JWT 过期 | `jwt.expiration = 3600000`（1 小时，与 Redis TTL 对齐） |
+
+### 7.2 五级数据可见范围（Service 层）
+
+| effectiveLevel | 身份 | `applySysUserScope` 行为 |
+|---|---|---|
+| 0 | 超管 | 无额外条件 |
+| 1 | 导员/管理员 | `user_type = 1`（仅学生） |
+| 2 | 社长 | `id IN (sys_user_role WHERE scope_type=2 AND scope_id=clubId)` |
+| 3 | 部长 | `id IN (sys_user_role WHERE scope_type=3 AND scope_id=deptId)` |
+| 4 | 普通学生 | `id = 当前用户 ID` |
+
+### 7.3 白名单（`security.ignore.urls`）
 
 ```
 /v2/api-docs/**, /v3/api-docs/**, /swagger-resources/**, /swagger-ui/**,
-/doc.html, /webjars/**, /favicon.ico, /js/**, /css/**, /img/**,
-/allocation/**, /login/**, /register/**
+/doc.html, /webjars/**, /favicon.ico, /js/**, /css/**, /img/**
 ```
 
-### 5.5 Redis 缓存规范
+> 业务接口（含 `/login/**`、`/register/**`）**不在** YAML 白名单，统一由 `@IgnoreAuth` + `JwtFilter` 控制。
 
-| 项 | 规范 |
+---
+
+## 8. 转换器（`converter` 包）
+
+| 类 | 映射 |
 |---|---|
-| Key 格式 | `user:{username}`（如 `user:admin`） |
-| Value 类型 | `Collection<GrantedAuthority>` |
-| 过期时间 | 1 小时 |
-| 禁止 | 混用 `user:details:{id}` 等旧格式 Key |
+| `SysUserConverter`（MapStruct） | `SysUser` ↔ `SysUserDTO`；Entity→DTO 时 `idCard` 等敏感字段由 MapStruct 忽略，最终脱敏由 `FieldMaskHelper` 完成 |
 
 ---
 
-## 6. 关键业务流程
+## 9. 核心 Service
 
-### 6.1 活动申请 → 审批 → 签到
+### 9.1 `UserDetailServiceImpl`
 
-```
-activity_category（选择分类）
-    → activity_apply（填写活动信息，approve_status 状态流转）
-        → activity_approve_flow（多步骤审批：approve_role_id / approve_user_id）
-            → activity_sign（参与签到：GPS 定位 / 手动 / 补签）
-```
+| 项 | 说明 |
+|---|---|
+| 实现 | `UserDetailsService` |
+| 入口 | `loadUserByUsername(String username)` |
+| 依赖 | `SysUserMapper`、`SysUserRoleMapper`、`SysRoleMapper`、`AuthorService` |
+| 加载流程 | 查 `sys_user` → 查 `sys_user_role` → 查有效 `sys_role` → `UserScopeResolver` 解析等级与 scope → 返回 `LoginUserDetails` |
+| 特点 | **一次性加载**用户、角色、等级、社团/部门范围，避免 Filter 内二次查等级 |
 
-**活动审批状态：** 1草稿 → 2待审批 → 3审批中 → 4已通过 / 5已驳回 / 6已取消
+### 9.2 `SysUserServiceImpl`
 
-### 6.2 通知发布 → 阅读确认
-
-```
-notice_category
-    → notice_info（设置 receiver_type + receiver_values 指定接收范围）
-        → notice_read_record（记录 read_time、is_confirmed）
-```
-
-### 6.3 用户登录 → 动态菜单
-
-```
-前端 login → 获取 token
-    → sysUserApi.query 加载用户信息
-    → sysUserRoleApi.query 加载角色
-    → menu store 从 sysMenu 构建路由树
-    → dynamic.ts router.addRoute() 注册业务页面
-```
+| 方法 | 行级过滤 | 字段脱敏 | 说明 |
+|---|---|---|---|
+| `pageQuery` | ✅ `DataScopeHelper` | ✅ `FieldMaskHelper` | 分页 + 条件 + 排序 |
+| `getDetail(username)` | 按 username 查实体 | ✅ | 用户不存在/用户名为空抛 `EIException` |
+| `saveUser` | — | — | BCrypt 加密密码 |
+| `updateUsers` | ✅ 批量前 `findInScope` | — | 管理员批量更新 |
+| `updateUser` | — | — | 学生仅可改自己；白名单字段（realName/gender/phone/email/avatar） |
+| `deleteByUsername` / `deleteUsers` | ✅ | — | 按 username 删除，越权抛 `AccessDeniedException` |
+| `register` | — | — | 注册逻辑（`RegisterController` 调用） |
 
 ---
 
-## 7. 模块依赖总览
+## 10. 接口清单（重点 Controller）
+
+> 完整路径前缀：`/Mass_Test`  
+> 统一响应：`R { code, msg, data? }`  
+> 认证 Header：`Token: <jwt>`
+
+### 10.1 认证模块
+
+| 路径 | 方法 | 权限 | 说明 |
+|---|---|---|---|
+| `/login/allocation` | POST | `@IgnoreAuth` | `name` + `password` → `{ token, username }` |
+| `/register/single` | POST | `@IgnoreAuth` | `RegisterDTO` 注册 |
+
+### 10.2 `SysUserController`（已统一单接口）
+
+根路径：`/sys-user`
+
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
+|---|---|---|---|
+| `/listSysUser` | GET | `minLevel = STUDENT (4)` | 分页查询；Service 自动行过滤 + DTO 脱敏 |
+| `/detailSysUser/{username}` | GET | `STUDENT (4)` | 按 username 查详情 |
+| `/addSysUser` | POST | `ADMIN (1)` | 新增用户 |
+| `/updateSysUser` | PUT | `STUDENT (4)` | 更新**自己**的信息（白名单字段） |
+| `/updateSysUserBatc` | PUT | `ADMIN (1)` | 批量更新（注意：路径名为 Batc，非 Batch） |
+| `/deleteSysUser/{username}` | DELETE | `ADMIN (1)` | 单个删除 |
+| `/deleteSysUser` | DELETE | `ADMIN (1)` | 批量删除，Body: `List<String>` usernames |
+
+**已移除的旧接口：** `listSysUser_F/B`、`detailSysUser_F/B`、`add_B`、`updateSysUser_B`、`deleteSysUser_B`、`query`（公开）
+
+### 10.3 `SysUserRoleController`（仍为多接口，待重构）
+
+根路径：`/sys-user-role`
+
+| 路径 | 方法 | 权限注解 | 说明 |
+|---|---|---|---|
+| `/listSysUserRole` | GET | 需登录 | 全量列表 |
+| `/listSysUserRole_F` | GET | `@IgnoreAuth` | 前端分页（公开） |
+| `/listSysUserRole_B` | GET | 需登录 | 后端分页 |
+| `/query` | GET | 需登录 | 条件查询 |
+| `/detailSysUserRole_F/{id}` | GET | `@IgnoreAuth` | 公开详情 |
+| `/detailSysUserRole_B/{id}` | GET | 需登录 | 后端详情 |
+| `/add_B` | POST | 需登录 | 新增 |
+| `/updateSysUserRole_B` | PUT | 需登录 | 批量更新 |
+| `/deleteSysUserRole_B` | DELETE | 需登录 | 批量删除 |
+| **`/assign`** | POST | **`@RequiresLevel(ADMIN)`** | 分配角色：`userId, roleId, scopeType, scopeId` |
+| **`/revoke`** | DELETE | **`@RequiresLevel(ADMIN)`** | 撤销角色：`id` |
+
+### 10.4 `SysRoleController`（仍为多接口，待重构）
+
+根路径：`/sys-role`
+
+| 路径 | 方法 | 权限 | 说明 |
+|---|---|---|---|
+| `/listSysRole` | GET | 需登录 | 全量列表 |
+| `/listSysRole_F` | GET | `@IgnoreAuth` | 前端分页 |
+| `/listSysRole_B` | GET | 需登录 | 后端分页 |
+| `/query` | GET | 需登录 | 条件查询 |
+| `/detailSysRole_F/{id}` | GET | `@IgnoreAuth` | 公开详情 |
+| `/detailSysRole_B/{id}` | GET | 需登录 | 后端详情 |
+| `/add_B` | POST | 需登录 | 新增 |
+| `/updateSysRole_B` | PUT | 需登录 | 批量更新 |
+| `/deleteSysRole_B` | DELETE | 需登录 | 批量删除 |
+
+> 无 `@RequiresLevel` 注解；后续重构可参考 `SysUserController` 合并 `_F/_B` 并下沉 Service。
+
+### 10.5 其他 Controller 根路径
+
+| Controller | 根路径 |
+|---|---|
+| `SysRoleMenuController` | `/sys-role-menu` |
+| `SysMenuController` | `/sys-menu` |
+| `SysDataPermissionController` | `/sys-data-permission` |
+| `SysCollegeController` | `/sys-college` |
+| `SysDepartmentController` | `/sys-department` |
+| `SysMajorController` | `/sys-major` |
+| `SysClubController` | `/sys-club` |
+| `ActivityCategoryController` | `/activity-category` |
+| `ActivityApplyController` | `/activity-apply` |
+| `ActivityApproveFlowController` | `/activity-approve-flow` |
+| `ActivitySignController` | `/activity-sign` |
+| `NoticeCategoryController` | `/notice-category` |
+| `NoticeInfoController` | `/notice-info` |
+| `NoticeReadRecordController` | `/notice-read-record` |
+| `ClubStatisticsController` | `/club-statistics` |
+
+---
+
+## 11. 前端结构（`club-admin-frontend`）
+
+```
+src/api/crudFactory.ts    # 仍生成 listF/listB 等（待对齐 SysUser 新接口）
+src/utils/request.ts      # baseURL=/Mass_Test，Header Token 注入
+src/stores/user.ts        # token、username、角色
+src/router/dynamic.ts     # 后端菜单驱动动态路由
+```
+
+**开发服务器：** 端口 `5173`，代理 `/Mass_Test` → `http://localhost:100`
+
+---
+
+## 12. 关键业务流程
+
+### 12.1 登录 → 权限缓存 → 业务请求
+
+```
+login → JWT(subject=username) → Redis user:{username}
+     → 业务请求携带 Token → JwtFilter 加载 LoginUserDetails
+     → @RequiresLevel 准入 → Service 数据过滤 + 字段脱敏
+```
+
+### 12.2 活动 / 通知（概要）
+
+- 活动：`activity_apply` 审批状态 1~6；`activity_approve_flow` 多步审批；`activity_sign` 签到  
+- 通知：`notice_info.receiver_type` + `receiver_values` → `notice_read_record`
+
+---
+
+## 13. 模块依赖
 
 ```mermaid
 flowchart TB
     subgraph Frontend["club-admin-frontend"]
-        V[views] --> S[stores]
-        S --> A[api]
-        R[router] --> V
-        MS[menu store] --> R
+        V[views] --> A[api]
+        A -->|HTTP /Mass_Test| C
     end
 
-    subgraph Backend["Spring Boot / untiy"]
-        C[controller] --> SV[service]
-        SV --> M[mapper]
-        M --> DB[(mass_test1 MySQL)]
+    subgraph Backend["Spring Boot"]
+        C[Controller] -->|@RequiresLevel| LA[LevelAspect]
+        C --> SV[Service]
+        SV --> DS[DataScopeHelper]
+        SV --> FM[FieldMaskHelper]
+        SV --> M[Mapper]
+        M --> DB[(MySQL)]
         JF[JwtFilter] --> SEC[SecurityConfig]
-        SV --> RD[(Redis)]
-        LC[LoginController] --> JU[JwtUtil]
+        JF --> RD[(Redis)]
+        UDS[UserDetailServiceImpl] --> LUD[LoginUserDetails]
     end
-
-    A -->|HTTP /Mass_Test| C
 ```
 
 ---
 
-## 8. 后续重构建议
+## 14. 已知问题与后续工作
 
-### 8.1 已识别问题
-
-| 问题 | 说明 | 建议 |
+| 状态 | 问题 | 说明 |
 |---|---|---|
-| 密码存储 | SQL 种子为明文，与 BCrypt 不兼容 | 种子数据改用 BCrypt 或导入后执行迁移脚本 |
-| entity / model 重复 | `entity` 与 `model` 包存在重复表映射 | 统一为一套实体，删除冗余 |
-| `@IgnoreAuth` 滥用 | 大量 `_F` 写接口标注公开 | 仅查询接口公开，写操作需认证 |
-| 403 vs 401 | 无 Token 时 Spring Security 可能返回 403 | 配置 `AuthenticationEntryPoint` 统一 401 |
-| 包名拼写 | `annotion` 应为 `annotation` | 重命名包（影响面较大，低优先级） |
-| JWT 过期时间 | 当前 360000ms ≈ 6 分钟 | 生产环境建议调整为 24h 或可配置 |
-| Fastjson 版本 | 1.2.83 存在已知安全风险 | 升级或替换为 Jackson |
-
-### 8.2 优化方向
-
-- 引入 Request/Response DTO 分层，Controller 不直接暴露 Entity
-- 统一 `@Valid` + JSR-303 参数校验
-- 接口版本控制（如 `/api/v1/`）
-- Redis 缓存统一管理（Spring Cache 或 CacheManager 封装）
-- 分页参数白名单校验（防 SQL 注入 via sidx）
-- 前后端 OpenAPI 类型自动生成流水线（已有 `generated.ts` 基础）
+| ✅ 已修复 | JWT 过期过短 | 已改为 1 小时（`3600000` ms） |
+| ✅ 已修复 | 401 vs 403 | `AuthenticationEntryPoint` 统一 401；`AccessDeniedException` → 403 |
+| ✅ 已修复 | `@IgnoreAuth` Filter 阶段失效 | `IgnoreAuthRegistry` 启动扫描替代 `getHandler()` |
+| ✅ 进行中 | 用户模块单接口化 | `SysUserController` 已完成 |
+| ⏳ 待做 | 其余 Controller `_F/_B` 合并 | 按用户模块模式逐步重构 |
+| ⏳ 待做 | 前端 `crudFactory` 对齐 | `listF/listB` → 统一 `listSysUser` 等 |
+| ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
+| ⏳ 待做 | entity / model 重复 | 统一实体包 |
+| ⏳ 待做 | Fastjson 1.2.83 安全风险 | 升级或替换 Jackson |
 
 ---
 
-## 9. 相关文档
+## 15. 相关文档
 
 | 文档 | 路径 | 说明 |
 |---|---|---|
-| **项目概览（本文档）** | `.cursor/skills/PROJECT_OVERVIEW.md` | 完整项目结构与接口说明 |
-| 项目分析指令 | `.cursor/skills/项目.md` | 生成本文档的 Cursor 指令 |
-| JWT 登录规范 | `.cursor/skills/login.md` | JWT/Redis Key 统一规范 |
-| 前端开发规范 | `.cursor/skills/skill.md` | Vue3/Element Plus 约定 |
-| 接口 Word 文档 | `.cursor/skills/接口文档.docx` | 完整接口说明 |
-| OpenAPI JSON | `src/api/spec/api-docs.json` | 机器可读 API 规范 |
-| 数据库脚本 | `mysql/mass_test1.sql` | 建表 + 种子数据 |
+| **项目概览（本文档）** | `.cursor/skills/PROJECT_OVERVIEW.md` | 结构与接口说明 |
+| 更新扫描清单 | `.cursor/skills/更新信息.md` | 本文档更新依据 |
+| JWT 登录规范 | `.cursor/skills/login.md` | Redis Key、subject 规范 |
+| 权限过滤方案 | `.cursor/skills/权限过滤.md` | 五级可见范围 |
+| 前端开发规范 | `.cursor/skills/skill.md` | Vue3/Element Plus |
+| OpenAPI JSON | `src/api/spec/api-docs.json` | 机器可读 API |
+| 数据库脚本 | `mysql/mass_test1.sql` | 建表 + 种子 |
 
 ---
 

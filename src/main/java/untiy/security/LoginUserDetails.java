@@ -1,5 +1,6 @@
 package untiy.security;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import lombok.Getter;
 import untiy.entity.SysUser;
 import untiy.service.AuthorService;
@@ -71,7 +72,9 @@ public class LoginUserDetails extends LoginServiceImpl {
         private final int effectiveLevel;
         private final Long primaryClubId;
         private final Long primaryDepartmentId;
-
+        @JsonCreator
+//唯一构造器 + JsonCreator，告知 Jackson 用这个构造器，并映射 JSON 字段名
+//
         public CacheSnapshot(Long userId, String username, String password, Integer status,
                              int effectiveLevel, Long primaryClubId, Long primaryDepartmentId) {
             this.userId = userId;
@@ -82,5 +85,6 @@ public class LoginUserDetails extends LoginServiceImpl {
             this.primaryClubId = primaryClubId;
             this.primaryDepartmentId = primaryDepartmentId;
         }
+
     }
 }

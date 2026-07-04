@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-04（用户状态 / 角色分配模块）  
+> 更新时间：2026-07-04（用户/角色/菜单 RBAC 模块）  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -132,11 +132,11 @@ untiy/
 ├── entity/                         # 实体、DTO、VO
 ├── annotation/          (6)        # 自定义注解 + LevelAspect
 ├── config/              (9)        # Spring / JWT / Redis / CORS 等
-├── security/            (10)       # SecurityConfig + 权限工具（含 LevelBasedAccess、UserSecurityHelper、UserRoleScopeHelper、UserCacheHelper）
+├── security/            (12)       # 含 LevelBasedAccess、UserSecurityHelper、UserRoleScopeHelper、UserCacheHelper、MenuTreeHelper、MenuCacheHelper
 ├── filter/              (2)        # JwtFilter、IgnorePathsProperties
 ├── converter/           (2)        # MapStruct：SysUserConverter、SysRoleConvert
 ├── advice/                         # GlobalExceptionHandler
-├── exception/                      # EIException、ErrorConfig、Level 常量
+├── exception/                      # EIException、ErrorConfig、Usual、Level 常量
 └── utils/                          # R、JwtUtil、MPUtil、SecurityUtils 等
 ```
 
@@ -149,7 +149,7 @@ untiy/
 | **字段脱敏** | 低权限隐藏敏感 DTO 字段 | `FieldMaskHelper` + `UserSecurityHelper.toMaskedDto` |
 
 > 设计原则：同一业务仅保留单一 Controller 接口；`@RequiresLevel` 不做数据/字段差异化。  
-> **已完成重构**：`SysUserController`、`SysRoleController`、`SysUserRoleController`  
+> **已完成重构**：`SysUserController`、`SysRoleController`、`SysUserRoleController`、`SysMenuController`、`SysRoleMenuController`  
 > **待重构**：其余 Controller 仍保留 `_F` / `_B` 双接口模式。
 
 ### 3.3 权限等级常量（`untiy.exception.Level`）
@@ -226,6 +226,8 @@ untiy/
 | **`UserSecurityHelper`** | **用户模块专用**：`assertUsersInScope`、`toMaskedDto`、`findInScope`、`findInScopeByUserId`、`findActiveInScope`、`assertUserEnabled`、`assertBatchNoDisabled` |
 | **`UserRoleScopeHelper`** | **角色分配 scope 校验**：按 `sys_role.data_scope` 校验 `scopeType/scopeId` 组合；`assertNoDuplicateAssignment` 防重复/互斥 |
 | **`UserCacheHelper`** | **Redis 登录缓存清理**：`evictByUsernames(redisTemplate, usernames)`，Key 规则 `user:{username}` |
+| **`MenuTreeHelper`** | **菜单树内存组装**：纯静态、一次遍历建索引挂接，禁止递归查库；`buildTree`、`expandWithAncestors`、`collectPermissionCodes`、`pruneEmptyDirectories` |
+| **`MenuCacheHelper`** | **菜单树 Redis 缓存**：Key `menu:tree:{userId}`（非 effectiveLevel）；`get/put/evictAll`，TTL 1 小时 |
 | `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、等级比较、同社团 scope 等） |
 
 ### 7.0 工具类 `SecurityUtils`（`utils` 包）
@@ -252,6 +254,7 @@ untiy/
 | Value（旧，兼容） | `Collection<GrantedAuthority>`，命中后回源并升级 |
 | TTL | 1 小时（Filter / LoginController 常量 `CACHE_TTL_HOURS = 1`） |
 | JWT 过期 | `jwt.expiration = 3600000`（1 小时，与 Redis TTL 对齐） |
+| **菜单树 Key** | **`menu:tree:{userId}`** → `MenuTreeResultVO`；变更后全量清除 |
 
 ### 7.2 等级访问控制约定
 
@@ -293,11 +296,18 @@ untiy/
 
 `assertNoDuplicateAssignment`：精确匹配重复拒绝；全局与特定范围互斥。
 
-#### `UserCacheHelper`（Redis 缓存）
+#### `UserCacheHelper`（Redis 登录缓存）
 
 | 方法 | 用途 |
 |---|---|
 | `evictByUsernames(redisTemplate, usernames)` | 批量删除 `user:{username}` 缓存（禁用/启用后强制重新加载） |
+
+#### `MenuTreeHelper` / `MenuCacheHelper`（菜单树）
+
+| 类 | 要点 |
+|---|---|
+| `MenuTreeHelper` | 从 flat 列表组装树；排除 `menu_type=3` 进树；按 `sort` 排序；修剪空目录；补全祖先节点 |
+| `MenuCacheHelper` | 按 **userId** 缓存 `MenuTreeResultVO`；菜单/角色菜单增删改后 `evictAll` |
 
 ### 7.3 五级数据可见范围（用户模块 Service 层）
 
@@ -329,41 +339,61 @@ untiy/
 
 ---
 
-## 9. 异常码（`ErrorConfig` 节选）
+## 9. 异常码（`ErrorConfig` / `Usual`）
 
-### 9.1 角色相关（5001~5007、400）
+> 编码规范见 `.cursor/skills/Erroconfig.md`。通用 HTTP 常量定义在 **`Usual.java`**，`ErrorConfig` 引用并扩展业务码。
+
+### 9.1 编码区间
+
+| 编码段 | 模块 | 说明 |
+|---|---|---|
+| `400` | 通用 | `Usual.BAD_REQUEST` → `ErrorConfig.BAD_REQUEST` |
+| `1xxx` | 用户 | 注册、用户名、无权操作用户（1009） |
+| `6xxx` | 活动 | 活动分类/内容/编号 |
+| `7xxx` | 通用校验 | 非法字符等 |
+| `8xxx` | 认证/Token | 未登录 8001、Token 过期 8003 等 |
+| `9xxx` | 角色权限 | 9001~9014 |
+| `91xx` | 菜单 | 9101~9108 |
+
+### 9.2 角色权限（9xxx）
 
 | Code | 常量 | 消息 |
 |---|---|---|
-| 5001 | `ROLE_NOT_FOUND` | 角色不存在 |
-| 5002 | `ROLE_LEVEL_INSUFFICIENT` | 无权创建高于自身等级的角色 |
-| 5003 | `ROLE_CANNOT_MODIFY_HIGHER` | 不能修改更高等级的角色 |
-| 5004 | `ROLE_CANNOT_ELEVATE` | 不能提升自身权限等级 |
-| 5005 | `ROLE_IN_USE` | 不能删除当前用户正在使用的角色 |
-| 5006 | `ROLE_NO_PERMISSION` | 无权查看该角色 |
-| 5007 | `ROLE_CODE_BLANK` | 角色编码不能为空 |
-| 400 | `BAD_REQUEST` | 请求参数无效 |
+| 9001 | `ROLE_NOT_FOUND` | 角色不存在 |
+| 9002 | `ROLE_LEVEL_INSUFFICIENT` | 无权创建高于自身等级的角色 |
+| 9003 | `ROLE_CANNOT_MODIFY_HIGHER` | 不能修改更高等级的角色 |
+| 9004 | `ROLE_CANNOT_ELEVATE` | 不能提升自身权限等级 |
+| 9005 | `ROLE_IN_USE` | 不能删除当前用户正在使用的角色 |
+| 9006 | `ROLE_NO_PERMISSION` | 无权查看该角色 |
+| 9007 | `ROLE_CODE_BLANK` | 角色编码不能为空 |
+| 9008 | `USER_DISABLED` | 用户已被禁用，无法操作 |
+| 9009 | `CANNOT_DISABLE_SELF` | 不能禁用当前登录账号 |
+| 9010 | `BATCH_CONTAINS_DISABLED` | 批量操作中包含已禁用用户，已拒绝 |
+| 9011 | `ROLE_ASSIGN_DUPLICATE` | 角色分配冲突 |
+| 9012 | `ROLE_SCOPE_INVALID` | 角色数据范围不合法 |
+| 9013 | `ROLE_REVOKE_SELF` | 不能撤销自己当前持有的角色 |
+| 9014 | `USER_ROLE_NOT_FOUND` | 用户角色关联不存在 |
 
-### 9.2 用户状态 / 角色分配（5008~5014）
-
-| Code | 常量 | 消息 |
-|---|---|---|
-| 5008 | `USER_DISABLED` | 用户已被禁用，无法操作 |
-| 5009 | `CANNOT_DISABLE_SELF` | 不能禁用当前登录账号 |
-| 5010 | `BATCH_CONTAINS_DISABLED` | 批量操作中包含已禁用用户，已拒绝 |
-| 5011 | `ROLE_ASSIGN_DUPLICATE` | 角色分配冲突：已存在相同或互斥的范围记录 |
-| 5012 | `ROLE_SCOPE_INVALID` | 角色数据范围不合法 |
-| 5013 | `ROLE_REVOKE_SELF` | 不能撤销自己当前持有的角色 |
-| 5014 | `USER_ROLE_NOT_FOUND` | 用户角色关联不存在 |
-
-### 9.3 用户 / 登录相关（节选）
+### 9.3 菜单管理（91xx）
 
 | Code | 常量 | 消息 |
 |---|---|---|
-| 001 | `LOGIN_INVALID` | 未登录或会话已失效 |
-| 1008 | `USERNAME_BLANK` | 用户名为空 |
-| 0002 | `NO_PERM_DELETE_USER` | 无权改变用户: |
-| 3005 | `NOT_LOGGED_IN` | 未登录 |
+| 9101 | `MENU_NOT_FOUND` | 菜单不存在 |
+| 9102 | `MENU_PARENT_NOT_FOUND` | 父菜单不存在 |
+| 9103 | `MENU_CYCLE` | 不能将菜单挂到自身或子级下 |
+| 9104 | `MENU_NAME_DUPLICATE` | 同级菜单名称已存在 |
+| 9105 | `MENU_HAS_CHILDREN` | 存在子菜单，无法删除 |
+| 9106 | `MENU_BOUND_HIGHER_ROLE` | 该菜单已被更高权限角色绑定 |
+| 9107 | `MENU_COMPONENT_REQUIRED` | 页面类型组件路径不能为空 |
+| 9108 | `MENU_IDS_INVALID` | 部分菜单不存在或已失效 |
+
+### 9.4 认证 / 用户（节选）
+
+| Code | 常量 | 消息 |
+|---|---|---|
+| 400 | `BAD_REQUEST` | 请求参数无效（`Usual`） |
+| 8001 | `LOGIN_INVALID` / `NOT_LOGGED_IN` | 未登录或会话已失效 |
+| 1009 | `NO_PERM_DELETE_USER` | 无权改变用户: |
 
 ---
 
@@ -416,29 +446,48 @@ untiy/
 | `pageQuery(param, keyword)` | ✅ `DataScopeHelper.applySysUserScope` → 限定 userIds | 联查 `SysUserRoleVO`（username、realName、roleName） |
 | `listMyRoles()` | — | 当前登录用户角色列表 |
 
+### 10.5 `SysMenuServiceImpl`
+
+| 方法 | 说明 |
+|---|---|
+| `getMenuTreeForCurrentUser()` | 角色→`sys_role_menu`→菜单；补祖先；`MenuTreeHelper` 建树；`permissions` 集合；Redis 缓存 |
+| `pageQuery` | `menuName` 模糊 + `menuType` 过滤；`MPUtil.getPage` 平铺分页 |
+| `saveMenu` | 父级/循环/同级名/类型字段校验；高等级角色绑定拦截；`MenuCacheHelper.evictAll` |
+| `deleteMenu` | 有子菜单拒绝；高等级角色绑定拒绝；清理 `sys_role_menu`；清缓存 |
+
+### 10.6 `SysRoleMenuServiceImpl`（`@Slf4j`）
+
+| 方法 | 说明 |
+|---|---|
+| `assign(AssignRoleMenuDTO)` | 校验角色存在；`checkOperable` 防越权；校验 `menuIds` 均为 `status=1`；**先删后增**；`MenuCacheHelper.evictAll` |
+| `listMenuIdsByRole(roleId)` | 返回已绑定 `menu_id` 列表（去重排序） |
+
 ---
 
-## 10A. 实体 / DTO / VO / Mapper（用户-角色模块）
+## 10A. 实体 / DTO / VO / Mapper
 
-### DTO
+### DTO（`entity/dto/`）
 
-| 类 | 路径 | 字段 | 用途 |
-|---|---|---|---|
-| `AssignRoleDTO` | `entity/dto/AssignRoleDTO.java` | `userId`、`roleId`、`scopeType`、`scopeId` | `POST /assign` 请求体；`scopeType/scopeId` 须符合目标角色 `data_scope` |
-| `ToggleStatusDTO` | `entity/dto/ToggleStatusDTO.java` | `usernames`、`status`（0=禁用，1=启用） | `PUT /toggleStatus` 请求体 |
-
-### VO
-
-| 类 | 路径 | 字段 |
+| 类 | 字段 | 用途 |
 |---|---|---|
-| `SysUserRoleVO` | `entity/vo/SysUserRoleVO.java` | `id`、`userId`、`username`、`realName`、`roleId`、`roleName`、`roleCode`、`scopeType`、`scopeId`、`createTime` |
+| `AssignRoleDTO` | `userId`、`roleId`、`scopeType`、`scopeId` | `POST /sys-user-role/assign`；scope 须符合目标角色 `data_scope` |
+| `ToggleStatusDTO` | `usernames`、`status`（0/1） | `PUT /sys-user/toggleStatus` |
+| `AssignRoleMenuDTO` | `roleId`、`menuIds` | `POST /sys-role-menu/assign`；空列表=清空绑定 |
+
+### VO（`entity/vo/`）
+
+| 类 | 字段 | 用途 |
+|---|---|---|
+| `SysUserRoleVO` | `id`、`userId`、`username`、`realName`、`roleId`、`roleName`、`roleCode`、`scopeType`、`scopeId`、`createTime` | 用户-角色联查展示 |
+| `MenuTreeVO` | 菜单字段 + `children` | 菜单树节点 |
+| `MenuTreeResultVO` | `tree`、`permissions` | `/sys-menu/tree` 响应体 |
 
 ### Mapper
 
 | 接口 / XML | 方法 | 说明 |
 |---|---|---|
-| `SysUserRoleMapper.selectPageWithDetail` | 分页联查 | `sys_user_role` JOIN `sys_user` JOIN `sys_role`；按 `userIds` 范围 + 关键词（username/realName/roleName） |
-| `SysUserRoleMapper.selectListByUserId` | 列表 | 按 `userId` 查当前用户全部角色关联 |
+| `SysUserRoleMapper.selectPageWithDetail` | 分页联查 | JOIN `sys_user`、`sys_role`；按 `userIds` + `keyword` |
+| `SysUserRoleMapper.selectListByUserId` | 列表 | 当前用户全部角色关联 |
 
 ---
 
@@ -502,12 +551,34 @@ untiy/
 
 **已移除的旧接口：** `listSysRole_F/B`、`detailSysRole_F/B`、`add_B`、`updateSysRole_B`、`deleteSysRole_B`、`query`
 
-### 11.5 其他 Controller 根路径
+### 11.5 `SysMenuController`（已统一为 4 接口）
+
+根路径：`/sys-menu`
+
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
+|---|---|---|---|
+| `/tree` | GET | `STUDENT (4)` | 当前用户菜单树 + `permissions`；Redis `menu:tree:{userId}` |
+| `/list` | GET | `ADMIN (1)` | 全量分页；`menuName` 模糊 + `menuType` 过滤 |
+| `/save` | POST | `ADMIN (1)` | 新增/更新；校验父级、循环、同级名、类型字段 |
+| `/delete/{id}` | DELETE | `ADMIN (1)` | 无子菜单且可操作时删除；清理 `sys_role_menu` |
+
+**已移除的旧接口：** `listSysMenu`、`listSysMenu_F/B`、`query`、`detailSysMenu_F/B`、`add_B`、`updateSysMenu_B`、`deleteSysMenu_B`
+
+### 11.6 `SysRoleMenuController`（已统一为 2 接口）
+
+根路径：`/sys-role-menu`
+
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
+|---|---|---|---|
+| `/assign` | POST | `ADMIN (1)` | 全量覆盖分配；Body: `AssignRoleMenuDTO`；先删后增 |
+| `/listByRole/{roleId}` | GET | `ADMIN (1)` | 返回已绑定 `menu_id` 列表 |
+
+**已移除的旧接口：** `listSysRoleMenu`、`listSysRoleMenu_F/B`、`query`、`detailSysRoleMenu_F/B`、`add_B`、`updateSysRoleMenu_B`、`deleteSysRoleMenu_B`
+
+### 11.7 其他 Controller 根路径
 
 | Controller | 根路径 |
 |---|---|
-| `SysRoleMenuController` | `/sys-role-menu` |
-| `SysMenuController` | `/sys-menu` |
 | `SysDataPermissionController` | `/sys-data-permission` |
 | `SysCollegeController` | `/sys-college` |
 | `SysDepartmentController` | `/sys-department` |
@@ -551,10 +622,18 @@ login → JWT(subject=username) → Redis user:{username}
 
 ```
 禁用用户：PUT /toggleStatus → findInScope → 不可禁自己 → 更新 status → UserCacheHelper 清 Redis
-登录拦截：UserDetailServiceImpl → status≠1 → USER_DISABLED(5008)
+登录拦截：UserDetailServiceImpl → status≠1 → USER_DISABLED(9008)
 批量更新：updateUsers → assertBatchNoDisabled → 含禁用用户整批拒绝
-角色分配：POST /assign → findActiveInScope → validateScope(role.dataScope) → assertNoDuplicateAssignment → 写入 sys_user_role
-角色撤销：DELETE /revoke/{id} → checkOperable → assertNotRevokingOwnRole → 删除关联
+角色分配：POST /sys-user-role/assign → findActiveInScope → validateScope(role.dataScope) → 防重复
+角色撤销：DELETE /sys-user-role/revoke/{id} → checkOperable → 不可撤销自身角色
+```
+
+### 13.4 菜单与角色菜单
+
+```
+菜单树：GET /sys-menu/tree → 用户角色 → sys_role_menu → 菜单+祖先 → MenuTreeHelper → Redis 缓存
+菜单维护：POST /save、DELETE /delete/{id} → 校验 → MenuCacheHelper.evictAll
+角色菜单：POST /sys-role-menu/assign → checkOperable → 校验 menuIds → 先删后增 → evictAll
 ```
 
 ### 13.2 活动 / 通知（概要）
@@ -581,6 +660,8 @@ flowchart TB
         SV --> USH[UserSecurityHelper]
         SV --> URS[UserRoleScopeHelper]
         SV --> UCH[UserCacheHelper]
+        SV --> MTH[MenuTreeHelper]
+        SV --> MCH[MenuCacheHelper]
         SV --> FM[FieldMaskHelper]
         SV --> SU[SecurityUtils]
         SV --> M[Mapper]
@@ -605,7 +686,10 @@ flowchart TB
 | ✅ 已完成 | 角色 CRUD 安全加固 | 选择性更新、级联删 `sys_user_role`、越权 `log.warn`、ID 去重 |
 | ✅ 已完成 | 用户状态管理 | `toggleStatus`、`listDisabled`；登录/批量更新/分配全局拦截禁用用户 |
 | ✅ 已完成 | 用户-角色模块重构 | `SysUserRoleController` 4 接口；`UserRoleScopeHelper` 按 `data_scope` 校验 |
-| ✅ 已修复 | `data_scope` 分配无效 | `validateScope` 改为读取 `role.getDataScope()`，不再硬编码 `roleCode` |
+| ✅ 已修复 | `data_scope` 分配无效 | `validateScope` 改为读取 `role.getDataScope()` |
+| ✅ 已完成 | 菜单模块单接口化 | `SysMenuController` 4 接口 + `MenuTreeHelper` + `MenuCacheHelper` |
+| ✅ 已完成 | 角色-菜单分配 | `SysRoleMenuController` 2 接口；全量覆盖 `assign` |
+| ✅ 已完成 | 异常码分段重构 | `9xxx` 角色、`91xx` 菜单；通用码迁入 `Usual.java` |
 | ⏳ 待做 | 其余 Controller `_F/_B` 合并 | 按用户/角色模块模式逐步重构 |
 | ⏳ 待做 | 前端 `crudFactory` 对齐 | `listF/listB` → 统一 `listSysUser` / `listSysRole` 等 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
@@ -622,9 +706,86 @@ flowchart TB
 | 更新扫描清单 | `.cursor/skills/更新信息.md` | 本文档更新依据 |
 | JWT 登录规范 | `.cursor/skills/login.md` | Redis Key、subject 规范 |
 | 权限过滤方案 | `.cursor/skills/权限过滤.md` | 五级可见范围 |
+| **异常码规范** | `.cursor/skills/Erroconfig.md` | 编码区间与常量命名 |
 | 前端开发规范 | `.cursor/skills/skill.md` | Vue3/Element Plus |
 | OpenAPI JSON | `src/api/spec/api-docs.json` | 机器可读 API |
 | 数据库脚本 | `mysql/mass_test1.sql` | 建表 + 种子 |
+
+---
+
+## 17. 近期变更文件索引（2026-07-04）
+
+> 下列文件为 RBAC 用户/角色/菜单模块重构涉及的核心变更，按包路径归类。
+
+### 17.1 Controller
+
+| 文件 | 变更摘要 |
+|---|---|
+| `controller/SysUserController.java` | 单接口化；新增 `PUT /toggleStatus`、`GET /listDisabled`；移除 `_F/_B` |
+| `controller/SysUserRoleController.java` | 精简为 4 接口：`assign`、`revoke/{id}`、`list`、`my-roles` |
+| `controller/SysMenuController.java` | 精简为 4 接口：`tree`、`list`、`save`、`delete/{id}` |
+| `controller/SysRoleMenuController.java` | 精简为 2 接口：`assign`、`listByRole/{roleId}` |
+
+### 17.2 DTO（`entity/dto/`）
+
+| 文件 | 变更摘要 |
+|---|---|
+| `AssignRoleDTO.java` | 用户-角色分配：`userId`、`roleId`、`scopeType`、`scopeId` |
+| `ToggleStatusDTO.java` | 批量启用/禁用：`usernames`、`status` |
+| `AssignRoleMenuDTO.java` | 角色-菜单全量分配：`roleId`、`menuIds`（可空=清空） |
+
+### 17.3 VO（`entity/vo/`）
+
+| 文件 | 变更摘要 |
+|---|---|
+| `SysUserRoleVO.java` | 用户-角色联查：含 username、realName、roleName、roleCode、scope |
+| `MenuTreeVO.java` | 菜单树节点：菜单字段 + `children` 列表 |
+| `MenuTreeResultVO.java` | `/tree` 响应：`tree` + `permissions` 集合 |
+
+### 17.4 Exception
+
+| 文件 | 变更摘要 |
+|---|---|
+| `exception/ErrorConfig.java` | 编码分段：`9xxx` 角色、`91xx` 菜单；`BAD_REQUEST` 引用 `Usual`；`NOT_LOGGED_IN` 兼容别名 |
+| `exception/Usual.java` | 通用常量：`BAD_REQUEST`(400)、`SUCCESS`、`ROLE_` 前缀 |
+
+### 17.5 Mapper
+
+| 文件 | 变更摘要 |
+|---|---|
+| `mapper/SysUserRoleMapper.java` | 新增 `selectPageWithDetail`、`selectListByUserId` |
+| `resources/mapper/SysUserRoleMapper.xml` | 三表 JOIN 联查 SQL；关键词过滤 username/realName/roleName |
+
+### 17.6 Security
+
+| 文件 | 变更摘要 |
+|---|---|
+| `security/DataScopeHelper.java` | 用户行级过滤；新增 `LambdaQueryWrapper` 重载 |
+| `security/LevelBasedAccess.java` | 全局等级：`checkViewable/Operable/NewLevel`、`applyLevelFilter` |
+| `security/UserSecurityHelper.java` | 用户范围/状态：`findInScope`、`findActiveInScope`、`assertBatchNoDisabled` 等 |
+| `security/UserCacheHelper.java` | 登录 Redis 清理：`evictByUsernames`，Key `user:{username}` |
+| `security/UserRoleScopeHelper.java` | 按 `role.dataScope` 校验 scope；防重复分配 |
+| `security/MenuTreeHelper.java` | 纯内存建树、补祖先、收集 permissions、修剪空目录 |
+| `security/MenuCacheHelper.java` | 菜单树 Redis：`menu:tree:{userId}`，`evictAll` |
+
+### 17.7 Service 接口
+
+| 文件 | 变更摘要 |
+|---|---|
+| `service/SysUserService.java` | 新增 `toggleStatus`、`listDisabled` |
+| `service/SysUserRoleService.java` | 新增 `assign`、`revoke`、`pageQuery`、`listMyRoles` |
+| `service/SysMenuService.java` | 新增 `getMenuTreeForCurrentUser`、`pageQuery`、`saveMenu`、`deleteMenu` |
+| `service/SysRoleMenuService.java` | 新增 `assign`、`listMenuIdsByRole` |
+
+### 17.8 Service 实现
+
+| 文件 | 变更摘要 |
+|---|---|
+| `service/impl/SysUserServiceImpl.java` | 实现状态管理；`toggleStatus` 清 Redis；`updateUsers` 拦截禁用用户 |
+| `service/impl/SysUserRoleServiceImpl.java` | 角色分配/撤销/联查；`@Slf4j`；集成 `UserRoleScopeHelper` |
+| `service/impl/UserDetailServiceImpl.java` | 登录时 `status≠1` 抛 `USER_DISABLED` |
+| `service/impl/SysMenuServiceImpl.java` | 菜单树/CRUD；Redis 缓存；等级绑定校验 |
+| `service/impl/SysRoleMenuServiceImpl.java` | 角色菜单全量覆盖；`@Slf4j`；`MenuCacheHelper.evictAll` |
 
 ---
 

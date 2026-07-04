@@ -34,12 +34,30 @@ public final class UserScopeResolver {
     public static int resolveEffectiveLevel(List<SysRole> roles) {
         int level = 4;
         for (SysRole role : roles) {
-            Integer mapped = ROLE_EFFECTIVE_LEVEL.get(role.getRoleCode());
+            Integer mapped = mapRoleLevel(role);
             if (mapped != null) {
                 level = Math.min(level, mapped);
             }
         }
         return level;
+    }
+
+    private static Integer mapRoleLevel(SysRole role) {
+        if (role == null || role.getRoleCode() == null) {
+            return null;
+        }
+        Integer mapped = ROLE_EFFECTIVE_LEVEL.get(role.getRoleCode());
+        if (mapped != null) {
+            return mapped;
+        }
+        String code = role.getRoleCode().toUpperCase();
+        if (code.startsWith("ADVISOR")) {
+            return 1;
+        }
+        if (role.getRoleLevel() != null) {
+            return role.getRoleLevel();
+        }
+        return null;
     }
 
     /**

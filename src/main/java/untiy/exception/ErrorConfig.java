@@ -134,4 +134,42 @@ public class ErrorConfig {
 
     public static final Integer MENU_IDS_INVALID_CODE = 9108;
     public static final String MENU_IDS_INVALID_MSG = "部分菜单不存在或已失效";
+
+    // ====================== 社团申请 / 合议 (92xx) ======================
+    public static final Integer CLUB_APPLY_NOT_FOUND_CODE = 9201;
+    public static final String CLUB_APPLY_NOT_FOUND_MSG = "社团申请不存在";
+    public static final Integer CLUB_NOT_FOUND_CODE = 9202;
+    public static final String CLUB_NOT_FOUND_MSG = "社团不存在";
+    public static final Integer CLUB_NOT_NORMAL_CODE = 9203;
+    public static final String CLUB_NOT_NORMAL_MSG = "社团状态异常，无法操作";
+    public static final Integer CLUB_NAME_DUPLICATE_CODE = 9204;
+    public static final String CLUB_NAME_DUPLICATE_MSG = "同一学院下社团名称已存在";
+    public static final Integer CLUB_NOT_ADVISOR_CODE = 9205;
+    public static final String CLUB_NOT_ADVISOR_MSG = "当前用户不是该社团指导老师";
+    public static final Integer CLUB_HAS_ACTIVE_ACTIVITY_CODE = 9206;
+    public static final String CLUB_HAS_ACTIVE_ACTIVITY_MSG = "社团存在进行中的活动，无法解散";
+    public static final Integer CLUB_APPLY_STATUS_INVALID_CODE = 9207;
+    public static final String CLUB_APPLY_STATUS_INVALID_MSG = "申请状态不允许此操作";
+    public static final Integer CLUB_NOT_DEAN_CODE = 9208;
+    public static final String CLUB_NOT_DEAN_MSG = "仅学院负责人可审批该申请";
+    public static final Integer CLUB_CANNOT_APPROVE_SELF_CODE = 9209;
+    public static final String CLUB_CANNOT_APPROVE_SELF_MSG = "不能审批自己提交的申请";
+    public static final Integer CLUB_COUNCIL_NOT_FOUND_CODE = 9210;
+    public static final String CLUB_COUNCIL_NOT_FOUND_MSG = "合议记录不存在";
+    public static final Integer CLUB_COUNCIL_IN_PROGRESS_CODE = 9211;
+    public static final String CLUB_COUNCIL_IN_PROGRESS_MSG = "该社团已有进行中的合议";
+    public static final Integer CLUB_COUNCIL_NOT_IN_PROGRESS_CODE = 9212;
+    public static final String CLUB_COUNCIL_NOT_IN_PROGRESS_MSG = "合议不在进行中";
+    public static final Integer CLUB_ALREADY_SIGNED_CODE = 9213;
+    public static final String CLUB_ALREADY_SIGNED_MSG = "您已签字，不能重复签字";
+    public static final Integer CLUB_COLLEGE_OUT_OF_SCOPE_CODE = 9214;
+    public static final String CLUB_COLLEGE_OUT_OF_SCOPE_MSG = "不在该学院管理范围内";
+    public static final Integer CLUB_ROLE_NOT_FOUND_CODE = 9215;
+    public static final String CLUB_ROLE_NOT_FOUND_MSG = "系统角色配置缺失";
+    public static final Integer CLUB_PROPOSED_LEADER_INVALID_CODE = 9216;
+    public static final String CLUB_PROPOSED_LEADER_INVALID_MSG = "拟定社长不存在或已被禁用";
+    public static final Integer CLUB_REQUIRE_ADVISOR_ROLE_CODE = 9217;
+    public static final String CLUB_REQUIRE_ADVISOR_ROLE_MSG = "需要指导老师角色";
+    public static final Integer CLUB_REQUIRE_ADMIN_ROLE_CODE = 9218;
+    public static final String CLUB_REQUIRE_ADMIN_ROLE_MSG = "需要校级管理员权限";
 }

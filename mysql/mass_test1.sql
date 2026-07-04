@@ -11,7 +11,7 @@
  Target Server Version : 80046 (8.0.46)
  File Encoding         : 65001
 
- Date: 04/07/2026 15:41:45
+ Date: 04/07/2026 17:33:57
 */
 
 SET NAMES utf8mb4;
@@ -128,6 +128,69 @@ CREATE TABLE `activity_sign`  (
 INSERT INTO `activity_sign` VALUES (1, 1, 2, 1, '2026-02-11 21:48:57', ST_GeomFromText('POINT(116.397 39.907)'), '教学楼101', 1, '2026-02-11 21:48:57');
 INSERT INTO `activity_sign` VALUES (2, 1, 3, 1, '2026-02-11 21:48:57', ST_GeomFromText('POINT(116.397 39.907)'), '教学楼101', 1, '2026-02-11 21:48:57');
 INSERT INTO `activity_sign` VALUES (3, 2, 1, 2, '2026-02-11 21:48:57', NULL, '阳光社区', 1, '2026-02-11 21:48:57');
+
+-- ----------------------------
+-- Table structure for club_application
+-- ----------------------------
+DROP TABLE IF EXISTS `club_application`;
+CREATE TABLE `club_application`  (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `application_no` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '申请编号',
+  `apply_type` tinyint NOT NULL COMMENT '1:创建 2:解散',
+  `club_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '社团名称（创建时必填）',
+  `college_id` bigint NULL DEFAULT NULL COMMENT '挂靠学院',
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '社团类别',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '社团简介',
+  `proposed_leader_id` bigint NULL DEFAULT NULL COMMENT '拟定社长ID',
+  `max_members` int NULL DEFAULT NULL COMMENT '最大招募人数',
+  `dissolve_reason` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL COMMENT '解散原因',
+  `applicant_id` bigint NOT NULL COMMENT '申请人ID（指导老师）',
+  `applicant_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `status` tinyint NULL DEFAULT 1 COMMENT '1:待学院审批 2:学院已通过 3:已通过 4:已驳回 5:已撤回',
+  `reject_reason` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `college_approver_id` bigint NULL DEFAULT NULL,
+  `college_approve_time` datetime NULL DEFAULT NULL,
+  `college_approve_opinion` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `admin_approver_id` bigint NULL DEFAULT NULL,
+  `admin_approve_time` datetime NULL DEFAULT NULL,
+  `admin_approve_opinion` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
+  `update_time` datetime NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_apply_no`(`application_no` ASC) USING BTREE,
+  INDEX `idx_applicant`(`applicant_id` ASC) USING BTREE,
+  INDEX `idx_college`(`college_id` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of club_application
+-- ----------------------------
+
+-- ----------------------------
+-- Table structure for club_council
+-- ----------------------------
+DROP TABLE IF EXISTS `club_council`;
+CREATE TABLE `club_council`  (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `club_id` bigint NOT NULL COMMENT '待解散社团ID',
+  `initiator_id` bigint NOT NULL COMMENT '发起人ID（超管）',
+  `initiator_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
+  `college_id` bigint NOT NULL COMMENT '社团挂靠学院',
+  `reason` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '解散原因',
+  `status` tinyint NULL DEFAULT 1 COMMENT '1:合议中 2:已通过 3:已驳回',
+  `signatories` json NULL COMMENT '签名人ID列表（含角色信息）',
+  `executed_at` datetime NULL DEFAULT NULL COMMENT '执行时间',
+  `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_club`(`club_id` ASC) USING BTREE,
+  INDEX `idx_college`(`college_id` ASC) USING BTREE,
+  INDEX `idx_status`(`status` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Records of club_council
+-- ----------------------------
 
 -- ----------------------------
 -- Table structure for club_statistics

@@ -1,6 +1,5 @@
 package untiy.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
@@ -18,13 +17,13 @@ import untiy.entity.RegisterDTO;
 import untiy.entity.SysUser;
 import untiy.mapper.SysUserMapper;
 import untiy.security.DataScopeHelper;
-import untiy.security.FieldMaskHelper;
 import untiy.security.LoginUserDetails;
+import untiy.security.UserSecurityHelper;
 import untiy.service.SysUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import untiy.utils.MPUtil;
 
-import java.time.LocalDate;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import java.util.List;
 import java.util.Map;
 
@@ -39,19 +38,6 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-/*    @Override
-    public void enableOrDisable(String username, Integer status) {
-this.lambdaUpdate()
-//
-        .set(SysUser::getStatus,status)
-//        更新时间
-        .set(SysUser::getUpdateTime, LocalDate.now())
-        .set()
-        //更新的人员是?
-        .eq(SysUser::getUsername,username);
-//更新名字
-    }*/
 
     //注册逻辑
     @Transactional
@@ -96,39 +82,28 @@ this.lambdaUpdate()
 
         IPage<SysUser> entityPage = baseMapper.selectPage(page, wrapper);
         LoginUserDetails viewer = DataScopeHelper.currentUser();
-        return entityPage.convert(entity -> toMaskedDto(entity, viewer));
+        return entityPage.convert(entity -> UserSecurityHelper.toMaskedDto(sysUserConverter, entity, viewer));
     }
 
     //查询细节
     @Override
     public SysUserDTO getDetail(String username) {
         SysUser entity = sysUserMapper.selectByUsername(username);
-//        log.info("========== 打印 entity ==========");
-//        log.info("entity 本身: {}", entity);
         if (entity != null) {
            /* log.info("entity.getId() = {}", entity.getId());
-            log.info("entity.getUsername() = '{}'", entity.getUsername());  // 注意用引号包裹，以便看到空字符串
+            log.info("entity.getUsername() = '{}'", entity.getUsername());
             log.info("entity.getRealName() = {}", entity.getRealName());
             log.info("entity.getPhone() = {}", entity.getPhone());
 */
-
         } else {
-//            log.info("entity 为 null !");
-            throw new EIException(ErrorConfig.USER_EMPTY_CODE,ErrorConfig.USER_EMPTY_MSG);
-        }
-
-
-
-
-        if ( entity.getUsername() == null) {
-//            log.info("或 username 为 null，返回 null");
             throw new EIException(ErrorConfig.USERNAME_BLANK_CODE,ErrorConfig.USERNAME_BLANK_MSG);
         }
 
-//        log.info(" entity 正常，准备转换");
-        SysUserDTO dto = sysUserConverter.toDto(entity);
-//        log.info("转换后 dto = {}", dto);
-        return toMaskedDto(entity, DataScopeHelper.currentUser());
+        if ( entity.getUsername() == null) {
+            throw new EIException(ErrorConfig.USERNAME_BLANK_CODE,ErrorConfig.USERNAME_BLANK_MSG);
+        }
+
+        return UserSecurityHelper.toMaskedDto(sysUserConverter, entity, DataScopeHelper.currentUser());
     }
 
     // 添加用户
@@ -144,20 +119,13 @@ this.lambdaUpdate()
     @Transactional
     @Override
     public void updateUsers(List<SysUser> sysUsers) {
-        assertUsersInScope(sysUsers);
+        UserSecurityHelper.assertUsersInScope(sysUserMapper, sysUsers);
         for (SysUser user : sysUsers) {
             if (user.getPassword() != null && !user.getPassword().isEmpty()) {
                 user.setPassword(passwordEncoder.encode(user.getPassword()));
             }
         }
         updateBatchById(sysUsers);
-    }
-
-    private SysUser findInScope(String username) {
-        QueryWrapper<SysUser> wrapper = new QueryWrapper<>();
-        wrapper.eq("username", username);
-        DataScopeHelper.applySysUserScope(wrapper);
-        return baseMapper.selectOne(wrapper);
     }
 
     @Transactional
@@ -167,7 +135,7 @@ this.lambdaUpdate()
             return;
         }
         for (String name : names) {
-            if (findInScope(name) == null) {
+            if (UserSecurityHelper.findInScope(sysUserMapper, name) == null) {
                 throw new AccessDeniedException(ErrorConfig.NO_PERM_DELETE_USER_MSG + names);
             }
         }
@@ -180,7 +148,7 @@ this.lambdaUpdate()
         if (username == null || username.isEmpty()) {
             return;
         }
-        if (findInScope(username) == null) {
+        if (UserSecurityHelper.findInScope(sysUserMapper, username) == null) {
             throw new AccessDeniedException(ErrorConfig.NO_PERM_DELETE_USER_MSG + username);
         }
         baseMapper.deleteByUsername(username);
@@ -221,26 +189,5 @@ this.lambdaUpdate()
                 .set(SysUser::getEmail, sysUser.getEmail())
                 .set(SysUser::getAvatar, sysUser.getAvatar())
                 .update();
-    }
-
-
-    private void assertUsersInScope(List<SysUser> sysUsers) {
-        if (sysUsers == null) {
-            return;
-        }
-        for (SysUser user : sysUsers) {
-            if (user.getId() == null) {
-                continue;
-            }
-            if (findInScope(user.getUsername()) == null) {
-                throw new AccessDeniedException(ErrorConfig.NO_PERM_DELETE_USER_MSG + user.getId());
-            }
-        }
-    }
-
-    private SysUserDTO toMaskedDto(SysUser entity, LoginUserDetails viewer) {
-        SysUserDTO dto = sysUserConverter.toDto(entity);
-        FieldMaskHelper.maskSysUserDto(dto, viewer);
-        return dto;
     }
 }

@@ -2,10 +2,30 @@ package untiy.exception;
 
 public class ErrorConfig {
 
+    // 未登录或会话已失效
+    public static final Integer LOGIN_INVALID_CODE = 001;
+    public static final String LOGIN_INVALID_MSG = "未登录或会话已失效";
     //    注册时 ,后台添加不上
     public static final Integer RGEISTER_ADD_NEW_USER_CODE = 1001;
     public static final String RGEISTER_ADD_NEW_USER_MSG = "注册失败,请重新尝试";
-//    ======================用户============================
+//    ======================角色============================
+    public static final Integer ROLE_NOT_FOUND_CODE = 5001;
+    public static final String ROLE_NOT_FOUND_MSG = "角色不存在";
+    public static final Integer ROLE_LEVEL_INSUFFICIENT_CODE = 5002;
+    public static final String ROLE_LEVEL_INSUFFICIENT_MSG = "无权创建高于自身等级的角色";
+    public static final Integer ROLE_CANNOT_MODIFY_HIGHER_CODE = 5003;
+    public static final String ROLE_CANNOT_MODIFY_HIGHER_MSG = "不能修改更高等级的角色";
+    public static final Integer ROLE_CANNOT_ELEVATE_CODE = 5004;
+    public static final String ROLE_CANNOT_ELEVATE_MSG = "不能提升自身权限等级";
+    public static final Integer ROLE_IN_USE_CODE = 5005;
+    public static final String ROLE_IN_USE_MSG = "不能删除当前用户正在使用的角色";
+    public static final Integer ROLE_NO_PERMISSION_CODE = 5006;
+    public static final String ROLE_NO_PERMISSION_MSG = "无权查看该角色";
+    public static final Integer ROLE_CODE_BLANK_CODE = 5007;
+    public static final String ROLE_CODE_BLANK_MSG = "角色编码不能为空";
+    public static final Integer BAD_REQUEST_CODE = 400;
+    public static final String BAD_REQUEST_MSG = "请求参数无效";
+    //    ======================用户============================
 //    用户自己输入密码或姓名异常
 
     public static final Integer RGEISTER_PASSWORD_OR_NAMEC_CODE = 1002;

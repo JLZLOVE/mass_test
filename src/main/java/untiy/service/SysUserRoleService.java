@@ -1,25 +1,21 @@
 package untiy.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import untiy.entity.dto.AssignRoleDTO;
 import untiy.entity.SysUserRole;
+import untiy.entity.vo.SysUserRoleVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
-/**
- * <p>
- * 用户角色关联表 服务类
- * </p>
- *
- * @author 玖
- * @since 2026-02-19
- */
+import java.util.List;
+import java.util.Map;
+
 public interface SysUserRoleService extends IService<SysUserRole> {
 
-    /**
-     * 分配用户角色
-     */
-    void assign(Long userId, Long roleId, Integer scopeType, Long scopeId);
+    void assign(AssignRoleDTO dto);
 
-    /**
-     * 撤销用户角色
-     */
     void revoke(Long id);
+
+    IPage<SysUserRoleVO> pageQuery(Map<String, Object> param, String keyword);
+
+    List<SysUserRoleVO> listMyRoles();
 }

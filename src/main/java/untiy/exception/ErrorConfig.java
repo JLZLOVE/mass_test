@@ -25,6 +25,20 @@ public class ErrorConfig {
     public static final String ROLE_CODE_BLANK_MSG = "角色编码不能为空";
     public static final Integer BAD_REQUEST_CODE = 400;
     public static final String BAD_REQUEST_MSG = "请求参数无效";
+    public static final Integer USER_DISABLED_CODE = 5008;
+    public static final String USER_DISABLED_MSG = "用户已被禁用，无法操作";
+    public static final Integer CANNOT_DISABLE_SELF_CODE = 5009;
+    public static final String CANNOT_DISABLE_SELF_MSG = "不能禁用当前登录账号";
+    public static final Integer BATCH_CONTAINS_DISABLED_CODE = 5010;
+    public static final String BATCH_CONTAINS_DISABLED_MSG = "批量操作中包含已禁用用户，已拒绝";
+    public static final Integer ROLE_ASSIGN_DUPLICATE_CODE = 5011;
+    public static final String ROLE_ASSIGN_DUPLICATE_MSG = "角色分配冲突：已存在相同或互斥的范围记录";
+    public static final Integer ROLE_SCOPE_INVALID_CODE = 5012;
+    public static final String ROLE_SCOPE_INVALID_MSG = "角色数据范围不合法";
+    public static final Integer ROLE_REVOKE_SELF_CODE = 5013;
+    public static final String ROLE_REVOKE_SELF_MSG = "不能撤销自己当前持有的角色";
+    public static final Integer USER_ROLE_NOT_FOUND_CODE = 5014;
+    public static final String USER_ROLE_NOT_FOUND_MSG = "用户角色关联不存在";
     //    ======================用户============================
 //    用户自己输入密码或姓名异常
 

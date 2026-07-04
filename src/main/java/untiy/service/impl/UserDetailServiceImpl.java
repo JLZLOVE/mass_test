@@ -67,6 +67,10 @@ public class UserDetailServiceImpl implements UserDetailsService {
             log.error("用户不存在：{}", username);
             throw new EIException(ErrorConfig.RGEISTER_STATUS_CODE, ErrorConfig.RGEISTER_STATUS_CODE_MSG);
         }
+        if (sysUser.getStatus() == null || sysUser.getStatus() != 1) {
+            log.warn("已禁用用户 {} 尝试登录", username);
+            throw new EIException(ErrorConfig.USER_DISABLED_CODE, ErrorConfig.USER_DISABLED_MSG);
+        }
         return buildLoginUserDetails(sysUser);
     }
 

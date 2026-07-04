@@ -1,65 +1,160 @@
 package untiy.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 import untiy.entity.SysRole;
 import untiy.entity.SysUser;
 import untiy.entity.SysUserRole;
+import untiy.entity.dto.AssignRoleDTO;
+import untiy.entity.vo.SysUserRoleVO;
+import untiy.exception.EIException;
+import untiy.exception.ErrorConfig;
+import untiy.mapper.SysClubMapper;
+import untiy.mapper.SysCollegeMapper;
+import untiy.mapper.SysDepartmentMapper;
+import untiy.mapper.SysUserMapper;
 import untiy.mapper.SysUserRoleMapper;
+import untiy.security.DataScopeHelper;
+import untiy.security.LevelBasedAccess;
+import untiy.security.UserRoleScopeHelper;
+import untiy.security.UserScopeResolver;
+import untiy.security.UserSecurityHelper;
 import untiy.service.SysRoleService;
 import untiy.service.SysUserRoleService;
-import untiy.service.SysUserService;
+import untiy.utils.MPUtil;
+import untiy.utils.SecurityUtils;
 
-/**
- * <p>
- * 用户角色关联表 服务实现类
- * </p>
- *
- * @author 玖
- * @since 2026-02-19
- */
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Slf4j
 @Service
 public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUserRole> implements SysUserRoleService {
+
+    private static final String ROLE_AUTHORITY_PREFIX = "ROLE_";
 
     @Autowired
     private SysRoleService sysRoleService;
 
     @Autowired
-    private SysUserService sysUserService;
+    private SysUserMapper sysUserMapper;
 
+    @Autowired
+    private SysUserRoleMapper sysUserRoleMapper;
+
+    @Autowired
+    private SysClubMapper sysClubMapper;
+
+    @Autowired
+    private SysCollegeMapper sysCollegeMapper;
+
+    @Autowired
+    private SysDepartmentMapper sysDepartmentMapper;
+
+    @Transactional
     @Override
-    public void assign(Long userId, Long roleId, Integer scopeType, Long scopeId) {
-        SysRole role = sysRoleService.getById(roleId);
+    public void assign(AssignRoleDTO dto) {
+        if (dto == null || dto.getUserId() == null || dto.getRoleId() == null) {
+            throw new EIException(ErrorConfig.BAD_REQUEST_CODE, ErrorConfig.BAD_REQUEST_MSG);
+        }
+
+        SysUser user = UserSecurityHelper.findActiveInScope(sysUserMapper, dto.getUserId());
+
+        SysRole role = sysRoleService.getById(dto.getRoleId());
         if (role == null) {
-            throw new RuntimeException("角色不存在");
-        }
-        SysUser user = sysUserService.getById(userId);
-        if (user == null) {
-            throw new RuntimeException("用户不存在");
+            throw new EIException(ErrorConfig.ROLE_NOT_FOUND_CODE, ErrorConfig.ROLE_NOT_FOUND_MSG);
         }
 
-        String roleCode = role.getRoleCode();
-        Integer userType = user.getUserType();
+        int currentLevel = SecurityUtils.getCurrentLevel();
+        int targetRoleLevel = UserScopeResolver.resolveEffectiveLevel(Collections.singletonList(role));
+        if (targetRoleLevel < currentLevel) {
+            log.warn("用户等级 {} 尝试分配等级 {} 的角色 id={}（越权）", currentLevel, targetRoleLevel, dto.getRoleId());
+            LevelBasedAccess.checkNewLevel(currentLevel, targetRoleLevel);
+        }
 
-        if ("PRESIDENT".equals(roleCode) && !Integer.valueOf(1).equals(userType)) {
-            throw new RuntimeException("PRESIDENT角色仅允许学生(userType=1)分配");
-        }
-        if ("ADMIN".equals(roleCode) && !Integer.valueOf(2).equals(userType)) {
-            throw new RuntimeException("ADMIN角色仅允许老师(userType=2)分配");
-        }
+        UserRoleScopeHelper.validateScope(role.getDataScope(), dto.getScopeType(), dto.getScopeId(),
+                sysCollegeMapper, sysClubMapper, sysDepartmentMapper);
+        UserRoleScopeHelper.assertNoDuplicateAssignment(sysUserRoleMapper,
+                dto.getUserId(), dto.getRoleId(), dto.getScopeType(), dto.getScopeId());
 
         SysUserRole entity = new SysUserRole();
-        entity.setUserId(userId);
-        entity.setRoleId(roleId);
-        entity.setScopeType(scopeType);
-        entity.setScopeId(scopeId);
+        entity.setUserId(dto.getUserId());
+        entity.setRoleId(dto.getRoleId());
+        entity.setScopeType(dto.getScopeType());
+        entity.setScopeId(dto.getScopeId());
+        entity.setCreateTime(LocalDateTime.now());
         save(entity);
     }
 
+    @Transactional
     @Override
     public void revoke(Long id) {
+        if (id == null) {
+            throw new EIException(ErrorConfig.BAD_REQUEST_CODE, ErrorConfig.BAD_REQUEST_MSG);
+        }
+        SysUserRole association = getById(id);
+        if (association == null) {
+            throw new EIException(ErrorConfig.USER_ROLE_NOT_FOUND_CODE, ErrorConfig.USER_ROLE_NOT_FOUND_MSG);
+        }
+
+        SysRole role = sysRoleService.getById(association.getRoleId());
+        if (role == null) {
+            throw new EIException(ErrorConfig.ROLE_NOT_FOUND_CODE, ErrorConfig.ROLE_NOT_FOUND_MSG);
+        }
+
+        int currentLevel = SecurityUtils.getCurrentLevel();
+        int targetRoleLevel = UserScopeResolver.resolveEffectiveLevel(Collections.singletonList(role));
+        if (targetRoleLevel < currentLevel) {
+            log.warn("用户等级 {} 尝试撤销等级 {} 的角色关联 id={}（越权）", currentLevel, targetRoleLevel, id);
+            LevelBasedAccess.checkOperable(currentLevel, targetRoleLevel);
+        }
+
+        assertNotRevokingOwnRole(role.getRoleCode());
         removeById(id);
+    }
+
+    @Override
+    public IPage<SysUserRoleVO> pageQuery(Map<String, Object> param, String keyword) {
+        LambdaQueryWrapper<SysUser> userWrapper = new LambdaQueryWrapper<>();
+        DataScopeHelper.applySysUserScope(userWrapper);
+
+        List<Long> userIds = sysUserMapper.selectList(userWrapper.select(SysUser::getId)).stream()
+                .map(SysUser::getId)
+                .collect(Collectors.toList());
+
+        Page<SysUserRoleVO> page = MPUtil.getPage(param);
+        if (userIds.isEmpty()) {
+            return page;
+        }
+        return sysUserRoleMapper.selectPageWithDetail(page, userIds, keyword);
+    }
+
+    @Override
+    public List<SysUserRoleVO> listMyRoles() {
+        Long userId = SecurityUtils.getCurrentUser().getUserId();
+        return sysUserRoleMapper.selectListByUserId(userId);
+    }
+
+    private void assertNotRevokingOwnRole(String roleCode) {
+        if (StringUtils.isBlank(roleCode)) {
+            return;
+        }
+        String expected = ROLE_AUTHORITY_PREFIX + roleCode;
+        for (GrantedAuthority auth : SecurityUtils.getCurrentUser().getAuthorities()) {
+            if (expected.equals(auth.getAuthority())) {
+                throw new EIException(ErrorConfig.ROLE_REVOKE_SELF_CODE, ErrorConfig.ROLE_REVOKE_SELF_MSG);
+            }
+        }
     }
 }

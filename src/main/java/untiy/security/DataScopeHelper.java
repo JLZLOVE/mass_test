@@ -1,5 +1,6 @@
 package untiy.security;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -60,6 +61,21 @@ public final class DataScopeHelper {
         if (user == null) {
             return;
         }
+        applySysUserScope(wrapper, user);
+    }
+
+    /**
+     * Lambda 版数据范围过滤，避免硬编码列名。
+     */
+    public static void applySysUserScope(LambdaQueryWrapper<SysUser> wrapper) {
+        LoginUserDetails user = currentUser();
+        if (user == null) {
+            return;
+        }
+        applySysUserScope(wrapper, user);
+    }
+
+    private static void applySysUserScope(QueryWrapper<SysUser> wrapper, LoginUserDetails user) {
         switch (user.getEffectiveLevel()) {
             case 0:
                 break;
@@ -83,6 +99,34 @@ public final class DataScopeHelper {
             case 4:
             default:
                 wrapper.eq("id", user.getUserId());
+                break;
+        }
+    }
+
+    private static void applySysUserScope(LambdaQueryWrapper<SysUser> wrapper, LoginUserDetails user) {
+        switch (user.getEffectiveLevel()) {
+            case 0:
+                break;
+            case 1:
+                wrapper.eq(SysUser::getUserType, 1);
+                break;
+            case 2:
+                if (user.getPrimaryClubId() != null) {
+                    wrapper.inSql(SysUser::getId,
+                            "SELECT user_id FROM sys_user_role WHERE scope_type = 2 AND scope_id = "
+                                    + user.getPrimaryClubId());
+                }
+                break;
+            case 3:
+                if (user.getPrimaryDepartmentId() != null) {
+                    wrapper.inSql(SysUser::getId,
+                            "SELECT user_id FROM sys_user_role WHERE scope_type = 3 AND scope_id = "
+                                    + user.getPrimaryDepartmentId());
+                }
+                break;
+            case 4:
+            default:
+                wrapper.eq(SysUser::getId, user.getUserId());
                 break;
         }
     }

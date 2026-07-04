@@ -1,18 +1,21 @@
 package untiy.mapper;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import untiy.entity.SysUserRole;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import untiy.entity.vo.SysUserRoleVO;
 
-/**
- * <p>
- * 用户角色关联表 Mapper 接口
- * </p>
- *
- * @author 玖
- * @since 2026-02-19
- */
+import java.util.List;
+
 @Mapper
 public interface SysUserRoleMapper extends BaseMapper<SysUserRole> {
 
+    IPage<SysUserRoleVO> selectPageWithDetail(Page<SysUserRoleVO> page,
+                                              @Param("userIds") List<Long> userIds,
+                                              @Param("keyword") String keyword);
+
+    List<SysUserRoleVO> selectListByUserId(@Param("userId") Long userId);
 }

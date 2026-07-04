@@ -5,6 +5,7 @@ import untiy.entity.RegisterDTO;
 import untiy.entity.SysUser;
 import com.baomidou.mybatisplus.extension.service.IService;
 import untiy.entity.dto.SysUserDTO;
+import untiy.entity.dto.ToggleStatusDTO;
 
 import java.util.List;
 import java.util.Map;
@@ -50,4 +51,10 @@ public interface SysUserService extends IService<SysUser> {
     void deleteByUsername(String username);
 
     void updateUser(SysUser sysUsers);
+
+    /** 批量启用/禁用（管理员、数据范围内、禁用时不可含自己） */
+    void toggleStatus(ToggleStatusDTO request);
+
+    /** 分页查询已禁用用户（status=0，关键词模糊，数据范围过滤） */
+    IPage<SysUserDTO> listDisabled(Map<String, Object> param, String keyword);
 }

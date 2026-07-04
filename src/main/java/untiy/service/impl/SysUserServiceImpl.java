@@ -1,15 +1,20 @@
 package untiy.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import untiy.converter.SysUserConverter;
 import untiy.entity.dto.SysUserDTO;
+import untiy.entity.dto.ToggleStatusDTO;
 import untiy.exception.ErrorConfig;
 import untiy.exception.EIException;
 import untiy.exception.UserPermissionCode;
@@ -18,14 +23,16 @@ import untiy.entity.SysUser;
 import untiy.mapper.SysUserMapper;
 import untiy.security.DataScopeHelper;
 import untiy.security.LoginUserDetails;
+import untiy.security.UserCacheHelper;
 import untiy.security.UserSecurityHelper;
 import untiy.service.SysUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import untiy.utils.MPUtil;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -38,6 +45,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     //注册逻辑
     @Transactional
@@ -119,6 +129,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Transactional
     @Override
     public void updateUsers(List<SysUser> sysUsers) {
+        UserSecurityHelper.assertBatchNoDisabled(sysUserMapper, sysUsers);
         UserSecurityHelper.assertUsersInScope(sysUserMapper, sysUsers);
         for (SysUser user : sysUsers) {
             if (user.getPassword() != null && !user.getPassword().isEmpty()) {
@@ -126,6 +137,64 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             }
         }
         updateBatchById(sysUsers);
+    }
+
+    @Transactional
+    @Override
+    public void toggleStatus(ToggleStatusDTO request) {
+        if (request == null || request.getUsernames() == null || request.getUsernames().isEmpty()) {
+            throw new EIException(ErrorConfig.BAD_REQUEST_CODE, ErrorConfig.BAD_REQUEST_MSG);
+        }
+        if (request.getStatus() == null || (request.getStatus() != 0 && request.getStatus() != 1)) {
+            throw new EIException(ErrorConfig.BAD_REQUEST_CODE, "status 只能为 0 或 1");
+        }
+        LoginUserDetails currentUser = DataScopeHelper.currentUser();
+        if (currentUser == null) {
+            throw new EIException(ErrorConfig.NOT_LOGGED_IN_CODE, ErrorConfig.NOT_LOGGED_IN_MSG);
+        }
+
+        List<String> distinctNames = request.getUsernames().stream()
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<String> affected = new ArrayList<>();
+        for (String username : distinctNames) {
+            SysUser target = UserSecurityHelper.findInScope(sysUserMapper, username);
+            if (target == null) {
+                log.warn("管理员 {} 尝试变更范围外用户 {} 的状态", currentUser.getUsername(), username);
+                throw new AccessDeniedException(ErrorConfig.NO_PERM_DELETE_USER_MSG + username);
+            }
+            if (request.getStatus() == 0 && currentUser.getUsername().equals(username)) {
+                log.warn("管理员 {} 尝试禁用自己", currentUser.getUsername());
+                throw new EIException(ErrorConfig.CANNOT_DISABLE_SELF_CODE, ErrorConfig.CANNOT_DISABLE_SELF_MSG);
+            }
+            affected.add(username);
+        }
+
+        lambdaUpdate()
+                .in(SysUser::getUsername, affected)
+                .set(SysUser::getStatus, request.getStatus())
+                .update();
+
+        UserCacheHelper.evictByUsernames(redisTemplate, affected);
+        log.info("用户 {} 批量更新 {} 个用户状态为 {}", currentUser.getUsername(), affected.size(), request.getStatus());
+    }
+
+    @Override
+    public IPage<SysUserDTO> listDisabled(Map<String, Object> param, String keyword) {
+        Page<SysUser> page = MPUtil.getPage(param);
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getStatus, 0);
+        DataScopeHelper.applySysUserScope(wrapper);
+        if (StringUtils.isNotBlank(keyword)) {
+            wrapper.and(w -> w.like(SysUser::getUsername, keyword)
+                    .or().like(SysUser::getRealName, keyword));
+        }
+
+        IPage<SysUser> entityPage = baseMapper.selectPage(page, wrapper);
+        LoginUserDetails viewer = DataScopeHelper.currentUser();
+        return entityPage.convert(entity -> UserSecurityHelper.toMaskedDto(sysUserConverter, entity, viewer));
     }
 
     @Transactional

@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-03  
+> 更新时间：2026-07-04  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -132,12 +132,12 @@ untiy/
 ├── entity/                         # 实体、DTO、VO
 ├── annotation/          (6)        # 自定义注解 + LevelAspect
 ├── config/              (9)        # Spring / JWT / Redis / CORS 等
-├── security/            (6)        # SecurityConfig + 权限工具
+├── security/            (8)        # SecurityConfig + 权限工具（含 LevelBasedAccess、UserSecurityHelper）
 ├── filter/              (2)        # JwtFilter、IgnorePathsProperties
-├── converter/           (1)        # MapStruct 转换器
+├── converter/           (2)        # MapStruct：SysUserConverter、SysRoleConvert
 ├── advice/                         # GlobalExceptionHandler
 ├── exception/                      # EIException、ErrorConfig、Level 常量
-└── utils/                          # R、JwtUtil、MPUtil 等
+└── utils/                          # R、JwtUtil、MPUtil、SecurityUtils 等
 ```
 
 ### 3.2 权限三层分离（当前架构）
@@ -145,11 +145,11 @@ untiy/
 | 层级 | 职责 | 实现位置 |
 |---|---|---|
 | **准入鉴权** | 控制哪些等级可调用接口 | `@RequiresLevel` + `LevelAspect` |
-| **数据行过滤** | 按等级拼接查询条件 | `DataScopeHelper`（Service 层调用） |
-| **字段脱敏** | 低权限隐藏敏感 DTO 字段 | `FieldMaskHelper`（Service 层调用） |
+| **数据行过滤** | 按等级拼接查询条件 | `DataScopeHelper`（用户模块）、`LevelBasedAccess`（通用等级过滤） |
+| **字段脱敏** | 低权限隐藏敏感 DTO 字段 | `FieldMaskHelper` + `UserSecurityHelper.toMaskedDto` |
 
 > 设计原则：同一业务仅保留单一 Controller 接口；`@RequiresLevel` 不做数据/字段差异化。  
-> **已完成重构**：`SysUserController`  
+> **已完成重构**：`SysUserController`、`SysRoleController`  
 > **待重构**：其余 Controller 仍保留 `_F` / `_B` 双接口模式。
 
 ### 3.3 权限等级常量（`untiy.exception.Level`）
@@ -220,9 +220,20 @@ untiy/
 | `SecurityConfig` | 无状态 Session；仅 Swagger/静态 `permitAll()`；`AuthenticationEntryPoint` 返回 401 JSON；注册 `JwtFilter` |
 | `LoginUserDetails` | 继承 `LoginServiceImpl`；组合 `SysUser` + `effectiveLevel` + `primaryClubId` + `primaryDepartmentId`；含 Redis 可序列化 `CacheSnapshot` |
 | `UserScopeResolver` | 从角色列表解析 effectiveLevel、主社团/部门 scope_id |
-| `DataScopeHelper` | Service 层行级过滤：`applySysUserScope(QueryWrapper)`、`currentUser()` |
-| `FieldMaskHelper` | Service 层 DTO 脱敏：`maskSysUserDto(dto, viewer)` |
+| `DataScopeHelper` | 用户模块行级过滤：`applySysUserScope(QueryWrapper)`、`currentUser()`、`applyLevelScope(BaseQuery)` |
+| `FieldMaskHelper` | 用户 DTO 脱敏：`maskSysUserDto(dto, viewer)` |
+| **`LevelBasedAccess`** | **全局通用等级访问控制**（数值越小权限越高）：`checkViewable`、`checkOperable`、`checkNewLevel`、`applyLevelFilter` |
+| **`UserSecurityHelper`** | **用户模块专用**：`assertUsersInScope`、`toMaskedDto`、`findInScope`（委托 `DataScopeHelper` / `FieldMaskHelper`） |
 | `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、等级比较、同社团 scope 等） |
+
+### 7.0 工具类 `SecurityUtils`（`utils` 包）
+
+| 方法 | 说明 |
+|---|---|
+| `getCurrentUser()` | 从 `SecurityContext` 取 `LoginUserDetails`；未登录抛 `EIException(LOGIN_INVALID_MSG)` |
+| `getCurrentLevel()` | 返回当前用户 `effectiveLevel` |
+
+> 被 `SysRoleServiceImpl`、`LevelBasedAccess` 等模块复用，与 `DataScopeHelper.currentUser()`（可返回 null）不同，`SecurityUtils` 在业务层强制要求已登录。
 
 ### 7.1 JWT 认证与 Redis 缓存
 
@@ -240,7 +251,29 @@ untiy/
 | TTL | 1 小时（Filter / LoginController 常量 `CACHE_TTL_HOURS = 1`） |
 | JWT 过期 | `jwt.expiration = 3600000`（1 小时，与 Redis TTL 对齐） |
 
-### 7.2 五级数据可见范围（Service 层）
+### 7.2 等级访问控制约定
+
+**约定：数值越小权限越高**（与 `sys_role.role_level`、`Level` 常量一致）。
+
+#### `LevelBasedAccess`（全局通用）
+
+| 方法 | 用途 | 失败异常 |
+|---|---|---|
+| `checkViewable(current, target)` | 查看目标资源 | `ROLE_NO_PERMISSION` |
+| `checkOperable(current, target)` | 修改/删除目标资源 | `ROLE_CANNOT_MODIFY_HIGHER` |
+| `checkNewLevel(current, newLevel)` | 新增或变更等级字段 | `ROLE_CANNOT_ELEVATE` |
+| `applyLevelFilter(wrapper, level, column)` | QueryWrapper 追加 `ge(column, level)` | — |
+| `applyLevelFilter(BaseQuery, level)` | 注入数据范围字段（委托 `DataScopeHelper`） | — |
+
+#### `UserSecurityHelper`（用户模块专用）
+
+| 方法 | 用途 |
+|---|---|
+| `assertUsersInScope(mapper, sysUsers)` | 批量校验用户是否在数据范围内 |
+| `toMaskedDto(converter, entity, viewer)` | Entity→DTO + `FieldMaskHelper` 脱敏 |
+| `findInScope(mapper, username)` | 按 username 查用户并叠加数据范围 |
+
+### 7.3 五级数据可见范围（用户模块 Service 层）
 
 | effectiveLevel | 身份 | `applySysUserScope` 行为 |
 |---|---|---|
@@ -250,7 +283,7 @@ untiy/
 | 3 | 部长 | `id IN (sys_user_role WHERE scope_type=3 AND scope_id=deptId)` |
 | 4 | 普通学生 | `id = 当前用户 ID` |
 
-### 7.3 白名单（`security.ignore.urls`）
+### 7.4 白名单（`security.ignore.urls`）
 
 ```
 /v2/api-docs/**, /v3/api-docs/**, /swagger-resources/**, /swagger-ui/**,
@@ -263,15 +296,42 @@ untiy/
 
 ## 8. 转换器（`converter` 包）
 
-| 类 | 映射 |
-|---|---|
-| `SysUserConverter`（MapStruct） | `SysUser` ↔ `SysUserDTO`；Entity→DTO 时 `idCard` 等敏感字段由 MapStruct 忽略，最终脱敏由 `FieldMaskHelper` 完成 |
+| 类 | 映射 | 说明 |
+|---|---|---|
+| `SysUserConverter`（MapStruct） | `SysUser` ↔ `SysUserDTO` | 脱敏由 `UserSecurityHelper.toMaskedDto` + `FieldMaskHelper` 完成 |
+| `SysRoleConvert`（MapStruct） | `SysRole` → `SysRoleDTO`；`SysRoleDTO` → `SysRoleDTO`（`toEntity`） | 角色模块 DTO 转换，`componentModel = "spring"` |
 
 ---
 
-## 9. 核心 Service
+## 9. 异常码（`ErrorConfig` 节选）
 
-### 9.1 `UserDetailServiceImpl`
+### 9.1 角色相关（5001~5007、400）
+
+| Code | 常量 | 消息 |
+|---|---|---|
+| 5001 | `ROLE_NOT_FOUND` | 角色不存在 |
+| 5002 | `ROLE_LEVEL_INSUFFICIENT` | 无权创建高于自身等级的角色 |
+| 5003 | `ROLE_CANNOT_MODIFY_HIGHER` | 不能修改更高等级的角色 |
+| 5004 | `ROLE_CANNOT_ELEVATE` | 不能提升自身权限等级 |
+| 5005 | `ROLE_IN_USE` | 不能删除当前用户正在使用的角色 |
+| 5006 | `ROLE_NO_PERMISSION` | 无权查看该角色 |
+| 5007 | `ROLE_CODE_BLANK` | 角色编码不能为空 |
+| 400 | `BAD_REQUEST` | 请求参数无效 |
+
+### 9.2 用户 / 登录相关（节选）
+
+| Code | 常量 | 消息 |
+|---|---|---|
+| 001 | `LOGIN_INVALID` | 未登录或会话已失效 |
+| 1008 | `USERNAME_BLANK` | 用户名为空 |
+| 0002 | `NO_PERM_DELETE_USER` | 无权改变用户: |
+| 3005 | `NOT_LOGGED_IN` | 未登录 |
+
+---
+
+## 10. 核心 Service
+
+### 10.1 `UserDetailServiceImpl`
 
 | 项 | 说明 |
 |---|---|
@@ -281,34 +341,48 @@ untiy/
 | 加载流程 | 查 `sys_user` → 查 `sys_user_role` → 查有效 `sys_role` → `UserScopeResolver` 解析等级与 scope → 返回 `LoginUserDetails` |
 | 特点 | **一次性加载**用户、角色、等级、社团/部门范围，避免 Filter 内二次查等级 |
 
-### 9.2 `SysUserServiceImpl`
+### 10.2 `SysUserServiceImpl`
 
 | 方法 | 行级过滤 | 字段脱敏 | 说明 |
 |---|---|---|---|
-| `pageQuery` | ✅ `DataScopeHelper` | ✅ `FieldMaskHelper` | 分页 + 条件 + 排序 |
-| `getDetail(username)` | 按 username 查实体 | ✅ | 用户不存在/用户名为空抛 `EIException` |
+| `pageQuery` | ✅ `DataScopeHelper` | ✅ `UserSecurityHelper.toMaskedDto` | 分页 + 条件 + 排序 |
+| `getDetail(username)` | 按 username 查实体 | ✅ `UserSecurityHelper` | 用户不存在/用户名为空抛 `EIException` |
 | `saveUser` | — | — | BCrypt 加密密码 |
-| `updateUsers` | ✅ 批量前 `findInScope` | — | 管理员批量更新 |
+| `updateUsers` | ✅ `UserSecurityHelper.assertUsersInScope` | — | 管理员批量更新 |
 | `updateUser` | — | — | 学生仅可改自己；白名单字段（realName/gender/phone/email/avatar） |
-| `deleteByUsername` / `deleteUsers` | ✅ | — | 按 username 删除，越权抛 `AccessDeniedException` |
+| `deleteByUsername` / `deleteUsers` | ✅ `UserSecurityHelper.findInScope` | — | 越权抛 `AccessDeniedException` |
 | `register` | — | — | 注册逻辑（`RegisterController` 调用） |
+
+### 10.3 `SysRoleServiceImpl`
+
+| 方法 | 等级控制 | 说明 |
+|---|---|---|
+| `pageQuery` | ✅ `LambdaQueryWrapper.ge(roleLevel, currentLevel)` | 仅用 `MPUtil.getPage`；搜索限 `roleName`/`roleCode` |
+| `getDetail(id)` | ✅ `LevelBasedAccess.checkViewable` | `id==null` 抛 `BAD_REQUEST`；越权 `log.warn` |
+| `saveRole` | ✅ `checkNewLevel` + `roleCode` 非空校验 | — |
+| `updateRole` | ✅ `doUpdateRole`：`checkOperable` + `checkNewLevel` | `LambdaUpdateWrapper` 选择性更新，避免 null 覆盖 |
+| `updateRoles` | ✅ 逐条 `doUpdateRole` | 外层 `@Transactional` 统一回滚 |
+| `deleteById` / `deleteByIds` | ✅ `doDeleteById`：`checkOperable` + `checkRoleNotInUse` | 删除前同步清理 `sys_user_role`；批量 ID 去重 |
+| `checkRoleNotInUse` | — | 权限格式与 `AuthorServiceImpl` 一致：`ROLE_` + roleCode |
+
+**私有方法：** `doUpdateRole`、`doDeleteById`、`removeUserRoleAssociations`、`buildRoleAuthority`
 
 ---
 
-## 10. 接口清单（重点 Controller）
+## 11. 接口清单（重点 Controller）
 
 > 完整路径前缀：`/Mass_Test`  
 > 统一响应：`R { code, msg, data? }`  
 > 认证 Header：`Token: <jwt>`
 
-### 10.1 认证模块
+### 11.1 认证模块
 
 | 路径 | 方法 | 权限 | 说明 |
 |---|---|---|---|
 | `/login/allocation` | POST | `@IgnoreAuth` | `name` + `password` → `{ token, username }` |
 | `/register/single` | POST | `@IgnoreAuth` | `RegisterDTO` 注册 |
 
-### 10.2 `SysUserController`（已统一单接口）
+### 11.2 `SysUserController`（已统一单接口）
 
 根路径：`/sys-user`
 
@@ -324,7 +398,7 @@ untiy/
 
 **已移除的旧接口：** `listSysUser_F/B`、`detailSysUser_F/B`、`add_B`、`updateSysUser_B`、`deleteSysUser_B`、`query`（公开）
 
-### 10.3 `SysUserRoleController`（仍为多接口，待重构）
+### 11.3 `SysUserRoleController`（仍为多接口，待重构）
 
 根路径：`/sys-user-role`
 
@@ -342,25 +416,23 @@ untiy/
 | **`/assign`** | POST | **`@RequiresLevel(ADMIN)`** | 分配角色：`userId, roleId, scopeType, scopeId` |
 | **`/revoke`** | DELETE | **`@RequiresLevel(ADMIN)`** | 撤销角色：`id` |
 
-### 10.4 `SysRoleController`（仍为多接口，待重构）
+### 11.4 `SysRoleController`（已统一单接口）
 
-根路径：`/sys-role`
+根路径：`/sys-role`（对标 `SysUserController` 设计）
 
-| 路径 | 方法 | 权限 | 说明 |
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
 |---|---|---|---|
-| `/listSysRole` | GET | 需登录 | 全量列表 |
-| `/listSysRole_F` | GET | `@IgnoreAuth` | 前端分页 |
-| `/listSysRole_B` | GET | 需登录 | 后端分页 |
-| `/query` | GET | 需登录 | 条件查询 |
-| `/detailSysRole_F/{id}` | GET | `@IgnoreAuth` | 公开详情 |
-| `/detailSysRole_B/{id}` | GET | 需登录 | 后端详情 |
-| `/add_B` | POST | 需登录 | 新增 |
-| `/updateSysRole_B` | PUT | 需登录 | 批量更新 |
-| `/deleteSysRole_B` | DELETE | 需登录 | 批量删除 |
+| `/listSysRole` | GET | `STUDENT (4)` | 分页查询；Service 按 `role_level >= 当前等级` 过滤 |
+| `/detailSysRole/{id}` | GET | `STUDENT (4)` | 详情；不可查看高于自身等级的角色 |
+| `/addSysRole` | POST | `ADMIN (1)` | 新增；`roleCode` 非空；不可创建高于自身等级 |
+| `/updateSysRole` | PUT | `ADMIN (1)` | 单个更新；`LambdaUpdateWrapper` 选择性更新 |
+| `/updateSysRoleBatc` | PUT | `ADMIN (1)` | 批量更新（路径名为 Batc） |
+| `/deleteSysRole/{id}` | DELETE | `ADMIN (1)` | 单个删除；同步清理 `sys_user_role` |
+| `/deleteSysRole` | DELETE | `ADMIN (1)` | 批量删除，Body: `List<Long>` ids |
 
-> 无 `@RequiresLevel` 注解；后续重构可参考 `SysUserController` 合并 `_F/_B` 并下沉 Service。
+**已移除的旧接口：** `listSysRole_F/B`、`detailSysRole_F/B`、`add_B`、`updateSysRole_B`、`deleteSysRole_B`、`query`
 
-### 10.5 其他 Controller 根路径
+### 11.5 其他 Controller 根路径
 
 | Controller | 根路径 |
 |---|---|
@@ -382,10 +454,10 @@ untiy/
 
 ---
 
-## 11. 前端结构（`club-admin-frontend`）
+## 12. 前端结构（`club-admin-frontend`）
 
 ```
-src/api/crudFactory.ts    # 仍生成 listF/listB 等（待对齐 SysUser 新接口）
+src/api/crudFactory.ts    # 仍生成 listF/listB 等（待对齐 SysUser/SysRole 新接口）
 src/utils/request.ts      # baseURL=/Mass_Test，Header Token 注入
 src/stores/user.ts        # token、username、角色
 src/router/dynamic.ts     # 后端菜单驱动动态路由
@@ -395,24 +467,24 @@ src/router/dynamic.ts     # 后端菜单驱动动态路由
 
 ---
 
-## 12. 关键业务流程
+## 13. 关键业务流程
 
-### 12.1 登录 → 权限缓存 → 业务请求
+### 13.1 登录 → 权限缓存 → 业务请求
 
 ```
 login → JWT(subject=username) → Redis user:{username}
      → 业务请求携带 Token → JwtFilter 加载 LoginUserDetails
-     → @RequiresLevel 准入 → Service 数据过滤 + 字段脱敏
+     → @RequiresLevel 准入 → Service 数据过滤（DataScopeHelper / LevelBasedAccess）+ 字段脱敏（UserSecurityHelper）
 ```
 
-### 12.2 活动 / 通知（概要）
+### 13.2 活动 / 通知（概要）
 
 - 活动：`activity_apply` 审批状态 1~6；`activity_approve_flow` 多步审批；`activity_sign` 签到  
 - 通知：`notice_info.receiver_type` + `receiver_values` → `notice_read_record`
 
 ---
 
-## 13. 模块依赖
+## 14. 模块依赖
 
 ```mermaid
 flowchart TB
@@ -425,7 +497,10 @@ flowchart TB
         C[Controller] -->|@RequiresLevel| LA[LevelAspect]
         C --> SV[Service]
         SV --> DS[DataScopeHelper]
+        SV --> LBA[LevelBasedAccess]
+        SV --> USH[UserSecurityHelper]
         SV --> FM[FieldMaskHelper]
+        SV --> SU[SecurityUtils]
         SV --> M[Mapper]
         M --> DB[(MySQL)]
         JF[JwtFilter] --> SEC[SecurityConfig]
@@ -436,23 +511,25 @@ flowchart TB
 
 ---
 
-## 14. 已知问题与后续工作
+## 15. 已知问题与后续工作
 
 | 状态 | 问题 | 说明 |
 |---|---|---|
 | ✅ 已修复 | JWT 过期过短 | 已改为 1 小时（`3600000` ms） |
 | ✅ 已修复 | 401 vs 403 | `AuthenticationEntryPoint` 统一 401；`AccessDeniedException` → 403 |
 | ✅ 已修复 | `@IgnoreAuth` Filter 阶段失效 | `IgnoreAuthRegistry` 启动扫描替代 `getHandler()` |
-| ✅ 进行中 | 用户模块单接口化 | `SysUserController` 已完成 |
-| ⏳ 待做 | 其余 Controller `_F/_B` 合并 | 按用户模块模式逐步重构 |
-| ⏳ 待做 | 前端 `crudFactory` 对齐 | `listF/listB` → 统一 `listSysUser` 等 |
+| ✅ 已完成 | 用户模块单接口化 | `SysUserController` + `SysUserServiceImpl` + `UserSecurityHelper` |
+| ✅ 已完成 | 角色模块单接口化 | `SysRoleController` + `SysRoleServiceImpl` + `LevelBasedAccess` |
+| ✅ 已完成 | 角色 CRUD 安全加固 | 选择性更新、级联删 `sys_user_role`、越权 `log.warn`、ID 去重 |
+| ⏳ 待做 | 其余 Controller `_F/_B` 合并 | 按用户/角色模块模式逐步重构 |
+| ⏳ 待做 | 前端 `crudFactory` 对齐 | `listF/listB` → 统一 `listSysUser` / `listSysRole` 等 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
 | ⏳ 待做 | entity / model 重复 | 统一实体包 |
 | ⏳ 待做 | Fastjson 1.2.83 安全风险 | 升级或替换 Jackson |
 
 ---
 
-## 15. 相关文档
+## 16. 相关文档
 
 | 文档 | 路径 | 说明 |
 |---|---|---|

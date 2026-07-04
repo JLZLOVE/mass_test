@@ -13,9 +13,10 @@ import java.util.List;
 public class CommonServiceImpl implements CommonService {
     @Autowired
     CommonMapper commonMapper;
+
     @Override
     public List<String> requireOption(HashMap<String, Object> map) {
-List<String> list=commonMapper.requireMapper(map);
+        List<String> list = commonMapper.requireMapper(map);
         return list;
     }
 }

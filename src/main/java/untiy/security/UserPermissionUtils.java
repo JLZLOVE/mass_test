@@ -56,7 +56,7 @@ public class UserPermissionUtils {
     public void checkDeletePermission(LoginUserDetails currentUser, Long targetUserId) {
         // 规则0：登录校验
         if (currentUser == null) {
-            throw new EIException(ErrorConfig.NOT_LOGGED_IN_CODE, ErrorConfig.NOT_LOGGED_IN_MSG);
+            throw new EIException(ErrorConfig.LOGIN_INVALID_CODE, ErrorConfig.LOGIN_INVALID_MSG);
         }
         if (targetUserId == null) {
             throw new EIException(4000, "目标用户ID不能为空");

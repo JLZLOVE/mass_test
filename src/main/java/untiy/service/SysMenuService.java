@@ -1,16 +1,19 @@
 package untiy.service;
 
-import untiy.entity.SysMenu;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
+import untiy.entity.SysMenu;
+import untiy.entity.vo.MenuTreeResultVO;
 
-/**
- * <p>
- * 菜单权限表 服务类
- * </p>
- *
- * @author 玖
- * @since 2026-02-19
- */
+import java.util.Map;
+
 public interface SysMenuService extends IService<SysMenu> {
 
+    MenuTreeResultVO getMenuTreeForCurrentUser();
+
+    IPage<SysMenu> pageQuery(Map<String, Object> param, SysMenu query);
+
+    void saveMenu(SysMenu menu);
+
+    void deleteMenu(Long id);
 }

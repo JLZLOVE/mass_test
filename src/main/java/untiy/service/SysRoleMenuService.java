@@ -1,16 +1,14 @@
 package untiy.service;
 
 import untiy.entity.SysRoleMenu;
+import untiy.entity.dto.AssignRoleMenuDTO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
-/**
- * <p>
- * 角色菜单关联表 服务类
- * </p>
- *
- * @author 玖
- * @since 2026-02-19
- */
+import java.util.List;
+
 public interface SysRoleMenuService extends IService<SysRoleMenu> {
 
+    void assign(AssignRoleMenuDTO dto);
+
+    List<Long> listMenuIdsByRole(Long roleId);
 }

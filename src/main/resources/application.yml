@@ -91,6 +91,9 @@ knife4j:
 
 activity:
   upload-dir: static/activity
+
+notice:
+  upload-dir: uploads/notice
 springdoc:
   api-docs:
     enabled: true

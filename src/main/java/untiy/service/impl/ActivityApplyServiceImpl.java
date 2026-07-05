@@ -38,6 +38,7 @@ import untiy.security.ActivityApprovalChainHelper;
 import untiy.security.ActivityApproverHelper;
 import untiy.security.LoginUserDetails;
 import untiy.service.ActivityApplyService;
+import untiy.service.NoticeAutoPublisher;
 import untiy.utils.ActivityCodeGeneratorUtil;
 import untiy.utils.MPUtil;
 import untiy.utils.SecurityUtils;
@@ -79,6 +80,9 @@ public class ActivityApplyServiceImpl extends ServiceImpl<ActivityApplyMapper, A
 
     @Autowired
     private ActivityCodeGeneratorUtil activityCodeGeneratorUtil;
+
+    @Autowired
+    private NoticeAutoPublisher noticeAutoPublisher;
 
     @Transactional
     @Override
@@ -272,6 +276,7 @@ public class ActivityApplyServiceImpl extends ServiceImpl<ActivityApplyMapper, A
         if (!updateById(apply)) {
             throwVersionConflict();
         }
+        noticeAutoPublisher.publishActivityCancelNotice(apply);
         log.info("活动 {} 已取消，原因：{}", apply.getActivityNo(), dto.getReason());
     }
 

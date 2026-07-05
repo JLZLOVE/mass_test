@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-05（活动审批模块 + 社团申请/合议 + RBAC 模块）  
+> 更新时间：2026-07-05（通知模块 + 活动审批 + 社团申请/合议 + RBAC）  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -54,7 +54,8 @@
 | MyBatis-Plus | `table-underline: true`，`column-underline: true` |
 | 日志级别 | `untiy.mapper: debug`，`untiy.filter: debug`，`org.springframework.security: DEBUG` |
 | **活动附件目录** | `activity.upload-dir: static/activity`（本地存储，预留 OSS） |
-| **定时任务** | `@EnableScheduling`；活动审批超时扫描每小时一次 |
+| **通知附件目录** | `notice.upload-dir: uploads/notice`（本地存储，预留 OSS） |
+| **定时任务** | `@EnableScheduling`；活动审批超时每小时；通知定时发送/置顶结束每分钟 |
 
 ### 1.4 根目录结构
 
@@ -64,7 +65,7 @@ Mass_Test/
 ├── PROJECT_OVERVIEW.md             # 根目录副本
 ├── src/                            # 后端源码
 ├── club-admin-frontend/            # Vue 3 管理端
-├── mysql/                          # 数据库脚本
+├── mysql/                          # 数据库脚本（含 *_migration.sql）
 └── .cursor/skills/
     ├── PROJECT_OVERVIEW.md         # 本文档
     ├── 更新信息.md                 # 文档更新扫描清单
@@ -74,6 +75,7 @@ Mass_Test/
     ├── 权限过滤.md                 # 五级可见范围与权限过滤方案
     ├── 活动.md                     # 社团创建/解散/合议业务流程
     ├── 活动审批模块.md             # 活动申请/审批/变更/取消/总结/超时
+    ├── 通知.md                     # 通知发送/撤回/已读/模板/定时
     └── skill.md                    # 前端开发规范
 ```
 
@@ -90,7 +92,7 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 组织架构：sys_college → sys_major；sys_club → sys_department
 社团生命周期：club_application（创建/解散申请）→ 学院/校级审批 → 激活社团；club_council（合议解散）
 活动：activity_category → activity_apply → activity_approve_flow / activity_sign / activity_apply_history
-通知：notice_category → notice_info → notice_read_record
+通知：notice_category → notice_info → notice_read_record；notice_template（模板）
 统计：club_statistics（club_id + stat_date）
 ```
 
@@ -111,10 +113,14 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 | **`activity_approve_flow`** | **活动审批步骤（含 flow_type、step_enter_time）** |
 | **`activity_apply_history`** | **变更前快照 + 变更后目标值** |
 | `activity_sign` | 活动签到 |
-| `notice_*` | 通知分类、内容、阅读记录 |
+| **`notice_info`** | **通知（含置顶、长期可见、附件权限）** |
+| **`notice_read_record`** | **已读/确认记录** |
+| **`notice_template`** | **通知模板** |
+| `notice_category` | 通知分类 |
 | `club_statistics` | 社团日统计 |
 
-> 活动审批增量 DDL 参考：`mysql/activity_approval_migration.sql`（`activity_level`、`version`、`attachment`、`summary_*`、`activity_apply_history` 等）。
+> 活动审批增量 DDL：`mysql/activity_approval_migration.sql`  
+> 通知模块增量 DDL：`mysql/notice_module_migration.sql`（置顶、长期可见、附件、模板表等）
 
 ### 2.2A `club_application` 状态
 
@@ -148,9 +154,20 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 | 6 | 已取消 |
 | 7 | 变更审批中 |
 
-`activity_level`：1=院级，2=校级。`version`：乐观锁，审批/变更/取消/总结均需携带。
+`activity_level`：1=院级，2=校级。`version`：乐观锁。
 
-`activity_approve_flow.flow_type`：1=正常审批，2=变更审批。
+### 2.2D `notice_info` 状态
+
+| status | 含义 |
+|---|---|
+| 0 | 草稿 |
+| 1 | 已发布 |
+| 2 | 已撤回 |
+
+`receiver_type`：1全体学生 2全体老师 3指定角色 4指定社团 5指定人员。  
+`importance`：1高 2中 3低；`urgency`：1紧急 2不紧急（任一为1则置顶加红）。  
+`long_term_visible`：1动态接收人，0发布时固化 `notice_read_record`。  
+`attachment_min_level`：0~4，用户 `effectiveLevel ≤ 该值` 可见附件。
 
 ### 2.3 实体时间字段序列化
 
@@ -199,8 +216,8 @@ untiy/
 | **字段脱敏** | 低权限隐藏敏感 DTO 字段 | `FieldMaskHelper` + `UserSecurityHelper.toMaskedDto` |
 
 > 设计原则：同一业务仅保留单一 Controller 接口；`@RequiresLevel` 不做数据/字段差异化。  
-> **已完成重构**：`SysUserController`、`SysRoleController`、`SysUserRoleController`、`SysMenuController`、`SysRoleMenuController`、**`ClubApplicationController`**、**`ClubCouncilController`**、**`ActivityApplyController`**  
-> **待重构**：`ActivityApproveFlowController` 等仍保留 `_F` / `_B` 双接口（活动审批流已内聚于 `ActivityApplyService`）。
+> **已完成重构**：… **`ActivityApplyController`**、**`NoticeInfoController`**、**`NoticeTemplateController`**  
+> **待重构**：`NoticeCategoryController`、`NoticeReadRecordController`、`ActivityApproveFlowController` 等仍保留 `_F/_B` 旧接口。
 
 ### 3.3 权限等级常量（`untiy.exception.Level`）
 
@@ -281,7 +298,9 @@ untiy/
 | **`ClubSecurityHelper`** | **社团申请/合议**：指导老师、院长、校级管理员、学院范围校验 |
 | **`ClubDissolveExecutor`** | **执行解散**：社团状态、部门、活动清理、角色解绑（进行中活动含 status 7） |
 | **`ActivityApproverHelper`** | **活动审批**：发起人识别、社长/指导老师/学院书记/校书记查找、超时转交 |
-| **`ActivityApprovalChainHelper`** | **活动审批链**：按发起人角色 + 院/校级动态生成步骤；变更链固定 3 步 |
+| **`ActivityApprovalChainHelper`** | **活动审批链**：按发起人角色 + 院/校级动态生成步骤 |
+| **`NoticeScopeHelper`** | **通知**：发起人识别、接收范围校验、接收人解析、置顶/加红规则 |
+| **`NoticeAutoPublisher`** | **系统自动通知**：活动取消时通知参与人 |
 | `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、等级比较、同社团 scope 等） |
 
 ### 7.0 工具类 `SecurityUtils`（`utils` 包）
@@ -410,6 +429,7 @@ untiy/
 | `91xx` | 菜单 | 9101~9108 |
 | `92xx` | 社团申请/合议 | 9201~9218 |
 | **`93xx`** | **活动审批** | **9301~9314** |
+| **`94xx`** | **通知** | **9401~9411** |
 
 ### 9.2 角色权限（9xxx）
 
@@ -487,7 +507,23 @@ untiy/
 | 9313 | `ACT_TIME_INVALID` | 开始时间必须早于结束时间 |
 | 9314 | `ACT_LEVEL_ADJUST_LOCKED` | 活动级别已调整过，不可再次修改 |
 
-### 9.6 认证 / 用户（节选）
+### 9.6 通知（94xx）
+
+| Code | 常量 | 消息 |
+|---|---|---|
+| 9401 | `NOTICE_NOT_FOUND` | 通知不存在 |
+| 9402 | `NOTICE_CATEGORY_NOT_FOUND` | 通知分类不存在 |
+| 9403 | `NOTICE_NO_PERMISSION` | 无权发送该范围的通知 |
+| 9404 | `NOTICE_SCOPE_APPROVAL_REQUIRED` | 跨范围发送需额外审批 |
+| 9405 | `NOTICE_STATUS_INVALID` | 通知状态不允许此操作 |
+| 9406 | `NOTICE_NOT_RECEIVER` | 您不在该通知接收范围内 |
+| 9407 | `NOTICE_NOT_REVOCABLE` | 该通知不可撤回 |
+| 9408 | `NOTICE_PIN_EXPIRE_REQUIRED` | 置顶时必须填写置顶结束时间 |
+| 9409 | `NOTICE_TEMPLATE_NOT_FOUND` | 通知模板不存在 |
+| 9410 | `NOTICE_TEMPLATE_IN_USE` | 模板已被引用，已改为停用 |
+| 9411 | `NOTICE_ALREADY_CONFIRMED` | 已确认阅读，无需重复操作 |
+
+### 9.7 认证 / 用户（节选）
 
 | Code | 常量 | 消息 |
 |---|---|---|
@@ -611,7 +647,32 @@ untiy/
 | 学院书记 | `sys_college.dean_id`（社团挂靠学院） |
 | 校书记 | `SUPER_ADMIN` 角色用户 |
 
-**超时（`ActivityApprovalTimeoutTask`）：** 每小时扫描；步骤进入 >3 天日志催办；>7 天转交上级（社长→指导老师→学院书记→校书记）。
+**超时（`ActivityApprovalTimeoutTask`）：** 每小时扫描；步骤进入 >3 天日志催办；>7 天转交上级。
+
+### 10.10 `NoticeInfoServiceImpl`（`@Slf4j`）
+
+| 方法 | 说明 |
+|---|---|
+| `send` | 权限与范围校验；立即/定时/草稿；发布时处理置顶与接收人固化 |
+| `saveDraft` | 保存草稿 `status=0` |
+| `publishNow` | 手动发布草稿 |
+| `withdraw` | 撤回；`revocable=0` 不可撤；撤回后长期可见失效 |
+| `getDetail` | 详情 + 进入即已读 + 附件权限过滤 |
+| `confirmRead` | 需确认通知的确认操作 |
+| `myInbox` / `mySent` | 收件箱 / 发件箱 |
+| `readStats` | 发布人查看已读/已确认/接收人数 |
+
+**接收人固化：** `long_term_visible=0` 发布时写入 `notice_read_record`；`=1` 查询时动态解析。
+
+**定时（`NoticeScheduledTask`）：** 每分钟发布到期草稿；每分钟取消过期置顶。
+
+### 10.11 `NoticeTemplateServiceImpl`
+
+| 方法 | 说明 |
+|---|---|
+| `saveTemplate` / `updateTemplate` | 模板 CRUD |
+| `deleteTemplate` | 被引用则 `status=0` 停用并提示 9410 |
+| `pageQuery` | 启用模板分页列表 |
 
 ---
 
@@ -633,6 +694,8 @@ untiy/
 | **`ActivityChangeDTO`** | `version`、时间地点、`changeReason` | 变更申请 |
 | **`ActivityCancelDTO`** | `version`、`reason` | 取消活动 |
 | **`ActivitySummaryDTO`** | `version`、`summaryContent`、`summaryAttachment` | 活动总结 |
+| **`NoticeSendDTO`** | 标题、内容、分类、接收范围、重要/紧急、确认、置顶、长期可见、附件 | `POST /notice-info/send` |
+| **`NoticeTemplateDTO`** | `templateName`、`title`、`content`、`categoryId` | 通知模板 |
 
 ### VO（`entity/vo/`）
 
@@ -642,6 +705,8 @@ untiy/
 | `MenuTreeVO` / `MenuTreeResultVO` | … | 菜单树 |
 | `ClubApplicationDetailVO` | `application`、`currentApprover`、`queryTime` | 申请详情 |
 | `CouncilSignRecordVO` | `userId`、`roleCode`、`level`、`signTime` | 合议签字 JSON 元素 |
+| **`ActivityApplyDetailVO`** | `apply`、`flows`、`histories`、`currentApproverName`、`queryTime` | 活动详情 |
+| **`NoticeDetailVO`** | `notice`、`highlight`、`visibleAttachments`、已读/确认、统计 | 通知详情 |
 
 ### 常量 / 工具
 
@@ -652,6 +717,8 @@ untiy/
 | `ClubCodeGeneratorUtil` | 生成 `APP*` 申请编号、`CLUB*` 社团编号（防重复） |
 | **`ActivityCodeGeneratorUtil`** | 生成 `ACT*` 活动编号（按分类后缀 + 防重复） |
 | **`ActivityFileStorageUtil`** | 活动申请/总结附件本地存储 |
+| **`NoticeConstants`** | 通知状态、接收类型、重要/紧急、来源类型 |
+| **`NoticeFileStorageUtil`** | 通知附件本地存储（`uploads/notice`） |
 
 ### Mapper
 
@@ -659,6 +726,8 @@ untiy/
 |---|---|---|
 | `SysUserRoleMapper.selectPageWithDetail` | 分页联查 | JOIN `sys_user`、`sys_role`；按 `userIds` + `keyword` |
 | `SysUserRoleMapper.selectListByUserId` | 列表 | 当前用户全部角色关联 |
+| **`ActivityApplyHistoryMapper`** | — | 活动变更历史 |
+| **`NoticeTemplateMapper`** | — | 通知模板 |
 
 ---
 
@@ -787,9 +856,40 @@ untiy/
 
 **已移除的旧接口：** `listActivityApply_F/B`、`detailActivityApply_F/B`、`add_B`、`updateActivityApply_B`、`deleteActivityApply_B`、`query`
 
-> `ActivityApproveFlowController` 仍保留旧 CRUD，新业务不依赖；审批流由 `ActivityApplyService` 内部维护。
+> `ActivityApproveFlowController` 仍保留旧 CRUD，新业务不依赖。
 
-### 11.10 其他 Controller 根路径
+### 11.10 `NoticeInfoController`（10 接口）
+
+根路径：`/notice-info`（规范见 `.cursor/skills/通知.md`）
+
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
+|---|---|---|---|
+| `/send` | POST | `ADMIN (1)` | 发送/定时/草稿 |
+| `/draft` | POST | `ADMIN (1)` | 保存草稿 |
+| `/publish/{id}` | POST | `ADMIN (1)` | 手动发布草稿 |
+| `/withdraw/{id}` | POST | `ADMIN (1)` | 撤回通知 |
+| `/detail/{id}` | GET | `STUDENT (4)` | 详情（进入即已读） |
+| `/confirm/{id}` | POST | `STUDENT (4)` | 确认阅读 |
+| `/inbox` | GET | `STUDENT (4)` | 我的收件箱 |
+| `/sent` | GET | `ADMIN (1)` | 我发送的通知 |
+| `/stats/{id}` | GET | `ADMIN (1)` | 已读/确认统计 |
+| `/upload` | POST | `ADMIN (1)` | 上传附件 |
+
+**已移除的旧接口：** `listNoticeInfo_F/B`、`detailNoticeInfo_F/B`、`add_B`、`updateNoticeInfo_B`、`deleteNoticeInfo_B`、`query`
+
+### 11.11 `NoticeTemplateController`（5 接口）
+
+根路径：`/notice-template`
+
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
+|---|---|---|---|
+| `/save` | POST | `ADMIN (1)` | 新增模板 |
+| `/update` | PUT | `ADMIN (1)` | 更新模板 |
+| `/delete/{id}` | DELETE | `ADMIN (1)` | 删除（被引用则停用） |
+| `/detail/{id}` | GET | `ADMIN (1)` | 模板详情 |
+| `/list` | GET | `ADMIN (1)` | 分页列表 |
+
+### 11.12 其他 Controller 根路径
 
 | Controller | 根路径 |
 |---|---|
@@ -804,7 +904,8 @@ untiy/
 | `ActivitySignController` | `/activity-sign` |
 | `NoticeCategoryController` | `/notice-category` |
 | `NoticeInfoController` | `/notice-info` |
-| `NoticeReadRecordController` | `/notice-read-record` |
+| **`NoticeTemplateController`** | **`/notice-template`** |
+| `NoticeReadRecordController` | `/notice-read-record`（旧 CRUD，已读/确认已内聚于 `NoticeInfoService`） |
 | `ClubStatisticsController` | `/club-statistics` |
 
 ---
@@ -830,6 +931,29 @@ src/router/dynamic.ts     # 后端菜单驱动动态路由
 login → JWT(subject=username) → Redis user:{username}
      → 业务请求携带 Token → JwtFilter 加载 LoginUserDetails
      → @RequiresLevel 准入 → Service 数据过滤（DataScopeHelper / LevelBasedAccess）+ 字段脱敏（UserSecurityHelper）
+```
+
+### 13.2 活动审批
+
+```
+提交：POST /activity-apply/submit → 识别发起人角色 → ActivityApprovalChainHelper 生成步骤
+      → ActivityApproverHelper 预分配 approve_user_id → activity_approve_flow
+      → approve_status=2, current_approve_step=1, version=0
+
+审批：POST /approve/{id} 或 /reject/{id} → 校验当前步骤审批人 + version
+      → 通过：写 flow 记录 → 无下一步则 status=4，否则 step++ 且 status=3
+      → 驳回：status=5（变更流则 status=4 + history 标记驳回）
+      → 指导老师审批时可调整 activity_level 一次（level_adjust_locked）
+
+变更：POST /change/{id} → 仅 status=4 → 快照至 activity_apply_history（含 new_* 字段）
+      → status=7 → 变更链：社长 → 指导老师 → 学院书记
+      → 通过后主表写入 new_*；驳回主表不变
+
+取消：POST /cancel/{id} → 仅申请人 → status=6
+
+总结：POST /summary/{id} → 已通过 + 结束后 1~3 天 → summary_content / summary_attachment
+
+超时：ActivityApprovalTimeoutTask @Scheduled 每小时 → 3 天催办日志 → 7 天转交上级
 ```
 
 ### 13.3 用户状态与角色分配
@@ -865,32 +989,25 @@ login → JWT(subject=username) → Redis user:{username}
 ClubDissolveExecutor：社团 status=0；删部门；活动仅保留已通过且已结束；移除社长/部长角色绑定；进行中活动含 status 1/2/3/7
 ```
 
-### 13.2 活动审批
+### 13.6 通知
 
 ```
-提交：POST /activity-apply/submit → 识别发起人角色 → ActivityApprovalChainHelper 生成步骤
-      → ActivityApproverHelper 预分配 approve_user_id → activity_approve_flow
-      → approve_status=2, current_approve_step=1, version=0
+发送：POST /notice-info/send → NoticeScopeHelper 校验发起人默认范围
+      → 跨范围抛 9404（审批流程预留）
+      → 立即发布或 scheduledPublishTime 定时（status=0 草稿）
+      → long_term_visible=0：固化 notice_read_record；=1：动态解析接收人
 
-审批：POST /approve/{id} 或 /reject/{id} → 校验当前步骤审批人 + version
-      → 通过：写 flow 记录 → 无下一步则 status=4，否则 step++ 且 status=3
-      → 驳回：status=5（变更流则 status=4 + history 标记驳回）
-      → 指导老师审批时可调整 activity_level 一次（level_adjust_locked）
+已读/确认：GET /detail/{id} 记录 read_time；POST /confirm/{id} 记录 confirm_time
 
-变更：POST /change/{id} → 仅 status=4 → 快照至 activity_apply_history（含 new_* 字段）
-      → status=7 → 变更链：社长 → 指导老师 → 学院书记
-      → 通过后主表写入 new_*；驳回主表不变
+撤回：POST /withdraw/{id} → status=2；管理员及以上仍可见；revocable=0 不可撤
 
-取消：POST /cancel/{id} → 仅申请人 → status=6
+置顶：importance≤2 或 urgency=1 自动置顶；手动置顶需 pinExpireAt
+      → NoticeScheduledTask 每分钟取消过期置顶
 
-总结：POST /summary/{id} → 已通过 + 结束后 1~3 天 → summary_content / summary_attachment
+活动取消：ActivityApplyService.cancel → NoticeAutoPublisher 自动通知参与人（不可撤回）
 
-超时：ActivityApprovalTimeoutTask @Scheduled 每小时 → 3 天催办日志 → 7 天转交上级
+模板：/notice-template CRUD；删除被引用时 status=0
 ```
-
-### 13.3 通知（概要）
-
-- 通知：`notice_info.receiver_type` + `receiver_values` → `notice_read_record`
 
 ---
 
@@ -915,6 +1032,12 @@ flowchart TB
         SV --> MCH[MenuCacheHelper]
         SV --> CSH[ClubSecurityHelper]
         SV --> CDE[ClubDissolveExecutor]
+        SV --> AAH[ActivityApproverHelper]
+        SV --> AAC[ActivityApprovalChainHelper]
+        SV --> ATT[ActivityApprovalTimeoutTask]
+        SV --> NSH[NoticeScopeHelper]
+        SV --> NAP[NoticeAutoPublisher]
+        SV --> NST[NoticeScheduledTask]
         SV --> FM[FieldMaskHelper]
         SV --> SU[SecurityUtils]
         SV --> M[Mapper]
@@ -944,8 +1067,11 @@ flowchart TB
 | ✅ 已完成 | 角色-菜单分配 | `SysRoleMenuController` 2 接口；全量覆盖 `assign` |
 | ✅ 已完成 | 异常码分段重构 | `9xxx` 角色、`91xx` 菜单、`92xx` 社团；通用码迁入 `Usual.java` |
 | ✅ 已完成 | 社团申请/合议模块 | `ClubApplicationController` + `ClubCouncilController`；见 `活动.md` |
+| ✅ 已完成 | **活动审批模块** | `ActivityApplyController` 10 接口；见 `活动审批模块.md` |
+| ✅ 已完成 | **通知模块** | `NoticeInfoController` + `NoticeTemplateController`；见 `通知.md` |
 | ⏳ 待做 | 种子角色 `CLUB_PRESIDENT` | 创建申请校级通过后绑定社长依赖该角色 |
-| ⏳ 待做 | 其余 Controller `_F/_B` 合并 | 含 `activity-*` 等待重构 |
+| ⏳ 待做 | 通知跨范围审批 | 当前跨范围发送返回 9404，完整审批流待实现 |
+| ⏳ 待做 | `NoticeCategoryController` 等旧 CRUD | 分类/阅读记录 Controller 待统一 |
 | ⏳ 待做 | 前端 `crudFactory` 对齐 | `listF/listB` → 统一 `listSysUser` / `listSysRole` 等 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
 | ⏳ 待做 | entity / model 重复 | 统一实体包 |
@@ -963,17 +1089,52 @@ flowchart TB
 | 权限过滤方案 | `.cursor/skills/权限过滤.md` | 五级可见范围 |
 | **异常码规范** | `.cursor/skills/Erroconfig.md` | 编码区间与常量命名 |
 | **社团申请/合议** | `.cursor/skills/活动.md` | 创建/解散/审批/合议业务规范 |
+| **活动审批** | `.cursor/skills/活动审批模块.md` | 活动申请/审批/变更/取消/总结/超时 |
+| **通知** | `.cursor/skills/通知.md` | 通知发送/撤回/已读/模板/定时 |
 | 前端开发规范 | `.cursor/skills/skill.md` | Vue3/Element Plus |
 | OpenAPI JSON | `src/api/spec/api-docs.json` | 机器可读 API |
 | 数据库脚本 | `mysql/mass_test1.sql` | 建表 + 种子 |
+| 活动审批 DDL | `mysql/activity_approval_migration.sql` | 活动模块增量 |
+| **通知 DDL** | `mysql/notice_module_migration.sql` | 通知模块增量 |
 
 ---
 
-## 17. 近期变更文件索引（2026-07-04）
+## 17. 近期变更文件索引
 
-> RBAC 与社团生命周期模块核心变更，按包路径归类。
+> RBAC、社团生命周期、活动审批模块核心变更，按包路径归类。
 
-### 17.1 Controller
+### 17.0 2026-07-05 活动审批模块
+
+| 包 / 文件 | 变更摘要 |
+|---|---|
+| **`controller/ActivityApplyController.java`** | 10 接口 |
+| **`service/impl/ActivityApplyServiceImpl.java`** | 活动审批全流程 |
+| **`security/ActivityApproverHelper.java`** 等 | 审批链与审批人 |
+| **`task/ActivityApprovalTimeoutTask.java`** | 超时催办/转交 |
+| **`mysql/activity_approval_migration.sql`** | 增量 DDL |
+
+### 17.0A 2026-07-05 通知模块
+
+| 包 / 文件 | 变更摘要 |
+|---|---|
+| **`controller/NoticeInfoController.java`** | 10 接口：send/draft/publish/withdraw/detail/confirm/inbox/sent/stats/upload |
+| **`controller/NoticeTemplateController.java`** | 5 接口：模板 CRUD |
+| **`service/impl/NoticeInfoServiceImpl.java`** | 发送/撤回/已读/确认/收件箱；`@Slf4j` |
+| **`service/impl/NoticeTemplateServiceImpl.java`** | 模板管理 |
+| **`service/NoticeAutoPublisher.java`** | 活动取消自动通知 |
+| **`security/NoticeScopeHelper.java`** | 范围校验、接收人解析、置顶规则 |
+| **`task/NoticeScheduledTask.java`** | 定时发送 + 置顶过期 |
+| **`entity/NoticeInfo.java`** | 扩展置顶、长期可见、附件等字段 |
+| **`entity/NoticeTemplate.java`** | 通知模板实体 |
+| **`entity/constants/NoticeConstants.java`** | 状态/类型常量 |
+| **`entity/dto/NoticeSendDTO.java`** 等 | 发送/模板 DTO |
+| **`entity/vo/NoticeDetailVO.java`** | 详情 VO |
+| **`utils/NoticeFileStorageUtil.java`** | 附件存储 |
+| **`exception/ErrorConfig.java`** | `94xx` 通知错误码 |
+| **`mysql/notice_module_migration.sql`** | 增量 DDL |
+| **`ActivityApplyServiceImpl.java`** | 取消时调用 `NoticeAutoPublisher` |
+
+### 17.1 2026-07-04 RBAC / 社团模块 — Controller
 
 | 文件 | 变更摘要 |
 |---|---|
@@ -1066,7 +1227,6 @@ flowchart TB
 | **`utils/ClubCodeGeneratorUtil.java`** | 申请号、社团编号生成 |
 | **`entity/ClubApplication.java`** | 对应 `club_application` 表 |
 | **`entity/ClubCouncil.java`** | 对应 `club_council` 表（`signatories` JSON） |
-
----
+| **`entity/ActivityApply.java`** | 活动申请实体（含乐观锁与新字段） |
 
 *文档结束*

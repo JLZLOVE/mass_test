@@ -202,4 +202,28 @@ public class ErrorConfig {
     public static final String ACT_TIME_INVALID_MSG = "开始时间必须早于结束时间";
     public static final Integer ACT_LEVEL_ADJUST_LOCKED_CODE = 9314;
     public static final String ACT_LEVEL_ADJUST_LOCKED_MSG = "活动级别已调整过，不可再次修改";
+
+    // ====================== 通知 (94xx) ======================
+    public static final Integer NOTICE_NOT_FOUND_CODE = 9401;
+    public static final String NOTICE_NOT_FOUND_MSG = "通知不存在";
+    public static final Integer NOTICE_CATEGORY_NOT_FOUND_CODE = 9402;
+    public static final String NOTICE_CATEGORY_NOT_FOUND_MSG = "通知分类不存在";
+    public static final Integer NOTICE_NO_PERMISSION_CODE = 9403;
+    public static final String NOTICE_NO_PERMISSION_MSG = "无权发送该范围的通知";
+    public static final Integer NOTICE_SCOPE_APPROVAL_REQUIRED_CODE = 9404;
+    public static final String NOTICE_SCOPE_APPROVAL_REQUIRED_MSG = "跨范围发送需额外审批，暂不支持";
+    public static final Integer NOTICE_STATUS_INVALID_CODE = 9405;
+    public static final String NOTICE_STATUS_INVALID_MSG = "通知状态不允许此操作";
+    public static final Integer NOTICE_NOT_RECEIVER_CODE = 9406;
+    public static final String NOTICE_NOT_RECEIVER_MSG = "您不在该通知接收范围内";
+    public static final Integer NOTICE_NOT_REVOCABLE_CODE = 9407;
+    public static final String NOTICE_NOT_REVOCABLE_MSG = "该通知不可撤回";
+    public static final Integer NOTICE_PIN_EXPIRE_REQUIRED_CODE = 9408;
+    public static final String NOTICE_PIN_EXPIRE_REQUIRED_MSG = "置顶时必须填写置顶结束时间";
+    public static final Integer NOTICE_TEMPLATE_NOT_FOUND_CODE = 9409;
+    public static final String NOTICE_TEMPLATE_NOT_FOUND_MSG = "通知模板不存在";
+    public static final Integer NOTICE_TEMPLATE_IN_USE_CODE = 9410;
+    public static final String NOTICE_TEMPLATE_IN_USE_MSG = "模板已被引用，已改为停用";
+    public static final Integer NOTICE_ALREADY_CONFIRMED_CODE = 9411;
+    public static final String NOTICE_ALREADY_CONFIRMED_MSG = "已确认阅读，无需重复操作";
 }

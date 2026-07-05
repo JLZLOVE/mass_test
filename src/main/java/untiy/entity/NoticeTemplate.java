@@ -13,25 +13,30 @@ import java.time.LocalDateTime;
 
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("notice_read_record")
-public class NoticeReadRecord implements Serializable {
+@TableName("notice_template")
+public class NoticeTemplate implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    private Long noticeId;
+    private String templateName;
 
-    private Long userId;
+    private String title;
+
+    private String content;
+
+    private Long categoryId;
+
+    /** 1启用 0停用 */
+    private Integer status;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime readTime;
+    private LocalDateTime createTime;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime confirmTime;
-
-    private Integer isConfirmed;
+    private LocalDateTime updateTime;
 }

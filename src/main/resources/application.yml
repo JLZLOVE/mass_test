@@ -88,6 +88,9 @@ knife4j:
   production: false
 
   enable: true
+
+activity:
+  upload-dir: static/activity
 springdoc:
   api-docs:
     enabled: true

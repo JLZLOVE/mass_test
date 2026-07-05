@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.metadata.OrderItem;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.security.SecureRandom;
 import java.util.Base64;
 
 @SpringBootApplication
 @MapperScan(basePackages = {"untiy.mapper"})
+@EnableScheduling
 public class MassTestApplication {
 
     public static void main(String[] args) {

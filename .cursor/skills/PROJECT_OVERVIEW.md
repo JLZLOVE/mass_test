@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-04（用户/角色/菜单 RBAC 模块）  
+> 更新时间：2026-07-05（活动审批模块 + 社团申请/合议 + RBAC 模块）  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -53,6 +53,8 @@
 | 文件上传限制 | 300MB |
 | MyBatis-Plus | `table-underline: true`，`column-underline: true` |
 | 日志级别 | `untiy.mapper: debug`，`untiy.filter: debug`，`org.springframework.security: DEBUG` |
+| **活动附件目录** | `activity.upload-dir: static/activity`（本地存储，预留 OSS） |
+| **定时任务** | `@EnableScheduling`；活动审批超时扫描每小时一次 |
 
 ### 1.4 根目录结构
 
@@ -70,6 +72,8 @@ Mass_Test/
     ├── login.md                    # JWT/登录规范
     ├── jwt.md                      # JWT 安全重构说明
     ├── 权限过滤.md                 # 五级可见范围与权限过滤方案
+    ├── 活动.md                     # 社团创建/解散/合议业务流程
+    ├── 活动审批模块.md             # 活动申请/审批/变更/取消/总结/超时
     └── skill.md                    # 前端开发规范
 ```
 
@@ -84,12 +88,13 @@ Mass_Test/
 ```
 RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sys_menu
 组织架构：sys_college → sys_major；sys_club → sys_department
-活动：activity_category → activity_apply → activity_approve_flow / activity_sign
+社团生命周期：club_application（创建/解散申请）→ 学院/校级审批 → 激活社团；club_council（合议解散）
+活动：activity_category → activity_apply → activity_approve_flow / activity_sign / activity_apply_history
 通知：notice_category → notice_info → notice_read_record
 统计：club_statistics（club_id + stat_date）
 ```
 
-### 2.2 全表清单（18 张）
+### 2.2 全表清单（21+ 张）
 
 | 表名 | 说明 |
 |---|---|
@@ -99,9 +104,53 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 | `sys_menu` / `sys_role_menu` | 菜单与角色菜单 |
 | `sys_data_permission` | 数据权限规则 |
 | `sys_college` / `sys_major` / `sys_club` / `sys_department` | 组织架构 |
-| `activity_*` | 活动分类、申请、审批、签到 |
+| **`club_application`** | **社团创建/解散申请（学院+校级审批）** |
+| **`club_council`** | **合议解散（JSON 签名人列表）** |
+| `activity_category` | 活动分类 |
+| **`activity_apply`** | **活动申请（含 activity_level、version、总结字段）** |
+| **`activity_approve_flow`** | **活动审批步骤（含 flow_type、step_enter_time）** |
+| **`activity_apply_history`** | **变更前快照 + 变更后目标值** |
+| `activity_sign` | 活动签到 |
 | `notice_*` | 通知分类、内容、阅读记录 |
 | `club_statistics` | 社团日统计 |
+
+> 活动审批增量 DDL 参考：`mysql/activity_approval_migration.sql`（`activity_level`、`version`、`attachment`、`summary_*`、`activity_apply_history` 等）。
+
+### 2.2A `club_application` 状态
+
+| status | 含义 |
+|---|---|
+| 1 | 待学院审批 |
+| 2 | 学院已通过 |
+| 3 | 已通过（校级终审通过） |
+| 4 | 已驳回 |
+| 5 | 已撤回 |
+
+`apply_type`：1=创建，2=解散。
+
+### 2.2B `club_council` 状态
+
+| status | 含义 |
+|---|---|
+| 1 | 合议中 |
+| 2 | 已通过（已执行解散） |
+| 3 | 已驳回 |
+
+### 2.2C `activity_apply` 审批状态
+
+| approve_status | 含义 |
+|---|---|
+| 1 | 草稿 |
+| 2 | 待审批 |
+| 3 | 审批中 |
+| 4 | 已通过 |
+| 5 | 已驳回 |
+| 6 | 已取消 |
+| 7 | 变更审批中 |
+
+`activity_level`：1=院级，2=校级。`version`：乐观锁，审批/变更/取消/总结均需携带。
+
+`activity_approve_flow.flow_type`：1=正常审批，2=变更审批。
 
 ### 2.3 实体时间字段序列化
 
@@ -111,7 +160,7 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
 ```
 
-涉及实体（代码已修改，本文档仅记录）：`SysUser`、`SysRole`、`SysUserRole`、`SysClub`、`SysCollege`、`SysDepartment`、`SysMajor`、`SysMenu`、`SysRoleMenu`、`SysDataPermission`、`ActivityApply`、`ActivityApproveFlow`、`ActivityCategory`、`ActivitySign`、`NoticeCategory`、`NoticeInfo`、`NoticeReadRecord`、`ClubStatistics` 等。
+涉及实体：`ClubApplication`、`ClubCouncil`、`SysUser`、`SysRole`…（其余同前）。
 
 ### 2.4 种子数据说明
 
@@ -132,12 +181,13 @@ untiy/
 ├── entity/                         # 实体、DTO、VO
 ├── annotation/          (6)        # 自定义注解 + LevelAspect
 ├── config/              (9)        # Spring / JWT / Redis / CORS 等
-├── security/            (12)       # 含 LevelBasedAccess、UserSecurityHelper、UserRoleScopeHelper、UserCacheHelper、MenuTreeHelper、MenuCacheHelper
+├── security/            (16+)      # 含 ActivityApproverHelper、ActivityApprovalChainHelper、ClubSecurityHelper 等
 ├── filter/              (2)        # JwtFilter、IgnorePathsProperties
+├── task/                           # ActivityApprovalTimeoutTask 定时任务
 ├── converter/           (2)        # MapStruct：SysUserConverter、SysRoleConvert
 ├── advice/                         # GlobalExceptionHandler
 ├── exception/                      # EIException、ErrorConfig、Usual、Level 常量
-└── utils/                          # R、JwtUtil、MPUtil、SecurityUtils 等
+└── utils/                          # R、JwtUtil、MPUtil、SecurityUtils、ClubCodeGeneratorUtil 等
 ```
 
 ### 3.2 权限三层分离（当前架构）
@@ -149,8 +199,8 @@ untiy/
 | **字段脱敏** | 低权限隐藏敏感 DTO 字段 | `FieldMaskHelper` + `UserSecurityHelper.toMaskedDto` |
 
 > 设计原则：同一业务仅保留单一 Controller 接口；`@RequiresLevel` 不做数据/字段差异化。  
-> **已完成重构**：`SysUserController`、`SysRoleController`、`SysUserRoleController`、`SysMenuController`、`SysRoleMenuController`  
-> **待重构**：其余 Controller 仍保留 `_F` / `_B` 双接口模式。
+> **已完成重构**：`SysUserController`、`SysRoleController`、`SysUserRoleController`、`SysMenuController`、`SysRoleMenuController`、**`ClubApplicationController`**、**`ClubCouncilController`**、**`ActivityApplyController`**  
+> **待重构**：`ActivityApproveFlowController` 等仍保留 `_F` / `_B` 双接口（活动审批流已内聚于 `ActivityApplyService`）。
 
 ### 3.3 权限等级常量（`untiy.exception.Level`）
 
@@ -162,7 +212,7 @@ untiy/
 | `DEPT_LEADER` | 3 | 部长，可见本部门 |
 | `STUDENT` | 4 | 普通学生，仅可见自己 |
 
-`effectiveLevel` 由 `UserScopeResolver` 根据 `sys_role.role_code` 解析（取所有角色中最高权限，即数值最小）。
+`effectiveLevel` 由 `UserScopeResolver` 根据 `sys_role.role_code` 解析（取所有角色中最高权限，即数值最小）。**`ADVISOR*` 前缀角色码映射为等级 1**；未命中内置映射时回退 `role_level`。
 
 ---
 
@@ -228,6 +278,10 @@ untiy/
 | **`UserCacheHelper`** | **Redis 登录缓存清理**：`evictByUsernames(redisTemplate, usernames)`，Key 规则 `user:{username}` |
 | **`MenuTreeHelper`** | **菜单树内存组装**：纯静态、一次遍历建索引挂接，禁止递归查库；`buildTree`、`expandWithAncestors`、`collectPermissionCodes`、`pruneEmptyDirectories` |
 | **`MenuCacheHelper`** | **菜单树 Redis 缓存**：Key `menu:tree:{userId}`（非 effectiveLevel）；`get/put/evictAll`，TTL 1 小时 |
+| **`ClubSecurityHelper`** | **社团申请/合议**：指导老师、院长、校级管理员、学院范围校验 |
+| **`ClubDissolveExecutor`** | **执行解散**：社团状态、部门、活动清理、角色解绑（进行中活动含 status 7） |
+| **`ActivityApproverHelper`** | **活动审批**：发起人识别、社长/指导老师/学院书记/校书记查找、超时转交 |
+| **`ActivityApprovalChainHelper`** | **活动审批链**：按发起人角色 + 院/校级动态生成步骤；变更链固定 3 步 |
 | `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、等级比较、同社团 scope 等） |
 
 ### 7.0 工具类 `SecurityUtils`（`utils` 包）
@@ -354,6 +408,8 @@ untiy/
 | `8xxx` | 认证/Token | 未登录 8001、Token 过期 8003 等 |
 | `9xxx` | 角色权限 | 9001~9014 |
 | `91xx` | 菜单 | 9101~9108 |
+| `92xx` | 社团申请/合议 | 9201~9218 |
+| **`93xx`** | **活动审批** | **9301~9314** |
 
 ### 9.2 角色权限（9xxx）
 
@@ -387,7 +443,51 @@ untiy/
 | 9107 | `MENU_COMPONENT_REQUIRED` | 页面类型组件路径不能为空 |
 | 9108 | `MENU_IDS_INVALID` | 部分菜单不存在或已失效 |
 
-### 9.4 认证 / 用户（节选）
+### 9.4 社团申请 / 合议（92xx）
+
+| Code | 常量 | 消息 |
+|---|---|---|
+| 9201 | `CLUB_APPLY_NOT_FOUND` | 社团申请不存在 |
+| 9202 | `CLUB_NOT_FOUND` | 社团不存在 |
+| 9203 | `CLUB_NOT_NORMAL` | 社团状态异常，无法操作 |
+| 9204 | `CLUB_NAME_DUPLICATE` | 同一学院下社团名称已存在 |
+| 9205 | `CLUB_NOT_ADVISOR` | 当前用户不是该社团指导老师 |
+| 9206 | `CLUB_HAS_ACTIVE_ACTIVITY` | 社团存在进行中的活动，无法解散 |
+| 9207 | `CLUB_APPLY_STATUS_INVALID` | 申请状态不允许此操作 |
+| 9208 | `CLUB_NOT_DEAN` | 仅学院负责人可审批该申请 |
+| 9209 | `CLUB_CANNOT_APPROVE_SELF` | 不能审批自己提交的申请 |
+| 9210 | `CLUB_COUNCIL_NOT_FOUND` | 合议记录不存在 |
+| 9211 | `CLUB_COUNCIL_IN_PROGRESS` | 该社团已有进行中的合议 |
+| 9212 | `CLUB_COUNCIL_NOT_IN_PROGRESS` | 合议不在进行中 |
+| 9213 | `CLUB_ALREADY_SIGNED` | 您已签字，不能重复签字 |
+| 9214 | `CLUB_COLLEGE_OUT_OF_SCOPE` | 不在该学院管理范围内 |
+| 9215 | `CLUB_ROLE_NOT_FOUND` | 系统角色配置缺失 |
+| 9216 | `CLUB_PROPOSED_LEADER_INVALID` | 拟定社长不存在或已被禁用 |
+| 9217 | `CLUB_REQUIRE_ADVISOR_ROLE` | 需要指导老师角色 |
+| 9218 | `CLUB_REQUIRE_ADMIN_ROLE` | 需要校级管理员权限 |
+
+| 9218 | `CLUB_REQUIRE_ADMIN_ROLE` | 需要校级管理员权限 |
+
+### 9.5 活动审批（93xx）
+
+| Code | 常量 | 消息 |
+|---|---|---|
+| 9301 | `ACT_APPLY_NOT_FOUND` | 活动申请不存在 |
+| 9302 | `ACT_CLUB_NOT_FOUND` | 主办社团不存在或状态异常 |
+| 9303 | `ACT_SUBMIT_NO_PERMISSION` | 当前用户无权发起活动申请 |
+| 9304 | `ACT_LEVEL_INVALID` | 活动级别必须为院级或校级 |
+| 9305 | `ACT_STATUS_INVALID` | 活动状态不允许此操作 |
+| 9306 | `ACT_NOT_CURRENT_APPROVER` | 您不是当前步骤审批人 |
+| 9307 | `ACT_OPINION_REQUIRED` | 审批意见不能为空 |
+| 9308 | `ACT_VERSION_CONFLICT` | 数据已被修改，请刷新重试 |
+| 9309 | `ACT_APPROVER_NOT_FOUND` | 无法确定审批人，请检查角色配置 |
+| 9310 | `ACT_NOT_APPLICANT` | 仅申请人可执行此操作 |
+| 9311 | `ACT_CHANGE_FIELDS_INVALID` | 变更仅允许修改时间或地点 |
+| 9312 | `ACT_SUMMARY_WINDOW` | 活动总结须在结束后1-3天内上传 |
+| 9313 | `ACT_TIME_INVALID` | 开始时间必须早于结束时间 |
+| 9314 | `ACT_LEVEL_ADJUST_LOCKED` | 活动级别已调整过，不可再次修改 |
+
+### 9.6 认证 / 用户（节选）
 
 | Code | 常量 | 消息 |
 |---|---|---|
@@ -462,6 +562,57 @@ untiy/
 | `assign(AssignRoleMenuDTO)` | 校验角色存在；`checkOperable` 防越权；校验 `menuIds` 均为 `status=1`；**先删后增**；`MenuCacheHelper.evictAll` |
 | `listMenuIdsByRole(roleId)` | 返回已绑定 `menu_id` 列表（去重排序） |
 
+### 10.7 `ClubApplicationServiceImpl`（`@Slf4j`）
+
+| 方法 | 说明 |
+|---|---|
+| `createApply` | 指导老师角色校验；拟定社长未禁用；同学院社团名唯一；生成 `application_no`；status=待学院审批 |
+| `dissolveApply` | 须为社团 `advisor_id`；社团正常；无进行中活动；写入解散申请 |
+| `pageQuery` | 按申请人/状态/类型 + 时间范围分页 |
+| `getDetail` | 申请详情 + `currentApprover`（院长/校级管理员） |
+| `approveCollege` | 院长 `dean_id` 校验；不可审自己；通过→学院已通过 / 驳回 |
+| `approveAdmin` | 校级管理员校验；创建通过→**激活社团**+绑定 `CLUB_PRESIDENT`；解散通过→**执行解散** |
+
+### 10.8 `ClubCouncilServiceImpl`（`@Slf4j`）
+
+| 方法 | 说明 |
+|---|---|
+| `initiate` | 超管；社团正常；学院范围内；无进行中合议/活动；status=合议中 |
+| `sign` | 超管/ADMIN 签字；学院范围；防重复；达成条件（1超管+2ADMIN 或 3超管）→ `ClubDissolveExecutor` |
+
+### 10.9 `ActivityApplyServiceImpl`（`@Slf4j`）
+
+| 方法 | 说明 |
+|---|---|
+| `submit` | 校验发起人角色（部长/社长/指导老师/学院书记/ADMIN）；生成 `activity_no`；`approve_status=2`、`step=1`；动态写入 `activity_approve_flow` |
+| `approve` | 当前步骤审批人；必填意见；指导老师可调整 `activity_level` 一次；推进步骤或 `status=4`；乐观锁 |
+| `reject` | 驳回终止；变更流驳回则恢复 `status=4` 并标记 history 已驳回 |
+| `requestChange` | 仅 `status=4`；快照旧数据至 `activity_apply_history`（含 new_* 目标值）；`status=7`；变更链：社长→指导老师→学院书记 |
+| `cancel` | 仅申请人；无需审批；`status=6` |
+| `uploadSummary` | 已通过活动；结束后 1~3 天；文字 + 附件 |
+| `getDetail` | 申请 + 审批流 + 变更历史 + 当前审批人 |
+| `pageQuery` | 分页条件查询 |
+
+**审批链路径（正常申请）：**
+
+| 发起人 | 步骤序列 | 校级额外 |
+|---|---|---|
+| 部长 | 社长 → 指导老师 → 学院书记 | + 校书记（SUPER_ADMIN） |
+| 社长 | 指导老师 → 学院书记 | + 校书记 |
+| 指导老师 | 学院书记 | + 校书记 |
+| 学院书记/ADMIN | 指导老师 → 学院书记 | + 校书记 |
+
+**审批人查找：**
+
+| 角色 | 规则 |
+|---|---|
+| 社长 | `sys_user_role`：`CLUB_PRESIDENT` + `scope_type=2` + `scope_id=clubId` |
+| 指导老师 | `sys_club.advisor_id` |
+| 学院书记 | `sys_college.dean_id`（社团挂靠学院） |
+| 校书记 | `SUPER_ADMIN` 角色用户 |
+
+**超时（`ActivityApprovalTimeoutTask`）：** 每小时扫描；步骤进入 >3 天日志催办；>7 天转交上级（社长→指导老师→学院书记→校书记）。
+
 ---
 
 ## 10A. 实体 / DTO / VO / Mapper
@@ -473,14 +624,34 @@ untiy/
 | `AssignRoleDTO` | `userId`、`roleId`、`scopeType`、`scopeId` | `POST /sys-user-role/assign`；scope 须符合目标角色 `data_scope` |
 | `ToggleStatusDTO` | `usernames`、`status`（0/1） | `PUT /sys-user/toggleStatus` |
 | `AssignRoleMenuDTO` | `roleId`、`menuIds` | `POST /sys-role-menu/assign`；空列表=清空绑定 |
+| `ClubCreateApplyDTO` | `clubName`、`collegeId`、`category`、`description`、`proposedLeaderId`、`maxMembers` | `POST /club-application/apply/create` |
+| `ClubDissolveApplyDTO` | `clubId`、`dissolveReason` | `POST /club-application/apply/dissolve` |
+| `ClubApproveDTO` | `approved`、`opinion` | 学院/校级审批 |
+| `CouncilInitiateDTO` | `clubId`、`reason` | `POST /club-council/council/initiate` |
+| **`ActivitySubmitDTO`** | `clubId`、`activityName`、`categoryId`、`activityType`、`activityLevel`、时间地点、预算、内容、附件 | `POST /activity-apply/submit` |
+| **`ActivityApproveDTO`** | `version`、`opinion`、`activityLevel?` | 审批通过/驳回 |
+| **`ActivityChangeDTO`** | `version`、时间地点、`changeReason` | 变更申请 |
+| **`ActivityCancelDTO`** | `version`、`reason` | 取消活动 |
+| **`ActivitySummaryDTO`** | `version`、`summaryContent`、`summaryAttachment` | 活动总结 |
 
 ### VO（`entity/vo/`）
 
 | 类 | 字段 | 用途 |
 |---|---|---|
-| `SysUserRoleVO` | `id`、`userId`、`username`、`realName`、`roleId`、`roleName`、`roleCode`、`scopeType`、`scopeId`、`createTime` | 用户-角色联查展示 |
-| `MenuTreeVO` | 菜单字段 + `children` | 菜单树节点 |
-| `MenuTreeResultVO` | `tree`、`permissions` | `/sys-menu/tree` 响应体 |
+| `SysUserRoleVO` | … | 用户-角色联查展示 |
+| `MenuTreeVO` / `MenuTreeResultVO` | … | 菜单树 |
+| `ClubApplicationDetailVO` | `application`、`currentApprover`、`queryTime` | 申请详情 |
+| `CouncilSignRecordVO` | `userId`、`roleCode`、`level`、`signTime` | 合议签字 JSON 元素 |
+
+### 常量 / 工具
+
+| 类 | 说明 |
+|---|---|
+| `ClubApplyConstants` | 申请类型、状态、合议状态、scope 类型、角色码常量 |
+| **`ActivityApplyConstants`** | 活动状态、级别、审批流类型、发起人/审批人类型、历史状态 |
+| `ClubCodeGeneratorUtil` | 生成 `APP*` 申请编号、`CLUB*` 社团编号（防重复） |
+| **`ActivityCodeGeneratorUtil`** | 生成 `ACT*` 活动编号（按分类后缀 + 防重复） |
+| **`ActivityFileStorageUtil`** | 活动申请/总结附件本地存储 |
 
 ### Mapper
 
@@ -575,7 +746,50 @@ untiy/
 
 **已移除的旧接口：** `listSysRoleMenu`、`listSysRoleMenu_F/B`、`query`、`detailSysRoleMenu_F/B`、`add_B`、`updateSysRoleMenu_B`、`deleteSysRoleMenu_B`
 
-### 11.7 其他 Controller 根路径
+### 11.7 `ClubApplicationController`（8 接口）
+
+根路径：`/club-application`（规范见 `.cursor/skills/活动.md`）
+
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
+|---|---|---|---|
+| `/apply/create` | POST | `ADMIN (1)` | 指导老师发起创建申请；Service 校验 `ADVISOR*` 角色 |
+| `/apply/dissolve` | POST | `ADMIN (1)` | 社团指导老师发起解散申请 |
+| `/apply/list` | GET | `ADMIN (1)` | 分页；申请人/状态/类型/时间范围 |
+| `/apply/detail/{id}` | GET | `ADMIN (1)` | 详情 + 当前审批人 |
+| `/approve/college/{id}` | POST | `ADMIN (1)` | 学院院长审批；Body: `ClubApproveDTO` |
+| `/approve/admin/{id}` | POST | `ADMIN (1)` | 校级审批；创建→激活社团，解散→执行解散 |
+
+### 11.8 `ClubCouncilController`（2 接口）
+
+根路径：`/club-council`
+
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
+|---|---|---|---|
+| `/council/initiate` | POST | `SUPER_ADMIN (0)` | 超管发起合议解散；Body: `CouncilInitiateDTO` |
+| `/council/sign/{id}` | POST | `ADMIN (1)` | 超管/校级管理员签字；达成条件自动解散 |
+
+### 11.9 `ActivityApplyController`（10 接口）
+
+根路径：`/activity-apply`（规范见 `.cursor/skills/活动审批模块.md`）
+
+| 路径 | 方法 | `@RequiresLevel` | 说明 |
+|---|---|---|---|
+| `/submit` | POST | `ADMIN (1)` | 提交活动申请；动态生成审批链 |
+| `/upload/attachment` | POST | `ADMIN (1)` | 上传申请附件；返回相对路径 |
+| `/upload/summary` | POST | `ADMIN (1)` | 上传总结附件 |
+| `/approve/{id}` | POST | `ADMIN (1)` | 审批通过；Body: `ActivityApproveDTO`（含 `version`） |
+| `/reject/{id}` | POST | `ADMIN (1)` | 审批驳回；必填意见 |
+| `/change/{id}` | POST | `ADMIN (1)` | 已通过活动变更时间/地点 |
+| `/cancel/{id}` | POST | `ADMIN (1)` | 申请人取消活动 |
+| `/summary/{id}` | POST | `ADMIN (1)` | 上传活动总结（结束后 1~3 天） |
+| `/list` | GET | `ADMIN (1)` | 分页列表 |
+| `/detail/{id}` | GET | `ADMIN (1)` | 详情（审批流 + 变更历史） |
+
+**已移除的旧接口：** `listActivityApply_F/B`、`detailActivityApply_F/B`、`add_B`、`updateActivityApply_B`、`deleteActivityApply_B`、`query`
+
+> `ActivityApproveFlowController` 仍保留旧 CRUD，新业务不依赖；审批流由 `ActivityApplyService` 内部维护。
+
+### 11.10 其他 Controller 根路径
 
 | Controller | 根路径 |
 |---|---|
@@ -636,9 +850,46 @@ login → JWT(subject=username) → Redis user:{username}
 角色菜单：POST /sys-role-menu/assign → checkOperable → 校验 menuIds → 先删后增 → evictAll
 ```
 
-### 13.2 活动 / 通知（概要）
+### 13.5 社团创建 / 解散 / 合议
 
-- 活动：`activity_apply` 审批状态 1~6；`activity_approve_flow` 多步审批；`activity_sign` 签到  
+```
+创建：POST /apply/create → 指导老师 → 同学院名唯一 → APP编号 → 待学院审批
+      → POST /approve/college → dean_id → 学院已通过
+      → POST /approve/admin → 校级 → 插入 sys_club + 绑定 CLUB_PRESIDENT(scope_type=2)
+
+解散(申请)：POST /apply/dissolve → advisor_id → 无进行中活动 → 审批链同上 → 校级通过 → ClubDissolveExecutor
+
+合议：POST /council/initiate → 超管+学院范围 → POST /council/sign → 签字 JSON
+      → 1超管+2ADMIN 或 3超管 → 执行解散
+
+ClubDissolveExecutor：社团 status=0；删部门；活动仅保留已通过且已结束；移除社长/部长角色绑定；进行中活动含 status 1/2/3/7
+```
+
+### 13.2 活动审批
+
+```
+提交：POST /activity-apply/submit → 识别发起人角色 → ActivityApprovalChainHelper 生成步骤
+      → ActivityApproverHelper 预分配 approve_user_id → activity_approve_flow
+      → approve_status=2, current_approve_step=1, version=0
+
+审批：POST /approve/{id} 或 /reject/{id} → 校验当前步骤审批人 + version
+      → 通过：写 flow 记录 → 无下一步则 status=4，否则 step++ 且 status=3
+      → 驳回：status=5（变更流则 status=4 + history 标记驳回）
+      → 指导老师审批时可调整 activity_level 一次（level_adjust_locked）
+
+变更：POST /change/{id} → 仅 status=4 → 快照至 activity_apply_history（含 new_* 字段）
+      → status=7 → 变更链：社长 → 指导老师 → 学院书记
+      → 通过后主表写入 new_*；驳回主表不变
+
+取消：POST /cancel/{id} → 仅申请人 → status=6
+
+总结：POST /summary/{id} → 已通过 + 结束后 1~3 天 → summary_content / summary_attachment
+
+超时：ActivityApprovalTimeoutTask @Scheduled 每小时 → 3 天催办日志 → 7 天转交上级
+```
+
+### 13.3 通知（概要）
+
 - 通知：`notice_info.receiver_type` + `receiver_values` → `notice_read_record`
 
 ---
@@ -662,6 +913,8 @@ flowchart TB
         SV --> UCH[UserCacheHelper]
         SV --> MTH[MenuTreeHelper]
         SV --> MCH[MenuCacheHelper]
+        SV --> CSH[ClubSecurityHelper]
+        SV --> CDE[ClubDissolveExecutor]
         SV --> FM[FieldMaskHelper]
         SV --> SU[SecurityUtils]
         SV --> M[Mapper]
@@ -689,8 +942,10 @@ flowchart TB
 | ✅ 已修复 | `data_scope` 分配无效 | `validateScope` 改为读取 `role.getDataScope()` |
 | ✅ 已完成 | 菜单模块单接口化 | `SysMenuController` 4 接口 + `MenuTreeHelper` + `MenuCacheHelper` |
 | ✅ 已完成 | 角色-菜单分配 | `SysRoleMenuController` 2 接口；全量覆盖 `assign` |
-| ✅ 已完成 | 异常码分段重构 | `9xxx` 角色、`91xx` 菜单；通用码迁入 `Usual.java` |
-| ⏳ 待做 | 其余 Controller `_F/_B` 合并 | 按用户/角色模块模式逐步重构 |
+| ✅ 已完成 | 异常码分段重构 | `9xxx` 角色、`91xx` 菜单、`92xx` 社团；通用码迁入 `Usual.java` |
+| ✅ 已完成 | 社团申请/合议模块 | `ClubApplicationController` + `ClubCouncilController`；见 `活动.md` |
+| ⏳ 待做 | 种子角色 `CLUB_PRESIDENT` | 创建申请校级通过后绑定社长依赖该角色 |
+| ⏳ 待做 | 其余 Controller `_F/_B` 合并 | 含 `activity-*` 等待重构 |
 | ⏳ 待做 | 前端 `crudFactory` 对齐 | `listF/listB` → 统一 `listSysUser` / `listSysRole` 等 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
 | ⏳ 待做 | entity / model 重复 | 统一实体包 |
@@ -707,6 +962,7 @@ flowchart TB
 | JWT 登录规范 | `.cursor/skills/login.md` | Redis Key、subject 规范 |
 | 权限过滤方案 | `.cursor/skills/权限过滤.md` | 五级可见范围 |
 | **异常码规范** | `.cursor/skills/Erroconfig.md` | 编码区间与常量命名 |
+| **社团申请/合议** | `.cursor/skills/活动.md` | 创建/解散/审批/合议业务规范 |
 | 前端开发规范 | `.cursor/skills/skill.md` | Vue3/Element Plus |
 | OpenAPI JSON | `src/api/spec/api-docs.json` | 机器可读 API |
 | 数据库脚本 | `mysql/mass_test1.sql` | 建表 + 种子 |
@@ -715,77 +971,101 @@ flowchart TB
 
 ## 17. 近期变更文件索引（2026-07-04）
 
-> 下列文件为 RBAC 用户/角色/菜单模块重构涉及的核心变更，按包路径归类。
+> RBAC 与社团生命周期模块核心变更，按包路径归类。
 
 ### 17.1 Controller
 
 | 文件 | 变更摘要 |
 |---|---|
-| `controller/SysUserController.java` | 单接口化；新增 `PUT /toggleStatus`、`GET /listDisabled`；移除 `_F/_B` |
-| `controller/SysUserRoleController.java` | 精简为 4 接口：`assign`、`revoke/{id}`、`list`、`my-roles` |
-| `controller/SysMenuController.java` | 精简为 4 接口：`tree`、`list`、`save`、`delete/{id}` |
-| `controller/SysRoleMenuController.java` | 精简为 2 接口：`assign`、`listByRole/{roleId}` |
+| `controller/SysUserController.java` | 单接口化；`toggleStatus`、`listDisabled` |
+| `controller/SysUserRoleController.java` | 4 接口：assign / revoke / list / my-roles |
+| `controller/SysMenuController.java` | 4 接口：tree / list / save / delete |
+| `controller/SysRoleMenuController.java` | 2 接口：assign / listByRole |
+| **`controller/ClubApplicationController.java`** | **8 接口：apply/create、dissolve、list、detail、approve/college、approve/admin** |
+| **`controller/ClubCouncilController.java`** | **2 接口：council/initiate、council/sign** |
 
 ### 17.2 DTO（`entity/dto/`）
 
 | 文件 | 变更摘要 |
 |---|---|
-| `AssignRoleDTO.java` | 用户-角色分配：`userId`、`roleId`、`scopeType`、`scopeId` |
-| `ToggleStatusDTO.java` | 批量启用/禁用：`usernames`、`status` |
-| `AssignRoleMenuDTO.java` | 角色-菜单全量分配：`roleId`、`menuIds`（可空=清空） |
+| `AssignRoleDTO.java` | 用户-角色分配 |
+| `ToggleStatusDTO.java` | 批量启用/禁用 |
+| `AssignRoleMenuDTO.java` | 角色-菜单全量分配 |
+| **`ClubCreateApplyDTO.java`** | 社团创建申请 |
+| **`ClubDissolveApplyDTO.java`** | 社团解散申请 |
+| **`ClubApproveDTO.java`** | 学院/校级审批 |
+| **`CouncilInitiateDTO.java`** | 合议发起 |
 
 ### 17.3 VO（`entity/vo/`）
 
 | 文件 | 变更摘要 |
 |---|---|
-| `SysUserRoleVO.java` | 用户-角色联查：含 username、realName、roleName、roleCode、scope |
-| `MenuTreeVO.java` | 菜单树节点：菜单字段 + `children` 列表 |
-| `MenuTreeResultVO.java` | `/tree` 响应：`tree` + `permissions` 集合 |
+| `SysUserRoleVO.java` | 用户-角色联查 |
+| `MenuTreeVO.java` / `MenuTreeResultVO.java` | 菜单树 |
+| **`ClubApplicationDetailVO.java`** | 申请详情 + 当前审批人 |
+| **`CouncilSignRecordVO.java`** | 合议签字记录 |
 
-### 17.4 Exception
+### 17.4 Exception / 常量
 
 | 文件 | 变更摘要 |
 |---|---|
-| `exception/ErrorConfig.java` | 编码分段：`9xxx` 角色、`91xx` 菜单；`BAD_REQUEST` 引用 `Usual`；`NOT_LOGGED_IN` 兼容别名 |
-| `exception/Usual.java` | 通用常量：`BAD_REQUEST`(400)、`SUCCESS`、`ROLE_` 前缀 |
+| `exception/ErrorConfig.java` | `9xxx`/`91xx`/`92xx` 分段 |
+| `exception/Usual.java` | 通用 HTTP 常量 |
+| **`entity/constants/ClubApplyConstants.java`** | 申请/合议状态与类型常量 |
 
 ### 17.5 Mapper
 
 | 文件 | 变更摘要 |
 |---|---|
-| `mapper/SysUserRoleMapper.java` | 新增 `selectPageWithDetail`、`selectListByUserId` |
-| `resources/mapper/SysUserRoleMapper.xml` | 三表 JOIN 联查 SQL；关键词过滤 username/realName/roleName |
+| `mapper/SysUserRoleMapper.java` + XML | 用户-角色联查 |
+| **`mapper/ClubApplicationMapper.java`** | 社团申请 CRUD（MyBatis-Plus） |
+| **`mapper/ClubCouncilMapper.java`** | 合议 CRUD（MyBatis-Plus） |
+| **`mapper/ActivityApplyHistoryMapper.java`** | 活动变更历史快照 |
 
 ### 17.6 Security
 
 | 文件 | 变更摘要 |
 |---|---|
-| `security/DataScopeHelper.java` | 用户行级过滤；新增 `LambdaQueryWrapper` 重载 |
-| `security/LevelBasedAccess.java` | 全局等级：`checkViewable/Operable/NewLevel`、`applyLevelFilter` |
-| `security/UserSecurityHelper.java` | 用户范围/状态：`findInScope`、`findActiveInScope`、`assertBatchNoDisabled` 等 |
-| `security/UserCacheHelper.java` | 登录 Redis 清理：`evictByUsernames`，Key `user:{username}` |
-| `security/UserRoleScopeHelper.java` | 按 `role.dataScope` 校验 scope；防重复分配 |
-| `security/MenuTreeHelper.java` | 纯内存建树、补祖先、收集 permissions、修剪空目录 |
-| `security/MenuCacheHelper.java` | 菜单树 Redis：`menu:tree:{userId}`，`evictAll` |
+| `security/DataScopeHelper.java` | 用户行级过滤 |
+| `security/LevelBasedAccess.java` | 全局等级控制 |
+| `security/UserSecurityHelper.java` | 用户范围/状态 |
+| `security/UserCacheHelper.java` | 登录 Redis 清理 |
+| `security/UserRoleScopeHelper.java` | 角色分配 scope |
+| `security/MenuTreeHelper.java` / `MenuCacheHelper.java` | 菜单树 |
+| **`security/ClubSecurityHelper.java`** | 指导老师/院长/学院范围/校级管理员 |
+| **`security/ClubDissolveExecutor.java`** | 解散执行（社团/部门/活动/角色） |
+| **`security/UserScopeResolver.java`** | 支持 `ADVISOR*` 前缀映射等级 1 |
 
 ### 17.7 Service 接口
 
 | 文件 | 变更摘要 |
 |---|---|
-| `service/SysUserService.java` | 新增 `toggleStatus`、`listDisabled` |
-| `service/SysUserRoleService.java` | 新增 `assign`、`revoke`、`pageQuery`、`listMyRoles` |
-| `service/SysMenuService.java` | 新增 `getMenuTreeForCurrentUser`、`pageQuery`、`saveMenu`、`deleteMenu` |
-| `service/SysRoleMenuService.java` | 新增 `assign`、`listMenuIdsByRole` |
+| `service/SysUserService.java` | `toggleStatus`、`listDisabled` |
+| `service/SysUserRoleService.java` | assign / revoke / pageQuery / listMyRoles |
+| `service/SysMenuService.java` | 菜单树与 CRUD |
+| `service/SysRoleMenuService.java` | 角色菜单 assign |
+| **`service/ClubApplicationService.java`** | 创建/解散/列表/详情/学院审批/校级审批 |
+| **`service/ClubCouncilService.java`** | 合议发起/签字 |
 
 ### 17.8 Service 实现
 
 | 文件 | 变更摘要 |
 |---|---|
-| `service/impl/SysUserServiceImpl.java` | 实现状态管理；`toggleStatus` 清 Redis；`updateUsers` 拦截禁用用户 |
-| `service/impl/SysUserRoleServiceImpl.java` | 角色分配/撤销/联查；`@Slf4j`；集成 `UserRoleScopeHelper` |
-| `service/impl/UserDetailServiceImpl.java` | 登录时 `status≠1` 抛 `USER_DISABLED` |
-| `service/impl/SysMenuServiceImpl.java` | 菜单树/CRUD；Redis 缓存；等级绑定校验 |
-| `service/impl/SysRoleMenuServiceImpl.java` | 角色菜单全量覆盖；`@Slf4j`；`MenuCacheHelper.evictAll` |
+| `service/impl/SysUserServiceImpl.java` | 用户状态管理 |
+| `service/impl/SysUserRoleServiceImpl.java` | 角色分配 |
+| `service/impl/UserDetailServiceImpl.java` | 登录禁用拦截 |
+| `service/impl/SysMenuServiceImpl.java` | 菜单模块 |
+| `service/impl/SysRoleMenuServiceImpl.java` | 角色菜单 |
+| **`service/impl/ClubApplicationServiceImpl.java`** | 社团申请全流程；`@Slf4j` |
+| **`service/impl/ClubCouncilServiceImpl.java`** | 合议签字与条件判定；`@Slf4j` |
+
+### 17.9 Utils / Entity
+
+| 文件 | 变更摘要 |
+|---|---|
+| **`utils/ClubCodeGeneratorUtil.java`** | 申请号、社团编号生成 |
+| **`entity/ClubApplication.java`** | 对应 `club_application` 表 |
+| **`entity/ClubCouncil.java`** | 对应 `club_council` 表（`signatories` JSON） |
 
 ---
 

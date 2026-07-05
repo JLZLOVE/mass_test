@@ -172,4 +172,34 @@ public class ErrorConfig {
     public static final String CLUB_REQUIRE_ADVISOR_ROLE_MSG = "需要指导老师角色";
     public static final Integer CLUB_REQUIRE_ADMIN_ROLE_CODE = 9218;
     public static final String CLUB_REQUIRE_ADMIN_ROLE_MSG = "需要校级管理员权限";
+
+    // ====================== 活动审批 (93xx) ======================
+    public static final Integer ACT_APPLY_NOT_FOUND_CODE = 9301;
+    public static final String ACT_APPLY_NOT_FOUND_MSG = "活动申请不存在";
+    public static final Integer ACT_CLUB_NOT_FOUND_CODE = 9302;
+    public static final String ACT_CLUB_NOT_FOUND_MSG = "主办社团不存在或状态异常";
+    public static final Integer ACT_SUBMIT_NO_PERMISSION_CODE = 9303;
+    public static final String ACT_SUBMIT_NO_PERMISSION_MSG = "当前用户无权发起活动申请";
+    public static final Integer ACT_LEVEL_INVALID_CODE = 9304;
+    public static final String ACT_LEVEL_INVALID_MSG = "活动级别必须为院级或校级";
+    public static final Integer ACT_STATUS_INVALID_CODE = 9305;
+    public static final String ACT_STATUS_INVALID_MSG = "活动状态不允许此操作";
+    public static final Integer ACT_NOT_CURRENT_APPROVER_CODE = 9306;
+    public static final String ACT_NOT_CURRENT_APPROVER_MSG = "您不是当前步骤审批人";
+    public static final Integer ACT_OPINION_REQUIRED_CODE = 9307;
+    public static final String ACT_OPINION_REQUIRED_MSG = "审批意见不能为空";
+    public static final Integer ACT_VERSION_CONFLICT_CODE = 9308;
+    public static final String ACT_VERSION_CONFLICT_MSG = "数据已被修改，请刷新重试";
+    public static final Integer ACT_APPROVER_NOT_FOUND_CODE = 9309;
+    public static final String ACT_APPROVER_NOT_FOUND_MSG = "无法确定审批人，请检查角色配置";
+    public static final Integer ACT_NOT_APPLICANT_CODE = 9310;
+    public static final String ACT_NOT_APPLICANT_MSG = "仅申请人可执行此操作";
+    public static final Integer ACT_CHANGE_FIELDS_INVALID_CODE = 9311;
+    public static final String ACT_CHANGE_FIELDS_INVALID_MSG = "变更仅允许修改时间或地点";
+    public static final Integer ACT_SUMMARY_WINDOW_CODE = 9312;
+    public static final String ACT_SUMMARY_WINDOW_MSG = "活动总结须在结束后1-3天内上传";
+    public static final Integer ACT_TIME_INVALID_CODE = 9313;
+    public static final String ACT_TIME_INVALID_MSG = "开始时间必须早于结束时间";
+    public static final Integer ACT_LEVEL_ADJUST_LOCKED_CODE = 9314;
+    public static final String ACT_LEVEL_ADJUST_LOCKED_MSG = "活动级别已调整过，不可再次修改";
 }

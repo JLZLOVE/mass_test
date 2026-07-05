@@ -1,154 +1,109 @@
 package untiy.controller;
 
-
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.web.multipart.MultipartFile;
 import untiy.annotation.RequiresLevel;
 import untiy.entity.ActivityApply;
+import untiy.entity.dto.*;
+import untiy.exception.Level;
 import untiy.service.ActivityApplyService;
-import untiy.utils.MPUtil;
+import untiy.utils.ActivityFileStorageUtil;
 import untiy.utils.R;
-import untiy.annotation.IgnoreAuth;   // 注意：这里是 annotion，不是 annotation
 
 import javax.validation.Valid;
-import java.util.List;
 import java.util.Map;
 
-import org.springframework.web.bind.annotation.RestController;
-
-/**
- * <p>
- * 活动申请表 前端控制器
- * </p>
- *
- * @author 玖
- * @since 2026-02-19
- */
-@Tag(name = "活动申请管理", description = "活动申请相关接口")
 @RestController
+@Tag(name = "活动审批", description = "活动申请提交、审批、变更、取消与总结")
 @RequestMapping("/activity-apply")
 public class ActivityApplyController {
 
     @Autowired
     private ActivityApplyService activityApplyService;
 
-    /**
-     * 列表查询（后端）
-     */
-    @Operation(summary = "查询所有活动申请列表", description = "返回全部活动申请记录，无分页参数")
-    @GetMapping("/listActivityApply")
-    public R listActivityApply() {
-        QueryWrapper<ActivityApply> ew = new QueryWrapper<>();
-        List<ActivityApply> list = activityApplyService.list(ew);
-        return R.ok().put("data", list);
+    @Autowired
+    private ActivityFileStorageUtil activityFileStorageUtil;
+
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "提交活动申请", description = "部长/社长/指导老师/学院书记/管理员可发起；动态生成审批链")
+    @PostMapping("/submit")
+    public R submit(@Valid @RequestBody ActivitySubmitDTO dto) {
+        activityApplyService.submit(dto);
+        return R.ok("提交成功");
     }
 
-    /**
-     * 前端查询（公开）
-     */
-    @IgnoreAuth
-    @Operation(summary = "前端公开查询活动申请", description = "支持多条件模糊匹配、时间范围、排序、分页")
-    @GetMapping("/listActivityApply_F")
-    public R listActivityApply_F(@RequestParam Map<String, Object> param, ActivityApply activityApply) {
-        QueryWrapper<ActivityApply> queryWrapper = new QueryWrapper<>();
-        MPUtil.likeOrEq(queryWrapper, activityApply);
-        MPUtil.between(queryWrapper, param);
-        MPUtil.sort(queryWrapper, param);
-        Page<ActivityApply> page = MPUtil.getPage(param);
-        IPage<ActivityApply> page1 = activityApplyService.page(page, queryWrapper);
-        return R.ok().put("data", page1);
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "上传申请附件", description = "本地存储，返回相对路径供 submit 使用")
+    @PostMapping("/upload/attachment")
+    public R uploadAttachment(@RequestParam("file") MultipartFile file) {
+        String path = activityFileStorageUtil.store(file, "apply");
+        return R.ok("上传成功").put("data", path);
     }
 
-    /**
-     * 后端查询（需鉴权）
-     */
-
-    @Operation(summary = "后端鉴权查询活动申请", description = "支持分页、条件筛选、排序，仅管理员可用")
-    @GetMapping("/listActivityApply_B")
-    public R listActivityApply_B(@RequestParam Map<String, Object> param, ActivityApply activityApply) {
-        Page<ActivityApply> page = MPUtil.getPage(param);
-        IPage<ActivityApply> page1 = activityApplyService.page(page, MPUtil.sort(
-                MPUtil.between(
-                        MPUtil.likeOrEq(new QueryWrapper<>(), activityApply),
-                        param
-                ),
-                param
-        ));
-        return R.ok().put("data", page1);
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "上传总结附件")
+    @PostMapping("/upload/summary")
+    public R uploadSummaryFile(@RequestParam("file") MultipartFile file) {
+        String path = activityFileStorageUtil.store(file, "summary");
+        return R.ok("上传成功").put("data", path);
     }
 
-    /**
-     * 公开条件查询
-     */
-    @Operation(summary = "公开条件查询活动申请", description = "根据实体字段模糊匹配，返回所有符合条件的记录（不分页）")
-    @GetMapping("/query")
-    public R query(ActivityApply activityApply) {
-        QueryWrapper<ActivityApply> queryWrapper = new QueryWrapper<>();
-        List<ActivityApply> list = activityApplyService.list(MPUtil.likeOrEq(queryWrapper, activityApply));
-        return R.ok().put("data", list);
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "审批通过", description = "当前步骤审批人操作；指导老师可调整活动级别")
+    @PostMapping("/approve/{id}")
+    public R approve(@PathVariable Long id, @Valid @RequestBody ActivityApproveDTO dto) {
+        activityApplyService.approve(id, dto);
+        return R.ok("审批完成");
     }
 
-    /**
-     * 单个后端查询
-     */
-    @Operation(summary = "根据ID查询活动申请（后端）", description = "供管理后台查看详情")
-    @GetMapping("/detailActivityApply_B/{id}")
-    public R detailActivityApply_B(@PathVariable("id") Long id) {
-        ActivityApply obj = activityApplyService.getById(id);
-        return R.ok().put("data", obj);
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "审批驳回", description = "必须填写驳回原因")
+    @PostMapping("/reject/{id}")
+    public R reject(@PathVariable Long id, @Valid @RequestBody ActivityApproveDTO dto) {
+        activityApplyService.reject(id, dto);
+        return R.ok("已驳回");
     }
 
-    /**
-     * 单个前端查询（公开）
-     */
-    @IgnoreAuth
-    @Operation(summary = "根据ID查询活动申请（公开）", description = "无需登录即可查看")
-    @GetMapping("/detailActivityApply_F/{id}")
-    public R detailActivityApply_F(@PathVariable("id") Long id) {
-        ActivityApply obj = activityApplyService.getById(id);
-        return R.ok().put("data", obj);
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "变更申请", description = "已通过活动可申请变更时间/地点")
+    @PostMapping("/change/{id}")
+    public R change(@PathVariable Long id, @Valid @RequestBody ActivityChangeDTO dto) {
+        activityApplyService.requestChange(id, dto);
+        return R.ok("变更申请已提交");
     }
 
-    /**
-     * 后端增加
-     */
-    @RequiresLevel(minLevel = 1)
-    @Operation(summary = "新增活动申请（后端）", description = "管理员添加记录")
-    @PostMapping("/add_B")
-    public R add_B(@Valid @RequestBody ActivityApply activityApply) {
-        activityApplyService.save(activityApply);
-        return R.ok("添加成功").put("data", activityApply);
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "取消活动", description = "仅申请人可直接取消")
+    @PostMapping("/cancel/{id}")
+    public R cancel(@PathVariable Long id, @Valid @RequestBody ActivityCancelDTO dto) {
+        activityApplyService.cancel(id, dto);
+        return R.ok("已取消");
     }
 
-
-
-    /**
-     * 后端批量更新
-     */
-    @Operation(summary = "批量更新活动申请（后端）", description = "根据ID列表批量修改")
-    @PutMapping("/updateActivityApply_B")
-    public R updateActivityApply_B(@Valid @RequestBody List<ActivityApply> activityApplys) {
-        activityApplyService.updateBatchById(activityApplys);
-        return R.ok();
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "上传活动总结", description = "活动结束后1-3天内")
+    @PostMapping("/summary/{id}")
+    public R summary(@PathVariable Long id, @Valid @RequestBody ActivitySummaryDTO dto) {
+        activityApplyService.uploadSummary(id, dto);
+        return R.ok("总结已保存");
     }
 
-
-
-    /**
-     * 后端批量删除
-     */
-    @Operation(summary = "批量删除活动申请（后端）", description = "根据ID列表删除")
-    @DeleteMapping("/deleteActivityApply_B")
-    public R deleteActivityApply_B(@RequestBody List<Long> ids) {
-        activityApplyService.removeByIds(ids);
-        return R.ok();
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "分页查询", description = "支持条件筛选与排序")
+    @GetMapping("/list")
+    public R list(@RequestParam Map<String, Object> param, ActivityApply query) {
+        IPage<ActivityApply> page = activityApplyService.pageQuery(param, query);
+        return R.ok().put("data", page);
     }
 
-
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "活动详情", description = "含审批流与变更历史")
+    @GetMapping("/detail/{id}")
+    public R detail(@PathVariable Long id) {
+        return R.ok().put("data", activityApplyService.getDetail(id));
+    }
 }

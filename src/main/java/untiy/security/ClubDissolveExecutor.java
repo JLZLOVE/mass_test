@@ -128,7 +128,7 @@ public class ClubDissolveExecutor {
     public boolean hasActiveActivities(Long clubId) {
         long count = activityApplyMapper.selectCount(new LambdaQueryWrapper<ActivityApply>()
                 .eq(ActivityApply::getClubId, clubId)
-                .in(ActivityApply::getApproveStatus, 1, 2, 3));
+                .in(ActivityApply::getApproveStatus, 1, 2, 3, 7));
         return count > 0;
     }
 

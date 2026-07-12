@@ -52,9 +52,9 @@ public class ClubApplicationController {
 
     @RequiresLevel(minLevel = Level.ADMIN)
     @Operation(summary = "申请详情", description = "含当前待审批人信息")
-    @GetMapping("/apply/detail/{id}")
-    public R detail(@PathVariable Long id) {
-        return R.ok().put("data", clubApplicationService.getDetail(id));
+    @GetMapping("/apply/detail/{username}")
+    public R detail(@PathVariable String username) {
+        return R.ok().put("data", clubApplicationService.getDetailByApplicantUsername(username));
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)
@@ -67,9 +67,9 @@ public class ClubApplicationController {
 
     @RequiresLevel(minLevel = Level.ADMIN)
     @Operation(summary = "校级审批", description = "校级管理员审批；创建通过激活社团，解散通过执行解散")
-    @PostMapping("/approve/admin/{id}")
-    public R approveAdmin(@PathVariable Long id, @Valid @RequestBody ClubApproveDTO dto) {
-        clubApplicationService.approveAdmin(id, dto);
+    @PostMapping("/approve/admin/{username}")
+    public R approveAdmin(@PathVariable String username, @Valid @RequestBody ClubApproveDTO dto) {
+        clubApplicationService.approveAdmin(username, dto);
         return R.ok("审批完成");
     }
 }

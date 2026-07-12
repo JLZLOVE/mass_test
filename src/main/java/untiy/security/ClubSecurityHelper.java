@@ -113,6 +113,14 @@ public final class ClubSecurityHelper {
         UserSecurityHelper.assertUserEnabled(user);
     }
 
+    public static void assertUserEnabledByUsername(SysUserMapper userMapper, String username) {
+        if (username == null || username.isBlank()) {
+            throw new EIException(ErrorConfig.BAD_REQUEST_CODE, "用户名不能为空");
+        }
+        SysUser user = userMapper.selectByUsername(username);
+        UserSecurityHelper.assertUserEnabled(user);
+    }
+
     public static SysRole requireRoleByCode(SysRoleMapper roleMapper, String roleCode) {
         SysRole role = roleMapper.selectOne(new LambdaQueryWrapper<SysRole>()
                 .eq(SysRole::getRoleCode, roleCode)

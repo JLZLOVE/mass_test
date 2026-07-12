@@ -30,7 +30,7 @@ public class ClubCouncilController {
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)
-    @Operation(summary = "合议签字", description = "超管/校级管理员签字；达成条件后自动执行解散")
+    @Operation(summary = "合议签字", description = "超管管理员签字；达成条件后自动执行解散")
     @PostMapping("/council/sign/{id}")
     public R sign(@PathVariable Long id) {
         clubCouncilService.sign(id);

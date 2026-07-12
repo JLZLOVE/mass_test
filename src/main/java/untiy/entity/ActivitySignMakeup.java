@@ -9,13 +9,12 @@ import lombok.EqualsAndHashCode;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("activity_sign")
-public class ActivitySign implements Serializable {
+@TableName("activity_sign_makeup")
+public class ActivitySignMakeup implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -26,34 +25,26 @@ public class ActivitySign implements Serializable {
 
     private Long userId;
 
-    /** 1定位 2扫码 3补签 4手动 */
-    private Integer signType;
+    private Long applicantId;
 
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime signTime;
+    private Integer reasonType;
 
-    private BigDecimal latitude;
+    private String reasonDetail;
 
-    private BigDecimal longitude;
+    private String attachment;
 
-    private String address;
+    /** 1待审 2通过 3驳回 */
+    private Integer status;
 
-    /** 1正常 2迟到 3早退 */
-    private Integer signStatus;
+    private Integer currentStep;
 
-    private Integer isLate;
+    private Long approveUserId;
 
-    private Integer isEarlyLeave;
-
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime checkoutTime;
-
-    private Long operatorId;
-
-    private Long approverId;
+    private String approveOpinion;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime createTime;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime updateTime;
 }

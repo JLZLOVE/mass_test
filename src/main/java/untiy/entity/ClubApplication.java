@@ -1,8 +1,10 @@
 package untiy.entity;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import java.time.LocalDateTime;
 import java.io.Serializable;
@@ -60,9 +62,13 @@ public class ClubApplication implements Serializable {
     private String description;
 
     /**
-     * 拟定社长ID
+     * 拟定社长ID（内部）
      */
+    @JsonIgnore
     private Long proposedLeaderId;
+
+    @TableField(exist = false)
+    private String proposedLeaderUsername;
 
     /**
      * 最大招募人数
@@ -75,9 +81,13 @@ public class ClubApplication implements Serializable {
     private String dissolveReason;
 
     /**
-     * 申请人ID（指导老师）
+     * 申请人ID（指导老师，内部）
      */
+    @JsonIgnore
     private Long applicantId;
+
+    @TableField(exist = false)
+    private String applicantUsername;
 
     /**
      * 申请人名称
@@ -95,9 +105,13 @@ public class ClubApplication implements Serializable {
     private String rejectReason;
 
     /**
-     * 学院审批人ID
+     * 学院审批人ID（内部）
      */
+    @JsonIgnore
     private Long collegeApproverId;
+
+    @TableField(exist = false)
+    private String collegeApproverUsername;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime collegeApproveTime;
@@ -108,9 +122,13 @@ public class ClubApplication implements Serializable {
     private String collegeApproveOpinion;
 
     /**
-     * 校级审批人ID
+     * 校级审批人ID（内部）
      */
+    @JsonIgnore
     private Long adminApproverId;
+
+    @TableField(exist = false)
+    private String adminApproverUsername;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime adminApproveTime;

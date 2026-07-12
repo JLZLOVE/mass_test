@@ -56,7 +56,7 @@ const activeStep = computed(() => {
 const canApprove = computed(() => {
   const pending = flowList.value.find((f) => !f.approveResult || f.approveResult === 0)
   if (!pending) return false
-  return pending.approveUserId === userStore.userInfo?.id
+  return pending.approveUsername === userStore.username
 })
 
 async function loadDicts() {
@@ -180,7 +180,7 @@ onMounted(async () => {
           <template #default="{ row }">{{ roleMap[row.approveRoleId] || '-' }}</template>
         </el-table-column>
         <el-table-column label="审批人" width="120">
-          <template #default="{ row }">{{ userMap[row.approveUserId] || '-' }}</template>
+          <template #default="{ row }">{{ row.approveUsername || userMap[row.approveUserId] || '-' }}</template>
         </el-table-column>
         <el-table-column label="审批结果" width="100">
           <template #default="{ row }">
@@ -203,7 +203,7 @@ onMounted(async () => {
         </el-table-column>
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
-            <template v-if="(!row.approveResult || row.approveResult === 0) && row.approveUserId === userStore.userInfo?.id">
+            <template v-if="(!row.approveResult || row.approveResult === 0) && row.approveUsername === userStore.username">
               <el-button link type="success" @click="openApprove(1, row)">同意</el-button>
               <el-button link type="danger" @click="openApprove(2, row)">驳回</el-button>
             </template>

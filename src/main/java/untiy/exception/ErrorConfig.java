@@ -226,4 +226,36 @@ public class ErrorConfig {
     public static final String NOTICE_TEMPLATE_IN_USE_MSG = "模板已被引用，已改为停用";
     public static final Integer NOTICE_ALREADY_CONFIRMED_CODE = 9411;
     public static final String NOTICE_ALREADY_CONFIRMED_MSG = "已确认阅读，无需重复操作";
+
+    // ====================== 活动签到 (95xx) ======================
+    public static final Integer SIGN_CONFIG_NOT_FOUND_CODE = 9501;
+    public static final String SIGN_CONFIG_NOT_FOUND_MSG = "签到未配置或未启用";
+    public static final Integer SIGN_ACTIVITY_NOT_FOUND_CODE = 9502;
+    public static final String SIGN_ACTIVITY_NOT_FOUND_MSG = "活动不存在或未通过审批";
+    public static final Integer SIGN_NO_PERMISSION_CODE = 9503;
+    public static final String SIGN_NO_PERMISSION_MSG = "无权操作该活动签到";
+    public static final Integer SIGN_WINDOW_CLOSED_CODE = 9504;
+    public static final String SIGN_WINDOW_CLOSED_MSG = "不在签到时间窗口内";
+    public static final Integer SIGN_ALREADY_SIGNED_CODE = 9505;
+    public static final String SIGN_ALREADY_SIGNED_MSG = "您已签到，不可重复签到";
+    public static final Integer SIGN_LOCATION_INVALID_CODE = 9506;
+    public static final String SIGN_LOCATION_INVALID_MSG = "不在签到有效范围内";
+    public static final Integer SIGN_QR_INVALID_CODE = 9507;
+    public static final String SIGN_QR_INVALID_MSG = "扫码令牌无效";
+    public static final Integer SIGN_MODE_INVALID_CODE = 9508;
+    public static final String SIGN_MODE_INVALID_MSG = "当前活动不支持该签到方式";
+    public static final Integer SIGN_NOT_SIGNED_CODE = 9509;
+    public static final String SIGN_NOT_SIGNED_MSG = "尚未签到，无法签退";
+    public static final Integer SIGN_CHECKOUT_DISABLED_CODE = 9510;
+    public static final String SIGN_CHECKOUT_DISABLED_MSG = "该活动未启用签退";
+    public static final Integer SIGN_CONFLICT_CODE = 9511;
+    public static final String SIGN_CONFLICT_MSG = "该时间段您已参与其他活动签到";
+    public static final Integer SIGN_MAKEUP_NOT_FOUND_CODE = 9512;
+    public static final String SIGN_MAKEUP_NOT_FOUND_MSG = "补签申请不存在";
+    public static final Integer SIGN_MAKEUP_EXPIRED_CODE = 9513;
+    public static final String SIGN_MAKEUP_EXPIRED_MSG = "已超过补签申请期限";
+    public static final Integer SIGN_MAKEUP_NOT_APPROVER_CODE = 9514;
+    public static final String SIGN_MAKEUP_NOT_APPROVER_MSG = "您不是当前补签审批人";
+    public static final Integer SIGN_USER_NOT_FOUND_CODE = 9515;
+    public static final String SIGN_USER_NOT_FOUND_MSG = "补签用户不存在";
 }

@@ -68,6 +68,21 @@ public final class UserSecurityHelper {
         return user;
     }
 
+    /** 按 username 在数据范围内查找，且未被禁用 */
+    public static SysUser findActiveInScopeByUsername(SysUserMapper mapper, String username) {
+        SysUser user = findInScope(mapper, username);
+        assertUserEnabled(user);
+        return user;
+    }
+
+    public static SysUser requireInScopeByUsername(SysUserMapper mapper, String username) {
+        SysUser user = findInScope(mapper, username);
+        if (user == null) {
+            throw new EIException(ErrorConfig.RGEISTER_STATUS_CODE, ErrorConfig.RGEISTER_STATUS_CODE_MSG);
+        }
+        return user;
+    }
+
     public static void assertUserEnabled(SysUser user) {
         if (user == null) {
             throw new EIException(ErrorConfig.RGEISTER_STATUS_CODE, ErrorConfig.RGEISTER_STATUS_CODE_MSG);

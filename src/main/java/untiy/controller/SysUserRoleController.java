@@ -60,4 +60,12 @@ public class SysUserRoleController {
         List<SysUserRoleVO> list = sysUserRoleService.listMyRoles();
         return R.ok().put("data", list);
     }
+
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "按用户名查询角色", description = "目标用户须在数据范围内")
+    @GetMapping("/roles/{username}")
+    public R rolesByUsername(@PathVariable String username) {
+        List<SysUserRoleVO> list = sysUserRoleService.listByUsername(username);
+        return R.ok().put("data", list);
+    }
 }

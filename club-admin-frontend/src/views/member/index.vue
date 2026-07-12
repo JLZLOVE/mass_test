@@ -7,7 +7,8 @@ import { sysRoleApi } from '@/api/sysRole'
 import { sysClubApi } from '@/api/sysClub'
 import { useUserStore } from '@/stores/user'
 import { formatDateTime } from '@/utils/format'
-import type { SysUser, SysUserRole, SysRole, SysClub } from '@/types/generated'
+import type { SysUser, SysRole, SysClub } from '@/types/generated'
+import type { SysUserRoleItem } from '@/api/sysUserRole'
 
 const userStore = useUserStore()
 
@@ -32,7 +33,7 @@ const roleMap = ref<Record<number, string>>({})
 
 const roleDialogVisible = ref(false)
 const currentUser = ref<SysUser | null>(null)
-const userRoles = ref<SysUserRole[]>([])
+const userRoles = ref<SysUserRoleItem[]>([])
 const roleLoading = ref(false)
 
 const addRoleFormRef = ref<FormInstance>()
@@ -87,7 +88,8 @@ async function openRoleDialog(row: SysUser) {
   roleDialogVisible.value = true
   roleLoading.value = true
   try {
-    const res = await sysUserRoleApi.query({ userId: row.id })
+    if (!row.username) return
+    const res = await sysUserRoleApi.rolesByUsername(row.username)
     userRoles.value = res.data || []
     addRoleForm.roleId = undefined
     addRoleForm.scopeType = 2
@@ -98,7 +100,7 @@ async function openRoleDialog(row: SysUser) {
 }
 
 async function handleAddRole() {
-  if (!currentUser.value?.id || !addRoleForm.roleId) {
+  if (!currentUser.value?.username || !addRoleForm.roleId) {
     ElMessage.warning('请选择角色')
     return
   }
@@ -106,29 +108,29 @@ async function handleAddRole() {
     ElMessage.warning('请选择所属社团')
     return
   }
-  await sysUserRoleApi.addF({
-    userId: currentUser.value.id,
+  await sysUserRoleApi.assign({
+    username: currentUser.value.username,
     roleId: addRoleForm.roleId,
     scopeType: addRoleForm.scopeType,
     scopeId: addRoleForm.scopeId,
   })
   ElMessage.success('角色分配成功')
-  const res = await sysUserRoleApi.query({ userId: currentUser.value.id })
+  const res = await sysUserRoleApi.rolesByUsername(currentUser.value.username)
   userRoles.value = res.data || []
   addRoleForm.roleId = undefined
 }
 
-async function handleRemoveRole(row: SysUserRole) {
+async function handleRemoveRole(row: SysUserRoleItem) {
   await ElMessageBox.confirm('确定移除该角色吗？', '提示', { type: 'warning' })
-  await sysUserRoleApi.deleteF(row.id!)
+  await sysUserRoleApi.revoke(row.id!)
   ElMessage.success('已移除')
-  if (currentUser.value?.id) {
-    const res = await sysUserRoleApi.query({ userId: currentUser.value.id })
+  if (currentUser.value?.username) {
+    const res = await sysUserRoleApi.rolesByUsername(currentUser.value.username)
     userRoles.value = res.data || []
   }
 }
 
-function scopeLabel(row: SysUserRole): string {
+function scopeLabel(row: SysUserRoleItem): string {
   if (row.scopeType === 2) {
     const club = clubs.value.find((c) => c.id === row.scopeId)
     return club ? `社团: ${club.clubName}` : `社团ID: ${row.scopeId}`

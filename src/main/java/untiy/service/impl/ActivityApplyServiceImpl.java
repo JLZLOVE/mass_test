@@ -37,6 +37,7 @@ import untiy.mapper.SysUserRoleMapper;
 import untiy.security.ActivityApprovalChainHelper;
 import untiy.security.ActivityApproverHelper;
 import untiy.security.LoginUserDetails;
+import untiy.security.UserExposeHelper;
 import untiy.service.ActivityApplyService;
 import untiy.service.NoticeAutoPublisher;
 import untiy.utils.ActivityCodeGeneratorUtil;
@@ -320,6 +321,8 @@ public class ActivityApplyServiceImpl extends ServiceImpl<ActivityApplyMapper, A
         vo.setHistories(activityApplyHistoryMapper.selectList(new LambdaQueryWrapper<ActivityApplyHistory>()
                 .eq(ActivityApplyHistory::getActivityApplyId, id)
                 .orderByDesc(ActivityApplyHistory::getCreateTime)));
+        UserExposeHelper.enrichActivityApply(sysUserMapper, apply);
+        UserExposeHelper.enrichApproveFlows(sysUserMapper, vo.getFlows());
         vo.setCurrentApproverName(resolveCurrentApproverName(apply));
         vo.setQueryTime(LocalDateTime.now());
         return vo;
@@ -330,7 +333,9 @@ public class ActivityApplyServiceImpl extends ServiceImpl<ActivityApplyMapper, A
         Page<ActivityApply> page = MPUtil.getPage(param);
         QueryWrapper<ActivityApply> wrapper = MPUtil.sort(
                 MPUtil.between(MPUtil.likeOrEq(new QueryWrapper<>(), query), param), param);
-        return page(page, wrapper);
+        IPage<ActivityApply> result = page(page, wrapper);
+        UserExposeHelper.enrichActivityApplyList(sysUserMapper, result.getRecords());
+        return result;
     }
 
     private void finishApproval(ActivityApply apply, int flowType, LocalDateTime now) {

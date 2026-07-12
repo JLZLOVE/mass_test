@@ -20,7 +20,9 @@ public interface ClubApplicationService extends IService<ClubApplication> {
 
     ClubApplicationDetailVO getDetail(Long id);
 
+    ClubApplicationDetailVO getDetailByApplicantUsername(String username);
+
     void approveCollege(Long id, ClubApproveDTO dto);
 
-    void approveAdmin(Long id, ClubApproveDTO dto);
+    void approveAdmin(String username, ClubApproveDTO dto);
 }

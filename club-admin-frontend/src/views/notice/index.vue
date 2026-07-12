@@ -347,7 +347,7 @@ onMounted(async () => {
     >
       <el-table v-loading="readLoading" :data="readRecords" border stripe>
         <el-table-column label="用户" width="120">
-          <template #default="{ row }">{{ userMap[row.userId] || row.userId }}</template>
+          <template #default="{ row }">{{ row.username || userMap[row.userId] || row.userId }}</template>
         </el-table-column>
         <el-table-column label="阅读时间" width="170">
           <template #default="{ row }">{{ formatDateTime(row.readTime) }}</template>

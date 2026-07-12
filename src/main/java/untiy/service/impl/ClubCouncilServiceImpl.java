@@ -110,7 +110,9 @@ public class ClubCouncilServiceImpl extends ServiceImpl<ClubCouncilMapper, ClubC
         ClubSecurityHelper.assertCollegeInScope(sysUserRoleMapper, sysRoleMapper, user.getUserId(), council.getCollegeId());
 
         List<CouncilSignRecordVO> records = parseSignatories(council.getSignatories());
-        boolean alreadySigned = records.stream().anyMatch(r -> user.getUserId().equals(r.getUserId()));
+        boolean alreadySigned = records.stream().anyMatch(r ->
+                user.getUsername().equals(r.getUsername())
+                        || (r.getUserId() != null && user.getUserId().equals(r.getUserId())));
         if (alreadySigned) {
             throw new EIException(ErrorConfig.CLUB_ALREADY_SIGNED_CODE, ErrorConfig.CLUB_ALREADY_SIGNED_MSG);
         }
@@ -118,7 +120,7 @@ public class ClubCouncilServiceImpl extends ServiceImpl<ClubCouncilMapper, ClubC
         List<SysRole> roles = loadUserRoles(user.getUserId());
         String roleCode = roles.isEmpty() ? null : roles.get(0).getRoleCode();
         CouncilSignRecordVO record = new CouncilSignRecordVO();
-        record.setUserId(user.getUserId());
+        record.setUsername(user.getUsername());
         record.setRoleCode(roleCode);
         record.setLevel(level);
         record.setSignTime(LocalDateTime.now());

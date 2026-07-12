@@ -2,18 +2,18 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { activitySignApi } from '@/api/activitySign'
+import { activitySignApi, type SignRecord } from '@/api/activitySign'
 import { activityApplyApi } from '@/api/activityApply'
 import { sysUserApi } from '@/api/sysUser'
 import { formatDateTime } from '@/utils/format'
-import type { ActivitySign, ActivityApply, SysUser } from '@/types/generated'
+import type { ActivityApply, SysUser } from '@/types/generated'
 
 const route = useRoute()
 const router = useRouter()
 
 const activityId = computed(() => Number(route.params.activityId))
 const loading = ref(false)
-const tableData = ref<ActivitySign[]>([])
+const tableData = ref<SignRecord[]>([])
 const total = ref(0)
 const activityInfo = ref<ActivityApply | null>(null)
 
@@ -22,7 +22,6 @@ const query = reactive({
   limit: 10,
 })
 
-const userMap = ref<Record<number, string>>({})
 const userList = ref<SysUser[]>([])
 
 const signTypeMap: Record<number, string> = {
@@ -31,27 +30,19 @@ const signTypeMap: Record<number, string> = {
   3: '手动补签',
 }
 
-const signStatusMap: Record<number, { label: string; type: '' | 'success' | 'danger' }> = {
-  1: { label: '成功', type: 'success' },
-  0: { label: '失败', type: 'danger' },
-}
-
 const makeupVisible = ref(false)
 const makeupFormRef = ref<FormInstance>()
 const makeupForm = reactive({
-  userId: undefined as number | undefined,
+  username: '',
 })
 
 const makeupRules: FormRules = {
-  userId: [{ required: true, message: '请选择用户', trigger: 'change' }],
+  username: [{ required: true, message: '请选择用户', trigger: 'change' }],
 }
 
 async function loadUsers() {
   const res = await sysUserApi.listF({ page: 1, limit: 500, status: 1 })
   userList.value = res.data?.records || []
-  userMap.value = Object.fromEntries(
-    userList.value.map((u) => [u.id!, `${u.realName || u.username} (${u.username})`]),
-  )
 }
 
 async function loadActivity() {
@@ -64,10 +55,9 @@ async function fetchList() {
   if (!activityId.value) return
   loading.value = true
   try {
-    const res = await activitySignApi.listF({
+    const res = await activitySignApi.listRecords(activityId.value, {
       page: query.page,
       limit: query.limit,
-      activityId: activityId.value,
     })
     tableData.value = res.data?.records || []
     total.value = res.data?.total || 0
@@ -77,20 +67,14 @@ async function fetchList() {
 }
 
 function openMakeup() {
-  makeupForm.userId = undefined
+  makeupForm.username = ''
   makeupVisible.value = true
 }
 
 async function submitMakeup() {
   const valid = await makeupFormRef.value?.validate().catch(() => false)
   if (!valid) return
-  await activitySignApi.addF({
-    activityId: activityId.value,
-    userId: makeupForm.userId,
-    signType: 3,
-    signStatus: 1,
-    signTime: new Date().toISOString().slice(0, 19).replace('T', ' '),
-  })
+  await activitySignApi.adminSign(activityId.value, { username: makeupForm.username })
   ElMessage.success('补签成功')
   makeupVisible.value = false
   fetchList()
@@ -122,16 +106,8 @@ onMounted(async () => {
         <el-button type="primary" @click="openMakeup">手动补签</el-button>
       </div>
       <el-table v-loading="loading" :data="tableData" border stripe>
-        <el-table-column label="用户名" width="140">
-          <template #default="{ row }">
-            {{ userMap[row.userId]?.split(' (')[0] || row.userId || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="姓名" width="120">
-          <template #default="{ row }">
-            {{ userMap[row.userId]?.split(' (')[0] || '-' }}
-          </template>
-        </el-table-column>
+        <el-table-column prop="username" label="用户名" width="140" />
+        <el-table-column prop="realName" label="姓名" width="120" />
         <el-table-column label="签到时间" width="170">
           <template #default="{ row }">{{ formatDateTime(row.signTime) }}</template>
         </el-table-column>
@@ -140,11 +116,10 @@ onMounted(async () => {
             {{ signTypeMap[row.signType!] || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="签到状态" width="100">
+        <el-table-column label="迟到" width="80">
           <template #default="{ row }">
-            <el-tag :type="signStatusMap[row.signStatus ?? 1]?.type || 'info'">
-              {{ signStatusMap[row.signStatus ?? 1]?.label || '未知' }}
-            </el-tag>
+            <el-tag v-if="row.isLate === 1" type="warning" size="small">是</el-tag>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="address" label="签到地址" min-width="160" show-overflow-tooltip />
@@ -165,18 +140,18 @@ onMounted(async () => {
 
     <el-dialog v-model="makeupVisible" title="手动补签" width="440px" destroy-on-close>
       <el-form ref="makeupFormRef" :model="makeupForm" :rules="makeupRules" label-width="80px">
-        <el-form-item label="选择用户" prop="userId">
+        <el-form-item label="选择用户" prop="username">
           <el-select
-            v-model="makeupForm.userId"
+            v-model="makeupForm.username"
             placeholder="请选择用户"
             filterable
             style="width: 100%"
           >
             <el-option
               v-for="u in userList"
-              :key="u.id"
+              :key="u.username"
               :label="`${u.realName || u.username} (${u.username})`"
-              :value="u.id"
+              :value="u.username!"
             />
           </el-select>
         </el-form-item>

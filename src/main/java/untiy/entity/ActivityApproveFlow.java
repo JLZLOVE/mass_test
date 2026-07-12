@@ -1,9 +1,11 @@
 package untiy.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -30,7 +32,11 @@ public class ActivityApproveFlow implements Serializable {
 
     private Long approveRoleId;
 
+    @JsonIgnore
     private Long approveUserId;
+
+    @TableField(exist = false)
+    private String approveUsername;
 
     /** 1通过 2驳回 */
     private Integer approveResult;

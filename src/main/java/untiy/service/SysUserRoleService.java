@@ -18,4 +18,6 @@ public interface SysUserRoleService extends IService<SysUserRole> {
     IPage<SysUserRoleVO> pageQuery(Map<String, Object> param, String keyword);
 
     List<SysUserRoleVO> listMyRoles();
+
+    List<SysUserRoleVO> listByUsername(String username);
 }

@@ -29,14 +29,12 @@ export const useUserStore = defineStore('user', () => {
     const usersRes = await sysUserApi.query({ username: username.value })
     const users = usersRes.data || []
     userInfo.value = users[0] || null
-    if (userInfo.value?.id) {
-      const rolesRes = await sysUserRoleApi.query({ userId: userInfo.value.id })
-      const roles = rolesRes.data || []
-      roleIds.value = roles.map((r) => r.roleId!).filter(Boolean)
-      clubScopeIds.value = roles
-        .filter((r) => r.scopeType === 2 && r.scopeId)
-        .map((r) => r.scopeId!)
-    }
+    const rolesRes = await sysUserRoleApi.myRoles()
+    const roles = rolesRes.data || []
+    roleIds.value = roles.map((r) => r.roleId!).filter(Boolean)
+    clubScopeIds.value = roles
+      .filter((r) => r.scopeType === 2 && r.scopeId)
+      .map((r) => r.scopeId!)
   }
 
   function logout() {

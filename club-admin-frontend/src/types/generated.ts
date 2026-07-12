@@ -20,8 +20,11 @@ export interface SysUser {
 
 export interface SysUserRole {
   id?: number
-  userId?: number
+  username?: string
+  realName?: string
   roleId?: number
+  roleName?: string
+  roleCode?: string
   scopeType?: number
   scopeId?: number
   createTime?: string
@@ -119,7 +122,7 @@ export interface SysClub {
 export interface NoticeReadRecord {
   id?: number
   noticeId?: number
-  userId?: number
+  username?: string
   readTime?: string
   confirmTime?: string
   isConfirmed?: number
@@ -130,7 +133,6 @@ export interface NoticeInfo {
   title?: string
   content?: string
   categoryId?: number
-  publisherId?: number
   publisherName?: string
   importance?: number
   urgency?: number
@@ -169,7 +171,8 @@ export interface ClubStatistics {
 export interface ActivitySign {
   id?: number
   activityId?: number
-  userId?: number
+  username?: string
+  realName?: string
   signType?: number
   signTime?: string
   signLocation?: number
@@ -194,7 +197,7 @@ export interface ActivityApproveFlow {
   activityId?: number
   step?: number
   approveRoleId?: number
-  approveUserId?: number
+  approveUsername?: string
   approveResult?: number
   approveOpinion?: string
   approveTime?: string
@@ -216,7 +219,7 @@ export interface ActivityApply {
   budget?: number
   activityContent?: string
   safetyPlan?: string
-  applyUserId?: number
+  applyUsername?: string
   applyTime?: string
   currentApproveStep?: number
   approveStatus?: number

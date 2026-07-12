@@ -14,8 +14,8 @@ import java.time.LocalDateTime;
 
 @Data
 @EqualsAndHashCode(callSuper = false)
-@TableName("activity_sign")
-public class ActivitySign implements Serializable {
+@TableName("activity_sign_config")
+public class ActivitySignConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -24,36 +24,32 @@ public class ActivitySign implements Serializable {
 
     private Long activityId;
 
-    private Long userId;
+    private Integer enabled;
 
-    /** 1定位 2扫码 3补签 4手动 */
-    private Integer signType;
-
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime signTime;
-
-    private BigDecimal latitude;
-
-    private BigDecimal longitude;
-
-    private String address;
-
-    /** 1正常 2迟到 3早退 */
-    private Integer signStatus;
-
-    private Integer isLate;
-
-    private Integer isEarlyLeave;
+    /** 1定位 2扫码 3两者 */
+    private Integer signMode;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime checkoutTime;
+    private LocalDateTime signStartTime;
 
-    private Long operatorId;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime signEndTime;
 
-    private Long approverId;
+    private Integer signRadius;
+
+    private Integer enableCheckout;
+
+    private BigDecimal centerLatitude;
+
+    private BigDecimal centerLongitude;
+
+    private String qrToken;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime createTime;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime updateTime;
 }

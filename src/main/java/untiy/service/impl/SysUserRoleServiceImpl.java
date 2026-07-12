@@ -65,11 +65,11 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
     @Transactional
     @Override
     public void assign(AssignRoleDTO dto) {
-        if (dto == null || dto.getUserId() == null || dto.getRoleId() == null) {
+        if (dto == null || StringUtils.isBlank(dto.getUsername()) || dto.getRoleId() == null) {
             throw new EIException(ErrorConfig.BAD_REQUEST_CODE, ErrorConfig.BAD_REQUEST_MSG);
         }
 
-        SysUser user = UserSecurityHelper.findActiveInScope(sysUserMapper, dto.getUserId());
+        SysUser user = UserSecurityHelper.findActiveInScopeByUsername(sysUserMapper, dto.getUsername());
 
         SysRole role = sysRoleService.getById(dto.getRoleId());
         if (role == null) {
@@ -86,10 +86,10 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
         UserRoleScopeHelper.validateScope(role.getDataScope(), dto.getScopeType(), dto.getScopeId(),
                 sysCollegeMapper, sysClubMapper, sysDepartmentMapper);
         UserRoleScopeHelper.assertNoDuplicateAssignment(sysUserRoleMapper,
-                dto.getUserId(), dto.getRoleId(), dto.getScopeType(), dto.getScopeId());
+                user.getId(), dto.getRoleId(), dto.getScopeType(), dto.getScopeId());
 
         SysUserRole entity = new SysUserRole();
-        entity.setUserId(dto.getUserId());
+        entity.setUserId(user.getId());
         entity.setRoleId(dto.getRoleId());
         entity.setScopeType(dto.getScopeType());
         entity.setScopeId(dto.getScopeId());
@@ -144,6 +144,12 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
     public List<SysUserRoleVO> listMyRoles() {
         Long userId = SecurityUtils.getCurrentUser().getUserId();
         return sysUserRoleMapper.selectListByUserId(userId);
+    }
+
+    @Override
+    public List<SysUserRoleVO> listByUsername(String username) {
+        SysUser user = UserSecurityHelper.requireInScopeByUsername(sysUserMapper, username);
+        return sysUserRoleMapper.selectListByUserId(user.getId());
     }
 
     private void assertNotRevokingOwnRole(String roleCode) {

@@ -32,6 +32,8 @@ import untiy.mapper.SysUserRoleMapper;
 import untiy.security.ClubDissolveExecutor;
 import untiy.security.ClubSecurityHelper;
 import untiy.security.LoginUserDetails;
+import untiy.security.UserExposeHelper;
+import untiy.security.UserSecurityHelper;
 import untiy.service.ClubApplicationService;
 import untiy.utils.ClubCodeGeneratorUtil;
 import untiy.utils.MPUtil;
@@ -71,7 +73,7 @@ public class ClubApplicationServiceImpl extends ServiceImpl<ClubApplicationMappe
     public void createApply(ClubCreateApplyDTO dto) {
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         ClubSecurityHelper.assertHasAdvisorRole(sysUserRoleMapper, sysRoleMapper, user.getUserId());
-        ClubSecurityHelper.assertUserEnabled(sysUserMapper, dto.getProposedLeaderId());
+        SysUser proposedLeader = UserSecurityHelper.findActiveInScopeByUsername(sysUserMapper, dto.getProposedLeaderUsername());
 
         if (clubDissolveExecutor.isClubNameDuplicateInCollege(dto.getCollegeId(), dto.getClubName())) {
             throw new EIException(ErrorConfig.CLUB_NAME_DUPLICATE_CODE, ErrorConfig.CLUB_NAME_DUPLICATE_MSG);
@@ -85,7 +87,7 @@ public class ClubApplicationServiceImpl extends ServiceImpl<ClubApplicationMappe
         application.setCollegeId(dto.getCollegeId());
         application.setCategory(dto.getCategory());
         application.setDescription(dto.getDescription());
-        application.setProposedLeaderId(dto.getProposedLeaderId());
+        application.setProposedLeaderId(proposedLeader.getId());
         application.setMaxMembers(dto.getMaxMembers());
         application.setApplicantId(user.getUserId());
         application.setApplicantName(user.getSysUser().getRealName());
@@ -157,6 +159,29 @@ public class ClubApplicationServiceImpl extends ServiceImpl<ClubApplicationMappe
         if (application == null) {
             throw new EIException(ErrorConfig.CLUB_APPLY_NOT_FOUND_CODE, ErrorConfig.CLUB_APPLY_NOT_FOUND_MSG);
         }
+        return buildDetailVO(application);
+    }
+
+    @Override
+    public ClubApplicationDetailVO getDetailByApplicantUsername(String username) {
+        SysUser user = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUsername, username)
+                .last("LIMIT 1"));
+        if (user == null) {
+            throw new EIException(ErrorConfig.CLUB_APPLY_NOT_FOUND_CODE, ErrorConfig.CLUB_APPLY_NOT_FOUND_MSG);
+        }
+        ClubApplication application = getOne(new LambdaQueryWrapper<ClubApplication>()
+                .eq(ClubApplication::getApplicantId, user.getId())
+                .orderByDesc(ClubApplication::getCreateTime)
+                .last("LIMIT 1"));
+        if (application == null) {
+            throw new EIException(ErrorConfig.CLUB_APPLY_NOT_FOUND_CODE, ErrorConfig.CLUB_APPLY_NOT_FOUND_MSG);
+        }
+        return buildDetailVO(application);
+    }
+
+    private ClubApplicationDetailVO buildDetailVO(ClubApplication application) {
+        UserExposeHelper.enrichClubApplication(sysUserMapper, application);
         ClubApplicationDetailVO vo = new ClubApplicationDetailVO();
         vo.setApplication(application);
         vo.setCurrentApprover(resolveCurrentApprover(application));
@@ -190,14 +215,27 @@ public class ClubApplicationServiceImpl extends ServiceImpl<ClubApplicationMappe
 
     @Transactional
     @Override
-    public void approveAdmin(Long id, ClubApproveDTO dto) {
-        ClubApplication application = loadForAdminApprove(id);
-        LoginUserDetails user = SecurityUtils.getCurrentUser();
-        ClubSecurityHelper.assertSchoolAdmin(sysUserRoleMapper, sysRoleMapper, user.getUserId());
-        ClubSecurityHelper.assertNotApplicant(user.getUserId(), application.getApplicantId());
+    public void approveAdmin(String username, ClubApproveDTO dto) {
+        SysUser user = sysUserMapper.selectOne(new LambdaQueryWrapper<SysUser>()
+                .eq(SysUser::getUsername, username)
+                .last("LIMIT 1"));
+        if (user == null) {
+            throw new EIException(ErrorConfig.CLUB_APPLY_NOT_FOUND_CODE, ErrorConfig.CLUB_APPLY_NOT_FOUND_MSG);
+        }
+        ClubApplication application = getOne(new LambdaQueryWrapper<ClubApplication>()
+                .eq(ClubApplication::getApplicantId, user.getId())
+                .eq(ClubApplication::getStatus, ClubApplyConstants.STATUS_COLLEGE_APPROVED)
+                .orderByDesc(ClubApplication::getCreateTime)
+                .last("LIMIT 1"));
+        if (application == null) {
+            throw new EIException(ErrorConfig.CLUB_APPLY_NOT_FOUND_CODE, ErrorConfig.CLUB_APPLY_NOT_FOUND_MSG);
+        }
+        LoginUserDetails loginUser = SecurityUtils.getCurrentUser();
+        ClubSecurityHelper.assertSchoolAdmin(sysUserRoleMapper, sysRoleMapper, loginUser.getUserId());
+        ClubSecurityHelper.assertNotApplicant(loginUser.getUserId(), application.getApplicantId());
 
         LocalDateTime now = LocalDateTime.now();
-        application.setAdminApproverId(user.getUserId());
+        application.setAdminApproverId(loginUser.getUserId());
         application.setAdminApproveTime(now);
         application.setAdminApproveOpinion(dto.getOpinion());
 
@@ -219,7 +257,7 @@ public class ClubApplicationServiceImpl extends ServiceImpl<ClubApplicationMappe
             application.setUpdateTime(now);
             updateById(application);
         }
-        log.info("校级审批申请 id={} approved={}", id, dto.getApproved());
+        log.info("校级审批申请 username={} approved={}", username, dto.getApproved());
     }
 
     private ClubApplication loadForCollegeApprove(Long id) {

@@ -19,8 +19,8 @@ public class ClubCreateApplyDTO {
 
     private String description;
 
-    @NotNull(message = "拟定社长不能为空")
-    private Long proposedLeaderId;
+    @NotBlank(message = "拟定社长不能为空")
+    private String proposedLeaderUsername;
 
     @NotNull(message = "最大人数不能为空")
     private Integer maxMembers;

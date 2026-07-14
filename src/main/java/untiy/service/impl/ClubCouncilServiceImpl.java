@@ -22,6 +22,7 @@ import untiy.mapper.SysClubMapper;
 import untiy.mapper.SysRoleMapper;
 import untiy.mapper.SysUserRoleMapper;
 import untiy.security.ClubDissolveExecutor;
+import untiy.security.ClubLookupHelper;
 import untiy.security.ClubSecurityHelper;
 import untiy.security.LoginUserDetails;
 import untiy.entity.SysUserRole;
@@ -56,20 +57,14 @@ public class ClubCouncilServiceImpl extends ServiceImpl<ClubCouncilMapper, ClubC
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         ClubSecurityHelper.assertSuperAdmin(sysUserRoleMapper, sysRoleMapper, user.getUserId());
 
-        SysClub club = sysClubMapper.selectById(dto.getClubId());
-        if (club == null) {
-            throw new EIException(ErrorConfig.CLUB_NOT_FOUND_CODE, ErrorConfig.CLUB_NOT_FOUND_MSG);
-        }
-        if (club.getStatus() == null || club.getStatus() != ClubApplyConstants.CLUB_STATUS_NORMAL) {
-            throw new EIException(ErrorConfig.CLUB_NOT_NORMAL_CODE, ErrorConfig.CLUB_NOT_NORMAL_MSG);
-        }
+        SysClub club = ClubLookupHelper.requireNormalByClubCode(sysClubMapper, dto.getClubCode());
         if (club.getCollegeId() == null) {
             throw new EIException(ErrorConfig.CLUB_COLLEGE_OUT_OF_SCOPE_CODE, ErrorConfig.CLUB_COLLEGE_OUT_OF_SCOPE_MSG);
         }
         ClubSecurityHelper.assertCollegeInScope(sysUserRoleMapper, sysRoleMapper, user.getUserId(), club.getCollegeId());
 
         long inProgress = count(new LambdaQueryWrapper<ClubCouncil>()
-                .eq(ClubCouncil::getClubId, dto.getClubId())
+                .eq(ClubCouncil::getClubId, club.getId())
                 .eq(ClubCouncil::getStatus, ClubApplyConstants.COUNCIL_IN_PROGRESS));
         if (inProgress > 0) {
             throw new EIException(ErrorConfig.CLUB_COUNCIL_IN_PROGRESS_CODE, ErrorConfig.CLUB_COUNCIL_IN_PROGRESS_MSG);
@@ -88,7 +83,7 @@ public class ClubCouncilServiceImpl extends ServiceImpl<ClubCouncilMapper, ClubC
         council.setSignatories("[]");
         council.setCreateTime(LocalDateTime.now());
         save(council);
-        log.info("超管 {} 发起社团 id={} 合议解散", user.getUsername(), dto.getClubId());
+        log.info("超管 {} 发起社团 clubCode={} 合议解散", user.getUsername(), dto.getClubCode());
     }
 
     @Transactional

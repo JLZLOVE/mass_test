@@ -661,5 +661,6 @@ INSERT INTO `sys_user_role` VALUES (3, 2, 3, 3, 2, '2026-02-11 21:48:57');
 INSERT INTO `sys_user_role` VALUES (5, 5, 1, NULL, NULL, '2026-02-11 21:48:57');
 INSERT INTO `sys_user_role` VALUES (8, 6, 4, 2, 2, '2026-06-29 10:55:50');
 INSERT INTO `sys_user_role` VALUES (11, 41, 5, NULL, NULL, '2026-07-04 12:26:47');
+INSERT INTO `sys_user_role` VALUES (12, 112, 1, NULL, NULL, '2026-07-13 16:00:00');
 
 SET FOREIGN_KEY_CHECKS = 1;

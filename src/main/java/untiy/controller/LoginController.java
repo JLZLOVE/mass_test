@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import untiy.annotation.IgnoreAuth;
-import untiy.service.impl.LoginServiceImpl;
+import org.springframework.security.core.userdetails.UserDetails;
+import untiy.security.LoginUserDetails;
+import untiy.security.UserCacheHelper;
 import untiy.utils.JwtUtil;
 import untiy.utils.R;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,7 +25,7 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * POST /login/allocation?name={学号/工号}&password={密码}
  * <p>
- * 认证成功后：签发 JWT（subject = username）、将权限集合写入 Redis（Key: user:{username}）。
+ * 认证成功后：签发 JWT（subject = username）、将 LoginUserDetails 快照写入 Redis。
  */
 
 
@@ -33,9 +35,6 @@ import java.util.concurrent.TimeUnit;
 @Tag(name = "登录认证", description = "用户登录接口，获取JWT令牌")
 @RequestMapping("/login")
 public class LoginController {
-
-    /** Redis 权限缓存 Key 前缀，与 JwtFilter 保持一致 */
-    private static final String REDIS_USER_KEY_PREFIX = "user:";
 
     /** 权限缓存过期时间（小时） */
     private static final long CACHE_TTL_HOURS = 1L;
@@ -70,21 +69,22 @@ public class LoginController {
         Authentication authentication = authenticationManager.authenticate(authToken);
 
         // 3. 获取认证后的 UserDetails
-        LoginServiceImpl userDetails = (LoginServiceImpl) authentication.getPrincipal();
-        String username = userDetails.getUsername();
+        UserDetails principal = (UserDetails) authentication.getPrincipal();
+        String username = principal.getUsername();
 
         // 4. 签发 JWT，subject 必须为 username（学号/工号），禁止存储数据库主键 ID
         String token = jwtTokenUtil.generateToken(username);
 
-        // 5. 将权限集合缓存到 Redis，Key: user:{username}，与 JwtFilter 读取规则一致
-        String cacheKey = REDIS_USER_KEY_PREFIX + username;
-        redisTemplate.opsForValue().set(
-                cacheKey,
-                userDetails.getAuthorities(),
-                CACHE_TTL_HOURS,
-                TimeUnit.HOURS
-        );
-        log.info("用户 {} 登录成功，权限已缓存至 Redis Key: {}", username, cacheKey);
+        // 5. 缓存 LoginUserDetails 快照，与 JwtFilter 读取规则一致
+        String cacheKey = UserCacheHelper.keyForUsername(username);
+        if (principal instanceof LoginUserDetails) {
+            redisTemplate.opsForValue().set(
+                    cacheKey,
+                    ((LoginUserDetails) principal).toCacheSnapshot(),
+                    CACHE_TTL_HOURS,
+                    TimeUnit.HOURS);
+        }
+        log.info("用户 {} 登录成功，用户快照已缓存至 Redis Key: {}", username, cacheKey);
 
         // 6. 返回 token 与 username，响应格式与前端约定一致（R.code=0，字段平铺在 body）
         return R.ok().put("token", token).put("username", username);

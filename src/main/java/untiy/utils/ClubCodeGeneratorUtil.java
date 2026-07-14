@@ -3,19 +3,19 @@ package untiy.utils;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Component;
 import untiy.entity.ClubApplication;
+import untiy.entity.ClubCategory;
+import untiy.entity.SysClub;
 import untiy.mapper.ClubApplicationMapper;
 import untiy.mapper.SysClubMapper;
-import untiy.entity.SysClub;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Component
 public class ClubCodeGeneratorUtil {
 
-    private static final String APP_PREFIX = "APP";
-    private static final String CLUB_PREFIX = "CLUB";
+    /** 申请编号前缀：SQ = 申请（ShenQing） */
+    private static final String APP_PREFIX = "SQ";
 
     private final ClubApplicationMapper clubApplicationMapper;
     private final SysClubMapper sysClubMapper;
@@ -25,18 +25,25 @@ public class ClubCodeGeneratorUtil {
         this.sysClubMapper = sysClubMapper;
     }
 
+    /** 申请编号 = SQ + 时间戳后缀，与社团编号规则一致（如 SQ20260713441） */
     public String generateApplicationNo() {
-        return ensureUniqueAppNo(buildCode(APP_PREFIX));
+        return ensureUniqueAppNo(APP_PREFIX + formatClubCodeSuffix(LocalDateTime.now()));
     }
 
-    public String generateClubCode() {
-        return ensureUniqueClubCode(buildCode(CLUB_PREFIX));
+    /**
+     * 社团编号 = 类别英文缩写 + 创建时间戳（yyyyMMdd + H + mm，如 20230912632）。
+     */
+    public String generateClubCode(String category, LocalDateTime createTime) {
+        String prefix = ClubCategory.prefixOf(category);
+        LocalDateTime time = createTime != null ? createTime : LocalDateTime.now();
+        return ensureUniqueClubCode(prefix + formatClubCodeSuffix(time));
     }
 
-    private String buildCode(String prefix) {
-        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        int randomNum = ThreadLocalRandom.current().nextInt(1000, 10000);
-        return prefix + datePart + randomNum;
+    /** 后缀：年月日 + 时(不补零) + 分，例 2023-09-12 06:32 → 20230912632 */
+    static String formatClubCodeSuffix(LocalDateTime time) {
+        return String.format("%04d%02d%02d%d%02d",
+                time.getYear(), time.getMonthValue(), time.getDayOfMonth(),
+                time.getHour(), time.getMinute());
     }
 
     private String ensureUniqueAppNo(String code) {
@@ -45,8 +52,8 @@ public class ClubCodeGeneratorUtil {
         if (count == 0) {
             return code;
         }
-        return ensureUniqueAppNo(APP_PREFIX + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-                + ThreadLocalRandom.current().nextInt(1000, 10000));
+        return ensureUniqueAppNo(APP_PREFIX + formatClubCodeSuffix(LocalDateTime.now())
+                + ThreadLocalRandom.current().nextInt(1, 10));
     }
 
     private String ensureUniqueClubCode(String code) {
@@ -55,7 +62,6 @@ public class ClubCodeGeneratorUtil {
         if (count == 0) {
             return code;
         }
-        return ensureUniqueClubCode(CLUB_PREFIX + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-                + ThreadLocalRandom.current().nextInt(1000, 10000));
+        return ensureUniqueClubCode(code + ThreadLocalRandom.current().nextInt(1, 10));
     }
 }

@@ -1,6 +1,7 @@
 package untiy.security;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import untiy.entity.SysUser;
 import untiy.service.AuthorService;
@@ -10,21 +11,14 @@ import java.io.Serializable;
 
 /**
  * 登录用户详情：组合 {@link SysUser}、有效权限等级、社团/部门范围。
- * <p>
- * 继承 {@link LoginServiceImpl} 以兼容 {@link untiy.controller.LoginController} 现有强转逻辑。
  */
 @Getter
 public class LoginUserDetails extends LoginServiceImpl {
 
-    /**
-     * 有效等级（0=超管全部，1=管理员看学生，2=社长看社团，3=部长看部门，4=仅自己）
-     */
     private final int effectiveLevel;
 
-    /** 主社团 ID（scope_type=2） */
     private final Long primaryClubId;
 
-    /** 主部门 ID（scope_type=3） */
     private final Long primaryDepartmentId;
 
     public LoginUserDetails(SysUser sysUser,
@@ -38,7 +32,6 @@ public class LoginUserDetails extends LoginServiceImpl {
         this.primaryDepartmentId = primaryDepartmentId;
     }
 
-    /** 与切面、BaseQuery 注入字段对齐 */
     public Long getUserId() {
         return getId();
     }
@@ -52,31 +45,51 @@ public class LoginUserDetails extends LoginServiceImpl {
 
     public static LoginUserDetails fromCacheSnapshot(CacheSnapshot snapshot, AuthorService authorService) {
         SysUser user = new SysUser();
-        user.setId(snapshot.userId);
-        user.setUsername(snapshot.username);
-        user.setPassword(snapshot.password);
-        user.setStatus(snapshot.status);
+        user.setId(snapshot.getUserId());
+        user.setUsername(snapshot.getUsername());
+        user.setPassword(snapshot.getPassword());
+        user.setStatus(snapshot.getStatus());
         return new LoginUserDetails(
                 user, authorService,
-                snapshot.effectiveLevel, snapshot.primaryClubId, snapshot.primaryDepartmentId);
+                snapshot.getEffectiveLevel(), snapshot.getPrimaryClubId(), snapshot.getPrimaryDepartmentId());
     }
 
     /** Redis 可序列化快照（不含 AuthorService） */
+    @Getter
     public static class CacheSnapshot implements Serializable {
-        private static final long serialVersionUID = 1L;
 
+        private static final long serialVersionUID = 2L;
+
+        @JsonProperty("userId")
         private final Long userId;
+
+        @JsonProperty("username")
         private final String username;
+
+        @JsonProperty("password")
         private final String password;
+
+        @JsonProperty("status")
         private final Integer status;
+
+        @JsonProperty("effectiveLevel")
         private final int effectiveLevel;
+
+        @JsonProperty("primaryClubId")
         private final Long primaryClubId;
+
+        @JsonProperty("primaryDepartmentId")
         private final Long primaryDepartmentId;
+
         @JsonCreator
-//唯一构造器 + JsonCreator，告知 Jackson 用这个构造器，并映射 JSON 字段名
-//
-        public CacheSnapshot(Long userId, String username, String password, Integer status,
-                             int effectiveLevel, Long primaryClubId, Long primaryDepartmentId) {
+        public CacheSnapshot(
+                @JsonProperty("userId") Long userId,
+                @JsonProperty("username") String username,
+                @JsonProperty("password") String password,
+                @JsonProperty("status") Integer status,
+                @JsonProperty("effectiveLevel") int effectiveLevel,
+                @JsonProperty("primaryClubId") Long primaryClubId,
+                @JsonProperty("primaryDepartmentId") Long primaryDepartmentId) {
             this.userId = userId;
             this.username = username;
             this.password = password;
@@ -85,6 +98,5 @@ public class LoginUserDetails extends LoginServiceImpl {
             this.primaryClubId = primaryClubId;
             this.primaryDepartmentId = primaryDepartmentId;
         }
-
     }
 }

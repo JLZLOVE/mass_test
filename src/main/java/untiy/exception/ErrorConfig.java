@@ -137,7 +137,8 @@ public class ErrorConfig {
 
     // ====================== 社团申请 / 合议 (92xx) ======================
     public static final Integer CLUB_APPLY_NOT_FOUND_CODE = 9201;
-    public static final String CLUB_APPLY_NOT_FOUND_MSG = "社团申请不存在";
+    public static final String CLUB_APPLY_NOT_FOUND_MSG =
+            "社团申请不存在，请用 username（申请人）或 applicationNo（申请编号）查询";
     public static final Integer CLUB_NOT_FOUND_CODE = 9202;
     public static final String CLUB_NOT_FOUND_MSG = "社团不存在";
     public static final Integer CLUB_NOT_NORMAL_CODE = 9203;
@@ -172,6 +173,10 @@ public class ErrorConfig {
     public static final String CLUB_REQUIRE_ADVISOR_ROLE_MSG = "需要指导老师角色";
     public static final Integer CLUB_REQUIRE_ADMIN_ROLE_CODE = 9218;
     public static final String CLUB_REQUIRE_ADMIN_ROLE_MSG = "需要校级管理员权限";
+    public static final Integer CLUB_CATEGORY_INVALID_CODE = 9219;
+    public static final String CLUB_CATEGORY_INVALID_MSG = "社团类别无效";
+    public static final Integer CLUB_APPLY_SAVE_FAILED_CODE = 9220;
+    public static final String CLUB_APPLY_SAVE_FAILED_MSG = "申请保存失败，请重试";
 
     // ====================== 活动审批 (93xx) ======================
     public static final Integer ACT_APPLY_NOT_FOUND_CODE = 9301;

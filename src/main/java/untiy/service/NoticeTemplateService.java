@@ -8,13 +8,13 @@ import java.util.Map;
 
 public interface NoticeTemplateService extends com.baomidou.mybatisplus.extension.service.IService<NoticeTemplate> {
 
-    Long saveTemplate(NoticeTemplateDTO dto);
+    String saveTemplate(NoticeTemplateDTO dto);
 
     void updateTemplate(NoticeTemplateDTO dto);
 
-    void deleteTemplate(Long id);
+    void deleteTemplate(String templateName);
 
-    NoticeTemplate getDetail(Long id);
+    NoticeTemplate getDetail(String templateName);
 
     IPage<NoticeTemplate> pageQuery(Map<String, Object> param);
 }

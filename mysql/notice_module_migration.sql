@@ -13,12 +13,13 @@ ALTER TABLE `notice_info`
 
 CREATE TABLE IF NOT EXISTS `notice_template` (
     `id` bigint NOT NULL AUTO_INCREMENT,
-    `template_name` varchar(100) NOT NULL COMMENT '模板名称',
+    `template_name` varchar(100) NOT NULL COMMENT '模板编码：前缀_yyyyMMddHHmm_6位随机数',
     `title` varchar(200) NOT NULL COMMENT '标题模板',
     `content` longtext NOT NULL COMMENT '内容模板',
     `category_id` bigint NULL DEFAULT NULL COMMENT '默认分类',
     `status` tinyint NOT NULL DEFAULT 1 COMMENT '1启用 0停用',
     `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
     `update_time` datetime NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`) USING BTREE
+    PRIMARY KEY (`id`) USING BTREE,
+    UNIQUE INDEX `uk_template_name`(`template_name` ASC) USING BTREE
 ) ENGINE = InnoDB COMMENT = '通知模板';

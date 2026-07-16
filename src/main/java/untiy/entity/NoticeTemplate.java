@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -19,14 +20,17 @@ public class NoticeTemplate implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(value = "id", type = IdType.AUTO)
+    @JsonIgnore
     private Long id;
 
+    /** 模板编码（对外唯一标识）：{前缀}_{yyyyMMddHHmm}_{6位随机数}，存于 template_name 列 */
     private String templateName;
 
     private String title;
 
     private String content;
 
+    @JsonIgnore
     private Long categoryId;
 
     /** 1启用 0停用 */

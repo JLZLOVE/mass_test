@@ -24,15 +24,15 @@ public class NoticeTemplateController {
     private NoticeTemplateService noticeTemplateService;
 
     @RequiresLevel(minLevel = Level.ADMIN)
-    @Operation(summary = "新增模板")
+    @Operation(summary = "新增模板", description = "无需传 templateName，服务端生成并返回")
     @PostMapping("/save")
     public R save(@Valid @RequestBody NoticeTemplateDTO dto) {
-        Long id = noticeTemplateService.saveTemplate(dto);
-        return R.ok("保存成功").put("data", id);
+        String templateName = noticeTemplateService.saveTemplate(dto);
+        return R.ok("保存成功").put("data", templateName);
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)
-    @Operation(summary = "更新模板")
+    @Operation(summary = "更新模板", description = "body 中 templateName 为创建时返回的编码")
     @PutMapping("/update")
     public R update(@Valid @RequestBody NoticeTemplateDTO dto) {
         noticeTemplateService.updateTemplate(dto);
@@ -41,17 +41,17 @@ public class NoticeTemplateController {
 
     @RequiresLevel(minLevel = Level.ADMIN)
     @Operation(summary = "删除模板", description = "被引用时改为停用")
-    @DeleteMapping("/delete/{id}")
-    public R delete(@PathVariable Long id) {
-        noticeTemplateService.deleteTemplate(id);
+    @DeleteMapping("/delete")
+    public R delete(@RequestParam String templateName) {
+        noticeTemplateService.deleteTemplate(templateName);
         return R.ok("删除成功");
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)
     @Operation(summary = "模板详情")
-    @GetMapping("/detail/{id}")
-    public R detail(@PathVariable Long id) {
-        return R.ok().put("data", noticeTemplateService.getDetail(id));
+    @GetMapping("/detail")
+    public R detail(@RequestParam String templateName) {
+        return R.ok().put("data", noticeTemplateService.getDetail(templateName));
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)

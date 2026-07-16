@@ -250,6 +250,7 @@ public class NoticeInfoServiceImpl extends ServiceImpl<NoticeInfoMapper, NoticeI
     }
 
     private void doPublish(NoticeInfo notice) {
+        NoticeScopeHelper.assertReceiverValuesValid(notice.getReceiverType(), notice.getReceiverValues());
         LocalDateTime now = LocalDateTime.now();
         notice.setStatus(NoticeConstants.STATUS_PUBLISHED);
         notice.setPublishTime(now);

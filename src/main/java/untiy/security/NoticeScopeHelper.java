@@ -70,6 +70,7 @@ public final class NoticeScopeHelper {
                                             SysUserRoleMapper userRoleMapper, SysRoleMapper roleMapper,
                                             SysClubMapper clubMapper, SysDepartmentMapper departmentMapper,
                                             Integer receiverType, String receiverValues) {
+        assertReceiverValuesValid(receiverType, receiverValues);
         if (publisherType == null) {
             throw new EIException(ErrorConfig.NOTICE_NO_PERMISSION_CODE, ErrorConfig.NOTICE_NO_PERMISSION_MSG);
         }
@@ -88,6 +89,29 @@ public final class NoticeScopeHelper {
                 return;
             default:
                 throw new EIException(ErrorConfig.NOTICE_NO_PERMISSION_CODE, ErrorConfig.NOTICE_NO_PERMISSION_MSG);
+        }
+    }
+
+    /**
+     * 校验 receiverValues：receiverType=3/4/5 时须为非空 JSON Long 数组。
+     * 全体学生/老师（1/2）不依赖 receiverValues，跳过格式校验。
+     */
+    public static void assertReceiverValuesValid(Integer receiverType, String receiverValues) {
+        if (receiverType == null) {
+            throw new EIException(ErrorConfig.BAD_REQUEST_CODE, "接收范围类型不能为空");
+        }
+        switch (receiverType) {
+            case NoticeConstants.RECEIVER_ALL_STUDENTS:
+            case NoticeConstants.RECEIVER_ALL_TEACHERS:
+                return;
+            case NoticeConstants.RECEIVER_ROLES:
+            case NoticeConstants.RECEIVER_CLUBS:
+            case NoticeConstants.RECEIVER_USERS:
+                requireNonEmptyLongList(receiverValues);
+                return;
+            default:
+                throw new EIException(ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_CODE,
+                        ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_MSG);
         }
     }
 
@@ -232,18 +256,38 @@ public final class NoticeScopeHelper {
     }
 
     private static List<Long> parseLongList(String json) {
+        return requireNonEmptyLongList(json);
+    }
+
+    private static List<Long> requireNonEmptyLongList(String json) {
         if (json == null || json.trim().isEmpty()) {
-            return new ArrayList<>();
+            throw new EIException(ErrorConfig.NOTICE_RECEIVER_EMPTY_CODE, ErrorConfig.NOTICE_RECEIVER_EMPTY_MSG);
         }
         try {
-            JSONArray arr = JSON.parseArray(json);
-            List<Long> list = new ArrayList<>();
+            JSONArray arr = JSON.parseArray(json.trim());
+            if (arr == null || arr.isEmpty()) {
+                throw new EIException(ErrorConfig.NOTICE_RECEIVER_EMPTY_CODE, ErrorConfig.NOTICE_RECEIVER_EMPTY_MSG);
+            }
+            List<Long> list = new ArrayList<>(arr.size());
             for (int i = 0; i < arr.size(); i++) {
-                list.add(arr.getLong(i));
+                Object raw = arr.get(i);
+                if (raw == null) {
+                    throw new EIException(ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_CODE,
+                            ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_MSG);
+                }
+                Long id = arr.getLong(i);
+                if (id == null || id <= 0) {
+                    throw new EIException(ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_CODE,
+                            ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_MSG);
+                }
+                list.add(id);
             }
             return list;
+        } catch (EIException e) {
+            throw e;
         } catch (Exception e) {
-            return new ArrayList<>();
+            throw new EIException(ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_CODE,
+                    ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_MSG);
         }
     }
 

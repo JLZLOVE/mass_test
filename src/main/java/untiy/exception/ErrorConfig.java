@@ -235,6 +235,11 @@ public class ErrorConfig {
     public static final String TEMPLATE_CODE_TAMPER_MSG = "模板编码与创建时间不一致，数据可能被篡改";
     public static final Integer TEMPLATE_CODE_INVALID_CODE = 6413;
     public static final String TEMPLATE_CODE_INVALID_MSG = "模板编码格式无效";
+    public static final Integer NOTICE_RECEIVER_VALUES_INVALID_CODE = 6414;
+    public static final String NOTICE_RECEIVER_VALUES_INVALID_MSG =
+            "接收范围值须为 JSON 数组，如 [1,2,3]";
+    public static final Integer NOTICE_RECEIVER_EMPTY_CODE = 6415;
+    public static final String NOTICE_RECEIVER_EMPTY_MSG = "接收范围不能为空";
 
     // ====================== 活动签到 (65xx) ======================
     public static final Integer SIGN_CONFIG_NOT_FOUND_CODE = 6501;

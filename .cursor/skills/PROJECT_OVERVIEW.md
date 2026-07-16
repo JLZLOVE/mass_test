@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-05（活动签到 + 通知 + 活动审批 + RBAC）  
+> 更新时间：2026-07-16（username 暴露、Redis v2、社团申请、通知模板编码、receiverValues 校验）  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -77,6 +77,7 @@ Mass_Test/
     ├── 活动审批模块.md             # 活动申请/审批/变更/取消/总结/超时
     ├── 通知.md                     # 通知发送/撤回/已读/模板/定时
     ├── 签到.md                     # 活动签到/签退/补签/统计
+    ├── id.md                       # 对外 username / 对内 userId 暴露规范
     └── skill.md                    # 前端开发规范
 ```
 
@@ -118,7 +119,7 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 | **`activity_sign_makeup`** | **补签申请与审批** |
 | **`notice_info`** | **通知（含置顶、长期可见、附件权限）** |
 | **`notice_read_record`** | **已读/确认记录** |
-| **`notice_template`** | **通知模板** |
+| **`notice_template`** | **通知模板（`template_name` 存编码，见 §2.2F）** |
 | `notice_category` | 通知分类 |
 | `club_statistics` | 社团日统计 |
 
@@ -172,6 +173,26 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 `importance`：1高 2中 3低；`urgency`：1紧急 2不紧急（任一为1则置顶加红）。  
 `long_term_visible`：1动态接收人，0发布时固化 `notice_read_record`。  
 `attachment_min_level`：0~4，用户 `effectiveLevel ≤ 该值` 可见附件。
+
+### 2.2F `notice_template.template_name`（模板编码）
+
+| 项 | 说明 |
+|---|---|
+| 存储列 | **`template_name`**（不新增 `template_code` 列） |
+| 格式 | `{前缀}_{yyyyMMddHHmm}_{6位随机数}`，例 `NOTICE_202607161430_827391` |
+| 前缀 | `TemplateCodePrefix`：`NOTICE` / `CLUB` / `ACT` |
+| 生成 | `TemplateCodeUtil.generate(prefix, createTime)` |
+| 防篡改 | 解析编码中分钟段，与 `create_time` 截断到分钟后比对；不一致抛 **6412** |
+| 对外 API | 创建返回 `templateName`；详情/更新/删除用 `?templateName=`；**不暴露 id** |
+
+### 2.2G 对外 username 暴露约定（`.cursor/skills/id.md`）
+
+| 规则 | 说明 |
+|---|---|
+| 用户标识 | 外部 API 统一 **`username`（学号/工号）**；内部 DB 仍用 `userId` |
+| 实体 | 用户 FK 字段 `@JsonIgnore`；响应通过 `*Username` 虚拟字段（`UserExposeHelper`） |
+| 路径参数 | **禁止**在 URL 路径中放 `username`（中文工号如「玖」会导致代理 `unescaped characters`）；用 Query / Body |
+| 超管账号 | `玖`（username）、`1001`（另一超管 username）均为 `sys_user.username`，非主键 id |
 
 ### 2.2E 签到模块要点
 
@@ -289,7 +310,7 @@ untiy/
 1. `IgnorePathsProperties` 白名单 → 直接放行  
 2. `IgnoreAuthRegistry.matches(request)` → 设置 `IGNORE_AUTH`，注入占位 Authentication  
 3. 读取 Header `Token` → `JwtUtil.validateToken()`  
-4. Redis Key `user:{username}`：优先读 `LoginUserDetails.CacheSnapshot`；旧版 `Collection` 缓存则回源 DB 并升级  
+4. Redis Key **`user:v2:{username}`**：读 `LoginUserDetails.CacheSnapshot`（`@JsonProperty` 全字段）；旧版 `Collection` 或脏数据 → **删除 Key 后回源 DB**  
 5. `SecurityContext` principal = `LoginUserDetails`
 
 ---
@@ -306,14 +327,15 @@ untiy/
 | **`LevelBasedAccess`** | **全局通用等级访问控制**（数值越小权限越高）：`checkViewable`、`checkOperable`、`checkNewLevel`、`applyLevelFilter` |
 | **`UserSecurityHelper`** | **用户模块专用**：`assertUsersInScope`、`toMaskedDto`、`findInScope`、`findInScopeByUserId`、`findActiveInScope`、`assertUserEnabled`、`assertBatchNoDisabled` |
 | **`UserRoleScopeHelper`** | **角色分配 scope 校验**：按 `sys_role.data_scope` 校验 `scopeType/scopeId` 组合；`assertNoDuplicateAssignment` 防重复/互斥 |
-| **`UserCacheHelper`** | **Redis 登录缓存清理**：`evictByUsernames(redisTemplate, usernames)`，Key 规则 `user:{username}` |
+| **`UserCacheHelper`** | **Redis 登录缓存清理**：`keyForUsername` → **`user:v2:{username}`** |
 | **`MenuTreeHelper`** | **菜单树内存组装**：纯静态、一次遍历建索引挂接，禁止递归查库；`buildTree`、`expandWithAncestors`、`collectPermissionCodes`、`pruneEmptyDirectories` |
 | **`MenuCacheHelper`** | **菜单树 Redis 缓存**：Key `menu:tree:{userId}`（非 effectiveLevel）；`get/put/evictAll`，TTL 1 小时 |
 | **`ClubSecurityHelper`** | **社团申请/合议**：指导老师、院长、校级管理员、学院范围校验 |
 | **`ClubDissolveExecutor`** | **执行解散**：社团状态、部门、活动清理、角色解绑（进行中活动含 status 7） |
 | **`ActivityApproverHelper`** | **活动审批**：发起人识别、社长/指导老师/学院书记/校书记查找、超时转交 |
 | **`ActivityApprovalChainHelper`** | **活动审批链**：按发起人角色 + 院/校级动态生成步骤 |
-| **`NoticeScopeHelper`** | **通知**：发起人识别、接收范围校验、接收人解析、置顶/加红规则 |
+| **`UserExposeHelper`** | **API 用户标识转换**：`usernameOf`、`*Username` 字段填充（社团申请/活动/审批流） |
+| **`NoticeScopeHelper`** | **通知**：发起人识别、**`assertReceiverValuesValid`**（receiverType=3/4/5 须合法 JSON 数组）、接收人解析、置顶/加红 |
 | **`NoticeAutoPublisher`** | **系统自动通知**：活动取消时通知参与人 |
 | **`ActivitySignHelper`** | **签到**：权限、Haversine 距离、补签审批人 |
 | `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、等级比较、同社团 scope 等） |
@@ -331,16 +353,17 @@ untiy/
 
 ```
 登录：POST /login/allocation → AuthenticationManager → UserDetailServiceImpl
-     → JwtUtil.generateToken(username) → Redis 写入 user:{username}
+     → JwtUtil.generateToken(username) → Redis 写入 user:v2:{username}（CacheSnapshot）
 请求：JwtFilter → 校验 Token → 加载 LoginUserDetails → SecurityContext
 ```
 
 | Redis 项 | 规范 |
 |---|---|
-| Key | `user:{username}` |
-| Value（新） | `LoginUserDetails.CacheSnapshot`（Jackson 序列化） |
-| Value（旧，兼容） | `Collection<GrantedAuthority>`，命中后回源并升级 |
-| TTL | 1 小时（Filter / LoginController 常量 `CACHE_TTL_HOURS = 1`） |
+| Key | **`user:v2:{username}`**（`UserCacheHelper.keyForUsername`） |
+| Value | `LoginUserDetails.CacheSnapshot`（构造参数 + 字段均 `@JsonProperty`） |
+| 旧 Key | `user:{username}` 在 evict 时一并删除；命中旧 `Collection` 格式则删 Key 回源 |
+| 脏数据 | 反序列化失败 → **delete Key** → `loadUserByUsername` 重写快照 |
+| TTL | 1 小时 |
 | JWT 过期 | `jwt.expiration = 3600000`（1 小时，与 Redis TTL 对齐） |
 | **菜单树 Key** | **`menu:tree:{userId}`** → `MenuTreeResultVO`；变更后全量清除 |
 
@@ -388,7 +411,7 @@ untiy/
 
 | 方法 | 用途 |
 |---|---|
-| `evictByUsernames(redisTemplate, usernames)` | 批量删除 `user:{username}` 缓存（禁用/启用后强制重新加载） |
+| `evictByUsernames(redisTemplate, usernames)` | 批量删除 **`user:v2:{username}`** 及旧版 **`user:{username}`** |
 
 #### `MenuTreeHelper` / `MenuCacheHelper`（菜单树）
 
@@ -444,8 +467,8 @@ untiy/
 | `91xx` | 菜单 | 9101~9108 |
 | `92xx` | 社团申请/合议 | 9201~9218 |
 | **`93xx`** | **活动审批** | **9301~9314** |
-| **`94xx`** | **通知** | **9401~9411** |
-| **`95xx`** | **活动签到** | **9501~9515** |
+| **`64xx`** | **通知 + 模板** | **6401~6415** |
+| **`65xx`** | **活动签到** | **6501~6515** |
 
 ### 9.2 角色权限（9xxx）
 
@@ -500,9 +523,8 @@ untiy/
 | 9215 | `CLUB_ROLE_NOT_FOUND` | 系统角色配置缺失 |
 | 9216 | `CLUB_PROPOSED_LEADER_INVALID` | 拟定社长不存在或已被禁用 |
 | 9217 | `CLUB_REQUIRE_ADVISOR_ROLE` | 需要指导老师角色 |
-| 9218 | `CLUB_REQUIRE_ADMIN_ROLE` | 需要校级管理员权限 |
-
-| 9218 | `CLUB_REQUIRE_ADMIN_ROLE` | 需要校级管理员权限 |
+| 9219 | `CLUB_CATEGORY_INVALID` | 社团类别无效 |
+| 9220 | `CLUB_APPLY_SAVE_FAILED` | 申请保存失败 |
 
 ### 9.5 活动审批（93xx）
 
@@ -523,41 +545,45 @@ untiy/
 | 9313 | `ACT_TIME_INVALID` | 开始时间必须早于结束时间 |
 | 9314 | `ACT_LEVEL_ADJUST_LOCKED` | 活动级别已调整过，不可再次修改 |
 
-### 9.6 通知（94xx）
+### 9.6 通知 / 模板（64xx）
 
 | Code | 常量 | 消息 |
 |---|---|---|
-| 9401 | `NOTICE_NOT_FOUND` | 通知不存在 |
-| 9402 | `NOTICE_CATEGORY_NOT_FOUND` | 通知分类不存在 |
-| 9403 | `NOTICE_NO_PERMISSION` | 无权发送该范围的通知 |
-| 9404 | `NOTICE_SCOPE_APPROVAL_REQUIRED` | 跨范围发送需额外审批 |
-| 9405 | `NOTICE_STATUS_INVALID` | 通知状态不允许此操作 |
-| 9406 | `NOTICE_NOT_RECEIVER` | 您不在该通知接收范围内 |
-| 9407 | `NOTICE_NOT_REVOCABLE` | 该通知不可撤回 |
-| 9408 | `NOTICE_PIN_EXPIRE_REQUIRED` | 置顶时必须填写置顶结束时间 |
-| 9409 | `NOTICE_TEMPLATE_NOT_FOUND` | 通知模板不存在 |
-| 9410 | `NOTICE_TEMPLATE_IN_USE` | 模板已被引用，已改为停用 |
-| 9411 | `NOTICE_ALREADY_CONFIRMED` | 已确认阅读，无需重复操作 |
+| 6401 | `NOTICE_NOT_FOUND` | 通知不存在 |
+| 6402 | `NOTICE_CATEGORY_NOT_FOUND` | 通知分类不存在 |
+| 6403 | `NOTICE_NO_PERMISSION` | 无权发送该范围的通知 |
+| 6404 | `NOTICE_SCOPE_APPROVAL_REQUIRED` | 跨范围发送需额外审批 |
+| 6405 | `NOTICE_STATUS_INVALID` | 通知状态不允许此操作 |
+| 6406 | `NOTICE_NOT_RECEIVER` | 您不在该通知接收范围内 |
+| 6407 | `NOTICE_NOT_REVOCABLE` | 该通知不可撤回 |
+| 6408 | `NOTICE_PIN_EXPIRE_REQUIRED` | 置顶时必须填写置顶结束时间 |
+| 6409 | `NOTICE_TEMPLATE_NOT_FOUND` | 通知模板不存在 |
+| 6410 | `NOTICE_TEMPLATE_IN_USE` | 模板已被引用，已改为停用 |
+| 6411 | `NOTICE_ALREADY_CONFIRMED` | 已确认阅读，无需重复操作 |
+| 6412 | `TEMPLATE_CODE_TAMPER` | 模板编码与创建时间不一致 |
+| 6413 | `TEMPLATE_CODE_INVALID` | 模板编码格式无效 |
+| 6414 | `NOTICE_RECEIVER_VALUES_INVALID` | 接收范围值须为 JSON 数组，如 [1,2,3] |
+| 6415 | `NOTICE_RECEIVER_EMPTY` | 接收范围不能为空 |
 
-### 9.7 活动签到（95xx）
+### 9.7 活动签到（65xx）
 
 | Code | 常量 | 消息 |
 |---|---|---|
-| 9501 | `SIGN_CONFIG_NOT_FOUND` | 签到未配置或未启用 |
-| 9502 | `SIGN_ACTIVITY_NOT_FOUND` | 活动不存在或未通过审批 |
-| 9503 | `SIGN_NO_PERMISSION` | 无权操作该活动签到 |
-| 9504 | `SIGN_WINDOW_CLOSED` | 不在签到时间窗口内 |
-| 9505 | `SIGN_ALREADY_SIGNED` | 您已签到，不可重复签到 |
-| 9506 | `SIGN_LOCATION_INVALID` | 不在签到有效范围内 |
-| 9507 | `SIGN_QR_INVALID` | 扫码令牌无效 |
-| 9508 | `SIGN_MODE_INVALID` | 当前活动不支持该签到方式 |
-| 9509 | `SIGN_NOT_SIGNED` | 尚未签到，无法签退 |
-| 9510 | `SIGN_CHECKOUT_DISABLED` | 该活动未启用签退 |
-| 9511 | `SIGN_CONFLICT` | 该时间段您已参与其他活动签到 |
-| 9512 | `SIGN_MAKEUP_NOT_FOUND` | 补签申请不存在 |
-| 9513 | `SIGN_MAKEUP_EXPIRED` | 已超过补签申请期限 |
-| 9514 | `SIGN_MAKEUP_NOT_APPROVER` | 您不是当前补签审批人 |
-| 9515 | `SIGN_USER_NOT_FOUND` | 补签用户不存在 |
+| 6501 | `SIGN_CONFIG_NOT_FOUND` | 签到未配置或未启用 |
+| 6502 | `SIGN_ACTIVITY_NOT_FOUND` | 活动不存在或未通过审批 |
+| 6503 | `SIGN_NO_PERMISSION` | 无权操作该活动签到 |
+| 6504 | `SIGN_WINDOW_CLOSED` | 不在签到时间窗口内 |
+| 6505 | `SIGN_ALREADY_SIGNED` | 您已签到，不可重复签到 |
+| 6506 | `SIGN_LOCATION_INVALID` | 不在签到有效范围内 |
+| 6507 | `SIGN_QR_INVALID` | 扫码令牌无效 |
+| 6508 | `SIGN_MODE_INVALID` | 当前活动不支持该签到方式 |
+| 6509 | `SIGN_NOT_SIGNED` | 尚未签到，无法签退 |
+| 6510 | `SIGN_CHECKOUT_DISABLED` | 该活动未启用签退 |
+| 6511 | `SIGN_CONFLICT` | 该时间段您已参与其他活动签到 |
+| 6512 | `SIGN_MAKEUP_NOT_FOUND` | 补签申请不存在 |
+| 6513 | `SIGN_MAKEUP_EXPIRED` | 已超过补签申请期限 |
+| 6514 | `SIGN_MAKEUP_NOT_APPROVER` | 您不是当前补签审批人 |
+| 6515 | `SIGN_USER_NOT_FOUND` | 补签用户不存在 |
 
 ### 9.8 认证 / 用户（节选）
 
@@ -638,12 +664,12 @@ untiy/
 
 | 方法 | 说明 |
 |---|---|
-| `createApply` | 指导老师角色校验；拟定社长未禁用；同学院社团名唯一；生成 `application_no`；status=待学院审批 |
-| `dissolveApply` | 须为社团 `advisor_id`；社团正常；无进行中活动；写入解散申请 |
-| `pageQuery` | 按申请人/状态/类型 + 时间范围分页 |
-| `getDetail` | 申请详情 + `currentApprover`（院长/校级管理员） |
-| `approveCollege` | 院长 `dean_id` 校验；不可审自己；通过→学院已通过 / 驳回 |
-| `approveAdmin` | 校级管理员校验；创建通过→**激活社团**+绑定 `CLUB_PRESIDENT`；解散通过→**执行解散** |
+| `createApply` | 超管可跳过指导老师校验；`proposedLeaderUsername`；生成 **`SQ*`** 申请编号；返回 `applicationNo` |
+| `dissolveApply` | 按 **`clubCode`** 定位社团；须为 `advisor_id`；无进行中活动 |
+| `pageQuery` | 支持 **`username`** 筛选申请人；列表 `UserExposeHelper` 填充 `*Username` |
+| `getDetailByUsername` | 按申请人 **username** 查最近一条申请 |
+| `approveCollege(ClubCollegeApproveDTO)` | Body 传 **`username` 或 `applicationNo`** + `ClubApproveDTO` |
+| `approveAdmin(ClubAdminApproveDTO)` | Body 传申请人 **`username`** + 审批结果 |
 
 ### 10.8 `ClubCouncilServiceImpl`（`@Slf4j`）
 
@@ -689,16 +715,16 @@ untiy/
 
 | 方法 | 说明 |
 |---|---|
-| `send` | 权限与范围校验；立即/定时/草稿；发布时处理置顶与接收人固化 |
+| `send` | **`assertReceiverValuesValid`**（type=3/4/5 须合法 JSON 数组）→ 范围校验 → 发布/草稿/定时 |
 | `saveDraft` | 保存草稿 `status=0` |
-| `publishNow` | 手动发布草稿 |
-| `withdraw` | 撤回；`revocable=0` 不可撤；撤回后长期可见失效 |
+| `publishNow` | 手动发布草稿（`doPublish` 二次校验 receiverValues） |
+| `withdraw` | 撤回；`revocable=0` 不可撤 |
 | `getDetail` | 详情 + 进入即已读 + 附件权限过滤 |
 | `confirmRead` | 需确认通知的确认操作 |
 | `myInbox` / `mySent` | 收件箱 / 发件箱 |
 | `readStats` | 发布人查看已读/已确认/接收人数 |
 
-**接收人固化：** `long_term_visible=0` 发布时写入 `notice_read_record`；`=1` 查询时动态解析。
+**receiverValues 校验链路：** `assertCanSendToScope` 入口调用 **`NoticeScopeHelper.assertReceiverValuesValid`**；`parseLongList` 不再吞异常；非法如 `"abc"` 抛 **6414**，空数组 **6415**。
 
 **定时（`NoticeScheduledTask`）：** 每分钟发布到期草稿；每分钟取消过期置顶。
 
@@ -706,9 +732,10 @@ untiy/
 
 | 方法 | 说明 |
 |---|---|
-| `saveTemplate` / `updateTemplate` | 模板 CRUD |
-| `deleteTemplate` | 被引用则 `status=0` 停用并提示 9410 |
-| `pageQuery` | 启用模板分页列表 |
+| `saveTemplate` | 自动生成 **`template_name`** 编码（`NOTICE_yyyyMMddHHmm_xxxxxx`）；返回 `templateName`；**无 id** |
+| `updateTemplate` | Body 必传 **`templateName`**；校验编码与 `create_time` 分钟一致 |
+| `deleteTemplate` | `?templateName=`；被引用则 `status=0` 并提示 **6410** |
+| `getDetail` / `pageQuery` | 读时 **`TemplateCodeUtil.assertMatchesCreateTime`** |
 
 ### 10.12 `ActivitySignServiceImpl`（`@Slf4j`）
 
@@ -738,17 +765,19 @@ untiy/
 | `AssignRoleDTO` | `userId`、`roleId`、`scopeType`、`scopeId` | `POST /sys-user-role/assign`；scope 须符合目标角色 `data_scope` |
 | `ToggleStatusDTO` | `usernames`、`status`（0/1） | `PUT /sys-user/toggleStatus` |
 | `AssignRoleMenuDTO` | `roleId`、`menuIds` | `POST /sys-role-menu/assign`；空列表=清空绑定 |
-| `ClubCreateApplyDTO` | `clubName`、`collegeId`、`category`、`description`、`proposedLeaderId`、`maxMembers` | `POST /club-application/apply/create` |
-| `ClubDissolveApplyDTO` | `clubId`、`dissolveReason` | `POST /club-application/apply/dissolve` |
-| `ClubApproveDTO` | `approved`、`opinion` | 学院/校级审批 |
-| `CouncilInitiateDTO` | `clubId`、`reason` | `POST /club-council/council/initiate` |
+| `ClubCreateApplyDTO` | `clubName`、`collegeId`、`category`、`proposedLeaderUsername`、`maxMembers` | 创建申请（**无 id**） |
+| `ClubDissolveApplyDTO` | **`clubCode`**、`dissolveReason` | 解散申请 |
+| `ClubApproveDTO` | `approved`、`opinion` | 审批结果 |
+| **`ClubCollegeApproveDTO`** | `username` 或 `applicationNo` + 继承 `ClubApproveDTO` | 学院审批 |
+| **`ClubAdminApproveDTO`** | **`username`**（申请人）+ 继承 `ClubApproveDTO` | 校级审批 |
+| `CouncilInitiateDTO` | `clubId`、`reason` | 合议发起 |
 | **`ActivitySubmitDTO`** | `clubId`、`activityName`、`categoryId`、`activityType`、`activityLevel`、时间地点、预算、内容、附件 | `POST /activity-apply/submit` |
 | **`ActivityApproveDTO`** | `version`、`opinion`、`activityLevel?` | 审批通过/驳回 |
 | **`ActivityChangeDTO`** | `version`、时间地点、`changeReason` | 变更申请 |
 | **`ActivityCancelDTO`** | `version`、`reason` | 取消活动 |
 | **`ActivitySummaryDTO`** | `version`、`summaryContent`、`summaryAttachment` | 活动总结 |
-| **`NoticeSendDTO`** | 标题、内容、分类、接收范围、重要/紧急、确认、置顶、长期可见、附件 | `POST /notice-info/send` |
-| **`NoticeTemplateDTO`** | `templateName`、`title`、`content`、`categoryId` | 通知模板 |
+| **`NoticeSendDTO`** | 标题、内容、分类、`receiverType`、`receiverValues`（JSON 数组字符串）等 | `POST /notice-info/send` |
+| **`NoticeTemplateDTO`** | 创建无 `templateName`；更新必填 `templateName`；**无 id** | 通知模板 |
 | **`SignConfigDTO`** | 签到方式、窗口、半径、签退、中心坐标 | `POST/PUT /activity-sign/config` |
 | **`SignActionDTO`** | 定位/扫码参数、`qrToken` | `POST /activity-sign/sign/{id}` |
 | **`AdminSignDTO`** | `userId`、地址 | 手动签到 |
@@ -773,7 +802,9 @@ untiy/
 |---|---|
 | `ClubApplyConstants` | 申请类型、状态、合议状态、scope 类型、角色码常量 |
 | **`ActivityApplyConstants`** | 活动状态、级别、审批流类型、发起人/审批人类型、历史状态 |
-| `ClubCodeGeneratorUtil` | 生成 `APP*` 申请编号、`CLUB*` 社团编号（防重复） |
+| `ClubCodeGeneratorUtil` | 申请编号 **`SQ*`**、社团编号 `{类别前缀}{时间戳}` |
+| **`TemplateCodeUtil`** | 模板/业务编码 `{前缀}_{yyyyMMddHHmm}_{6位随机}` + 防篡改校验 |
+| **`TemplateCodePrefix`** | `NOTICE` / `CLUB` / `ACT` |
 | **`ActivityCodeGeneratorUtil`** | 生成 `ACT*` 活动编号（按分类后缀 + 防重复） |
 | **`ActivityFileStorageUtil`** | 活动申请/总结附件本地存储 |
 | **`NoticeConstants`** | 通知状态、接收类型、重要/紧急、来源类型 |
@@ -877,18 +908,19 @@ untiy/
 
 **已移除的旧接口：** `listSysRoleMenu`、`listSysRoleMenu_F/B`、`query`、`detailSysRoleMenu_F/B`、`add_B`、`updateSysRoleMenu_B`、`deleteSysRoleMenu_B`
 
-### 11.7 `ClubApplicationController`（8 接口）
+### 11.7 `ClubApplicationController`（9 接口）
 
-根路径：`/club-application`（规范见 `.cursor/skills/活动.md`）
+根路径：`/club-application`（规范见 `.cursor/skills/活动.md`、`.cursor/skills/id.md`）
 
 | 路径 | 方法 | `@RequiresLevel` | 说明 |
 |---|---|---|---|
-| `/apply/create` | POST | `ADMIN (1)` | 指导老师发起创建申请；Service 校验 `ADVISOR*` 角色 |
-| `/apply/dissolve` | POST | `ADMIN (1)` | 社团指导老师发起解散申请 |
-| `/apply/list` | GET | `ADMIN (1)` | 分页；申请人/状态/类型/时间范围 |
-| `/apply/detail/{id}` | GET | `ADMIN (1)` | 详情 + 当前审批人 |
-| `/approve/college/{id}` | POST | `ADMIN (1)` | 学院院长审批；Body: `ClubApproveDTO` |
-| `/approve/admin/{id}` | POST | `ADMIN (1)` | 校级审批；创建→激活社团，解散→执行解散 |
+| `/categories` | GET | `STUDENT (4)` | 固定六类社团性质 |
+| `/apply/create` | POST | `ADMIN (1)` | 返回 **`applicationNo`**（`SQ*`） |
+| `/apply/dissolve` | POST | `ADMIN (1)` | Body **`clubCode`** |
+| `/apply/list` | GET | `ADMIN (1)` | `?username=` 筛选申请人 |
+| `/apply/detail` | GET | `ADMIN (1)` | **`?username=`** 查申请人最近申请（不用 id） |
+| `/approve/college` | POST | `ADMIN (1)` | Body: **`ClubCollegeApproveDTO`** |
+| `/approve/admin` | POST | `ADMIN (1)` | Body: **`ClubAdminApproveDTO`**（含申请人 username） |
 
 ### 11.8 `ClubCouncilController`（2 接口）
 
@@ -945,11 +977,11 @@ untiy/
 
 | 路径 | 方法 | `@RequiresLevel` | 说明 |
 |---|---|---|---|
-| `/save` | POST | `ADMIN (1)` | 新增模板 |
-| `/update` | PUT | `ADMIN (1)` | 更新模板 |
-| `/delete/{id}` | DELETE | `ADMIN (1)` | 删除（被引用则停用） |
-| `/detail/{id}` | GET | `ADMIN (1)` | 模板详情 |
-| `/list` | GET | `ADMIN (1)` | 分页列表 |
+| `/save` | POST | `ADMIN (1)` | 无需传 `templateName`；返回生成的编码 |
+| `/update` | PUT | `ADMIN (1)` | Body 必传 **`templateName`** |
+| `/delete` | DELETE | `ADMIN (1)` | **`?templateName=`**（被引用则停用） |
+| `/detail` | GET | `ADMIN (1)` | **`?templateName=`** |
+| `/list` | GET | `ADMIN (1)` | 分页列表（响应无 id） |
 
 ### 11.12 `ActivitySignController`（10 接口）
 
@@ -1009,7 +1041,7 @@ src/router/dynamic.ts     # 后端菜单驱动动态路由
 ### 13.1 登录 → 权限缓存 → 业务请求
 
 ```
-login → JWT(subject=username) → Redis user:{username}
+login → JWT(subject=username) → Redis user:v2:{username}（CacheSnapshot）
      → 业务请求携带 Token → JwtFilter 加载 LoginUserDetails
      → @RequiresLevel 准入 → Service 数据过滤（DataScopeHelper / LevelBasedAccess）+ 字段脱敏（UserSecurityHelper）
 ```
@@ -1058,36 +1090,25 @@ login → JWT(subject=username) → Redis user:{username}
 ### 13.5 社团创建 / 解散 / 合议
 
 ```
-创建：POST /apply/create → 指导老师 → 同学院名唯一 → APP编号 → 待学院审批
-      → POST /approve/college → dean_id → 学院已通过
-      → POST /approve/admin → 校级 → 插入 sys_club + 绑定 CLUB_PRESIDENT(scope_type=2)
+创建：POST /apply/create → proposedLeaderUsername → SQ* 编号 → 待学院审批
+      → POST /approve/college（Body: username 或 applicationNo）
+      → POST /approve/admin（Body: 申请人 username）→ 激活社团 + CLUB_PRESIDENT
 
-解散(申请)：POST /apply/dissolve → advisor_id → 无进行中活动 → 审批链同上 → 校级通过 → ClubDissolveExecutor
+详情/列表：GET /apply/detail?username=1001（username 为申请人学号/工号，非主键 id）
 
-合议：POST /council/initiate → 超管+学院范围 → POST /council/sign → 签字 JSON
-      → 1超管+2ADMIN 或 3超管 → 执行解散
-
-ClubDissolveExecutor：社团 status=0；删部门；活动仅保留已通过且已结束；移除社长/部长角色绑定；进行中活动含 status 1/2/3/7
+解散：POST /apply/dissolve（clubCode）→ 审批链同上
 ```
 
 ### 13.6 通知
 
 ```
-发送：POST /notice-info/send → NoticeScopeHelper 校验发起人默认范围
-      → 跨范围抛 9404（审批流程预留）
-      → 立即发布或 scheduledPublishTime 定时（status=0 草稿）
-      → long_term_visible=0：固化 notice_read_record；=1：动态解析接收人
+发送：POST /notice-info/send
+      → assertReceiverValuesValid（type=3/4/5：receiverValues 须 "[1,2,3]" 格式，非法抛 6414）
+      → assertCanSendToScope（ADMIN 也先过 receiverValues 校验）
+      → doPublish 发布前二次校验
 
-已读/确认：GET /detail/{id} 记录 read_time；POST /confirm/{id} 记录 confirm_time
-
-撤回：POST /withdraw/{id} → status=2；管理员及以上仍可见；revocable=0 不可撤
-
-置顶：importance≤2 或 urgency=1 自动置顶；手动置顶需 pinExpireAt
-      → NoticeScheduledTask 每分钟取消过期置顶
-
-活动取消：ActivityApplyService.cancel → NoticeAutoPublisher 自动通知参与人（不可撤回）
-
-模板：/notice-template CRUD；删除被引用时 status=0
+模板：POST /notice-template/save → 返回 templateName（存 template_name 列）
+      → GET/PUT/DELETE 均用 ?templateName= 或 Body templateName，不暴露 id
 ```
 
 ### 13.7 活动签到
@@ -1172,8 +1193,13 @@ flowchart TB
 | ✅ 已完成 | **活动审批模块** | `ActivityApplyController` 10 接口；见 `活动审批模块.md` |
 | ✅ 已完成 | **通知模块** | `NoticeInfoController` + `NoticeTemplateController`；见 `通知.md` |
 | ✅ 已完成 | **活动签到模块** | `ActivitySignController` 10 接口；见 `签到.md` |
+| ✅ 已修复 | Redis CacheSnapshot 反序列化 | `@JsonProperty` 全字段；Key 升级 **`user:v2:{username}`**；脏数据删 Key |
+| ✅ 已修复 | 通知 receiverValues 静默失败 | **`assertReceiverValuesValid`**；6414/6415 |
+| ✅ 已完成 | 通知模板编码 | **`template_name` 存编码**；`TemplateCodeUtil`；6412/6413 防篡改 |
+| ✅ 已完成 | username 对外暴露 | 社团申请/用户模块；见 **`id.md`** |
+| ✅ 已清理 | 无引用空壳 Service | 删除 9 组仅 MyBatis-Plus 脚手架 Service（Mapper 仍保留） |
 | ⏳ 待做 | 种子角色 `CLUB_PRESIDENT` | 创建申请校级通过后绑定社长依赖该角色 |
-| ⏳ 待做 | 通知跨范围审批 | 当前跨范围发送返回 9404，完整审批流待实现 |
+| ⏳ 待做 | 通知跨范围审批 | 当前跨范围发送返回 **6404**，完整审批流待实现 |
 | ⏳ 待做 | `NoticeCategoryController` 等旧 CRUD | 分类/阅读记录 Controller 待统一 |
 | ⏳ 待做 | 前端 `crudFactory` 对齐 | `listF/listB` → 统一 `listSysUser` / `listSysRole` 等 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
@@ -1188,7 +1214,8 @@ flowchart TB
 |---|---|---|
 | **项目概览（本文档）** | `.cursor/skills/PROJECT_OVERVIEW.md` | 结构与接口说明 |
 | 更新扫描清单 | `.cursor/skills/更新信息.md` | 本文档更新依据 |
-| JWT 登录规范 | `.cursor/skills/login.md` | Redis Key、subject 规范 |
+| **username 暴露规范** | `.cursor/skills/id.md` | 对外 username、对内 userId |
+| JWT 登录规范 | `.cursor/skills/login.md` | Redis Key `user:v2:`、subject 规范 |
 | 权限过滤方案 | `.cursor/skills/权限过滤.md` | 五级可见范围 |
 | **异常码规范** | `.cursor/skills/Erroconfig.md` | 编码区间与常量命名 |
 | **社团申请/合议** | `.cursor/skills/活动.md` | 创建/解散/审批/合议业务规范 |
@@ -1207,6 +1234,25 @@ flowchart TB
 ## 17. 近期变更文件索引
 
 > RBAC、社团生命周期、活动审批模块核心变更，按包路径归类。
+
+### 17.0C 2026-07-16 username / Redis / 通知 / 社团
+
+| 包 / 文件 | 变更摘要 |
+|---|---|
+| **`security/LoginUserDetails.java`** | `CacheSnapshot` 全字段 `@JsonProperty` + `@Getter` |
+| **`security/UserCacheHelper.java`** | Redis Key **`user:v2:{username}`**；evict 含旧 Key |
+| **`filter/JwtFilter.java`** | 脏缓存 delete；Map→CacheSnapshot；LoginController 写快照 |
+| **`controller/LoginController.java`** | 登录写入 `CacheSnapshot` 非 Authorities |
+| **`security/UserExposeHelper.java`** | 社团/活动/通知用户 FK → `*Username` |
+| **`controller/ClubApplicationController.java`** | username 查询/审批；无路径 id |
+| **`entity/dto/ClubCreateApplyDTO.java`** | `proposedLeaderUsername`；`UsernameStringDeserializer` |
+| **`utils/ClubCodeGeneratorUtil.java`** | 申请编号 **`SQ*`** |
+| **`utils/TemplateCodeUtil.java`** | 模板编码生成 + 分钟级防篡改 |
+| **`entity/constants/TemplateCodePrefix.java`** | `NOTICE` / `CLUB` / `ACT` |
+| **`service/impl/NoticeTemplateServiceImpl.java`** | `template_name` 存编码；API 不暴露 id |
+| **`security/NoticeScopeHelper.java`** | **`assertReceiverValuesValid`**；`parseLongList` 严格化 |
+| **`exception/ErrorConfig.java`** | **6412~6415**；签到段改为 **65xx** |
+| **删除无引用 Service×9** | `CommonService`、`SysClubService`、`ActivityApproveFlowService` 等空壳 |
 
 ### 17.0 2026-07-05 活动审批模块
 
@@ -1235,7 +1281,7 @@ flowchart TB
 | **`entity/dto/NoticeSendDTO.java`** 等 | 发送/模板 DTO |
 | **`entity/vo/NoticeDetailVO.java`** | 详情 VO |
 | **`utils/NoticeFileStorageUtil.java`** | 附件存储 |
-| **`exception/ErrorConfig.java`** | `94xx` 通知错误码 |
+| **`exception/ErrorConfig.java`** | **`64xx`** 通知错误码（含 6412~6415） |
 | **`mysql/notice_module_migration.sql`** | 增量 DDL |
 | **`ActivityApplyServiceImpl.java`** | 取消时调用 `NoticeAutoPublisher` |
 
@@ -1253,7 +1299,7 @@ flowchart TB
 | **`entity/constants/ActivitySignConstants.java`** | 常量 |
 | **`entity/dto/Sign*.java`**、`Makeup*.java` | DTO |
 | **`entity/vo/SignStatsVO.java`**、`SignRecordVO.java` | 统计/明细 VO |
-| **`exception/ErrorConfig.java`** | `95xx` |
+| **`exception/ErrorConfig.java`** | **`65xx`** 签到 |
 | **`mysql/activity_sign_migration.sql`** | 增量 DDL |
 
 ### 17.1 2026-07-04 RBAC / 社团模块 — Controller

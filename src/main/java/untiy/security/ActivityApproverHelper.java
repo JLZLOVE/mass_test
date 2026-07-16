@@ -18,7 +18,6 @@ import untiy.mapper.SysRoleMapper;
 import untiy.mapper.SysUserRoleMapper;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -41,7 +40,7 @@ public final class ActivityApproverHelper {
         }
         List<SysUserRole> userRoles = userRoleMapper.selectList(
                 new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId));
-        List<SysRole> roles = loadActiveRoles(userRoleMapper, roleMapper, userId);
+        List<SysRole> roles = UserScopeResolver.loadActiveRoles(userRoleMapper, roleMapper, userId);
 
         if (club.getCollegeId() != null) {
             SysCollege college = collegeMapper.selectById(club.getCollegeId());
@@ -53,7 +52,7 @@ public final class ActivityApproverHelper {
         if (level == Level.SUPER_ADMIN) {
             return ActivityApplyConstants.INITIATOR_DEAN_OR_ADMIN;
         }
-        if (level == Level.ADMIN && roles.stream().anyMatch(r -> !isAdvisorRoleCode(r.getRoleCode()))) {
+        if (level == Level.ADMIN && roles.stream().anyMatch(r -> !UserScopeResolver.isAdvisorRoleCode(r.getRoleCode()))) {
             return ActivityApplyConstants.INITIATOR_DEAN_OR_ADMIN;
         }
         if (Objects.equals(club.getAdvisorId(), userId)) {
@@ -148,14 +147,14 @@ public final class ActivityApproverHelper {
                 .eq(SysUserRole::getScopeId, clubId)
                 .last("LIMIT 1"));
         if (binding == null || binding.getUserId() == null) {
-            throw new EIException(ErrorConfig.ACT_APPROVER_NOT_FOUND_CODE, "未找到该社团社长");
+            throw new EIException(ErrorConfig.ACT_APPROVER_PRESIDENT_NOT_FOUND_CODE, ErrorConfig.ACT_APPROVER_PRESIDENT_NOT_FOUND_MSG);
         }
         return binding.getUserId();
     }
 
     private static Long findCollegeDeanUserId(SysCollegeMapper collegeMapper, Long collegeId) {
         if (collegeId == null) {
-            throw new EIException(ErrorConfig.ACT_APPROVER_NOT_FOUND_CODE, "社团未挂靠学院，无法确定学院书记");
+            throw new EIException(ErrorConfig.ACT_APPROVER_NO_COLLEGE_CODE, ErrorConfig.ACT_APPROVER_NO_COLLEGE_MSG);
         }
         SysCollege college = collegeMapper.selectById(collegeId);
         return requireUserId(college != null ? college.getDeanId() : null, "学院书记");
@@ -167,7 +166,7 @@ public final class ActivityApproverHelper {
                 .eq(SysUserRole::getRoleId, superRole.getId())
                 .last("LIMIT 1"));
         if (binding == null || binding.getUserId() == null) {
-            throw new EIException(ErrorConfig.ACT_APPROVER_NOT_FOUND_CODE, "未找到校书记（超级管理员）");
+            throw new EIException(ErrorConfig.ACT_APPROVER_SUPER_ADMIN_NOT_FOUND_CODE, ErrorConfig.ACT_APPROVER_SUPER_ADMIN_NOT_FOUND_MSG);
         }
         return binding.getUserId();
     }
@@ -182,7 +181,8 @@ public final class ActivityApproverHelper {
 
     private static Long requireUserId(Long userId, String label) {
         if (userId == null) {
-            throw new EIException(ErrorConfig.ACT_APPROVER_NOT_FOUND_CODE, "未找到" + label);
+            throw new EIException(ErrorConfig.ACT_APPROVER_NOT_FOUND_TEMPLATE_CODE,
+                    String.format(ErrorConfig.ACT_APPROVER_NOT_FOUND_TEMPLATE_MSG, label));
         }
         return userId;
     }
@@ -202,7 +202,7 @@ public final class ActivityApproverHelper {
                                            Long userId, Long clubId) {
         List<SysUserRole> userRoles = userRoleMapper.selectList(
                 new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId));
-        List<SysRole> roles = loadActiveRoles(userRoleMapper, roleMapper, userId);
+        List<SysRole> roles = UserScopeResolver.loadActiveRoles(userRoleMapper, roleMapper, userId);
         return isClubPresident(userRoles, roles, clubId);
     }
 
@@ -230,27 +230,7 @@ public final class ActivityApproverHelper {
     }
 
     private static boolean hasSuperAdminRole(SysUserRoleMapper userRoleMapper, SysRoleMapper roleMapper, Long userId) {
-        List<SysRole> roles = loadActiveRoles(userRoleMapper, roleMapper, userId);
+        List<SysRole> roles = UserScopeResolver.loadActiveRoles(userRoleMapper, roleMapper, userId);
         return roles.stream().anyMatch(r -> ClubApplyConstants.ROLE_SUPER_ADMIN.equals(r.getRoleCode()));
-    }
-
-    private static List<SysRole> loadActiveRoles(SysUserRoleMapper userRoleMapper, SysRoleMapper roleMapper, Long userId) {
-        List<Long> roleIds = userRoleMapper.selectList(
-                        new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId))
-                .stream().map(SysUserRole::getRoleId).collect(Collectors.toList());
-        if (roleIds.isEmpty()) {
-            return java.util.Collections.emptyList();
-        }
-        return roleMapper.selectList(new LambdaQueryWrapper<SysRole>()
-                .in(SysRole::getId, roleIds)
-                .eq(SysRole::getStatus, 1));
-    }
-
-    private static boolean isAdvisorRoleCode(String roleCode) {
-        if (roleCode == null) {
-            return false;
-        }
-        String upper = roleCode.toUpperCase(Locale.ROOT);
-        return upper.equals("ADVISOR") || upper.startsWith("ADVISOR");
     }
 }

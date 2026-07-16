@@ -109,6 +109,18 @@ public class ErrorConfig {
 
     public static final Integer USER_ROLE_NOT_FOUND_CODE = 9014;
     public static final String USER_ROLE_NOT_FOUND_MSG = "用户角色关联不存在";
+    public static final Integer ROLE_SCOPE_NOT_CONFIGURED_CODE = 9015;
+    public static final String ROLE_SCOPE_NOT_CONFIGURED_MSG = "角色未配置数据范围";
+    public static final Integer ROLE_SCOPE_COLLEGE_NOT_FOUND_CODE = 9016;
+    public static final String ROLE_SCOPE_COLLEGE_NOT_FOUND_MSG = "学院不存在";
+    public static final Integer ROLE_SCOPE_CLUB_NOT_FOUND_CODE = 9017;
+    public static final String ROLE_SCOPE_CLUB_NOT_FOUND_MSG = "社团不存在";
+    public static final Integer ROLE_SCOPE_DEPARTMENT_NOT_FOUND_CODE = 9018;
+    public static final String ROLE_SCOPE_DEPARTMENT_NOT_FOUND_MSG = "部门不存在";
+    public static final Integer ROLE_ASSIGN_GLOBAL_CONFLICT_CODE = 9019;
+    public static final String ROLE_ASSIGN_GLOBAL_CONFLICT_MSG = "该用户已拥有此角色的全局权限，无法再分配特定范围";
+    public static final Integer ROLE_ASSIGN_SCOPE_CONFLICT_CODE = 9020;
+    public static final String ROLE_ASSIGN_SCOPE_CONFLICT_MSG = "该用户已拥有此角色的特定范围权限，无法再分配全局权限";
 
     // ====================== 菜单管理 (91xx) ======================
     public static final Integer MENU_NOT_FOUND_CODE = 9101;
@@ -207,6 +219,14 @@ public class ErrorConfig {
     public static final String ACT_TIME_INVALID_MSG = "开始时间必须早于结束时间";
     public static final Integer ACT_LEVEL_ADJUST_LOCKED_CODE = 9314;
     public static final String ACT_LEVEL_ADJUST_LOCKED_MSG = "活动级别已调整过，不可再次修改";
+    public static final Integer ACT_APPROVER_PRESIDENT_NOT_FOUND_CODE = 9315;
+    public static final String ACT_APPROVER_PRESIDENT_NOT_FOUND_MSG = "未找到该社团社长";
+    public static final Integer ACT_APPROVER_NO_COLLEGE_CODE = 9316;
+    public static final String ACT_APPROVER_NO_COLLEGE_MSG = "社团未挂靠学院，无法确定学院书记";
+    public static final Integer ACT_APPROVER_SUPER_ADMIN_NOT_FOUND_CODE = 9317;
+    public static final String ACT_APPROVER_SUPER_ADMIN_NOT_FOUND_MSG = "未找到校书记（超级管理员）";
+    public static final Integer ACT_APPROVER_NOT_FOUND_TEMPLATE_CODE = 9318;
+    public static final String ACT_APPROVER_NOT_FOUND_TEMPLATE_MSG = "未找到%s";
 
     // ====================== 通知 (64xx) ======================
     public static final Integer NOTICE_NOT_FOUND_CODE = 6401;
@@ -240,6 +260,8 @@ public class ErrorConfig {
             "接收范围值须为 JSON 数组，如 [1,2,3]";
     public static final Integer NOTICE_RECEIVER_EMPTY_CODE = 6415;
     public static final String NOTICE_RECEIVER_EMPTY_MSG = "接收范围不能为空";
+    public static final Integer NOTICE_RECEIVER_TYPE_BLANK_CODE = 6416;
+    public static final String NOTICE_RECEIVER_TYPE_BLANK_MSG = "接收范围类型不能为空";
 
     // ====================== 活动签到 (65xx) ======================
     public static final Integer SIGN_CONFIG_NOT_FOUND_CODE = 6501;
@@ -280,4 +302,6 @@ public class ErrorConfig {
     public static final String SIGN_CHECKOUT_BEFORE_SIGN_MSG = "签退时间不能早于签到时间";
     public static final Integer SIGN_CHECKOUT_TOO_LATE_CODE = 6519;
     public static final String SIGN_CHECKOUT_TOO_LATE_MSG = "签退时间不能超过签到时间后7天";
+    public static final Integer SIGN_MAKEUP_PRESIDENT_ONLY_CODE = 6520;
+    public static final String SIGN_MAKEUP_PRESIDENT_ONLY_MSG = "仅社长可为成员发起补签";
 }

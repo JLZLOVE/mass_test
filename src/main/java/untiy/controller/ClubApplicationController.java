@@ -13,6 +13,7 @@ import untiy.entity.ClubCategory;
 import untiy.entity.dto.ClubAdminApproveDTO;
 import untiy.entity.dto.ClubCollegeApproveDTO;
 import untiy.entity.dto.ClubCreateApplyDTO;
+import untiy.exception.ErrorConfig;
 import untiy.entity.dto.ClubDissolveApplyDTO;
 import untiy.exception.Level;
 import untiy.service.ClubApplicationService;
@@ -70,7 +71,7 @@ public class ClubApplicationController {
         if (StringUtils.isNotBlank(username)) {
             return R.ok().put("data", clubApplicationService.getDetailByUsername(username.trim()));
         }
-        return R.error("请提供 username ");
+        return R.error(ErrorConfig.USERNAME_BLANK_MSG);
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)

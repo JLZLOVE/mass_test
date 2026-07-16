@@ -1,6 +1,7 @@
 package untiy.security;
 
 import untiy.entity.dto.SysUserDTO;
+import untiy.exception.Level;
 
 /**
  * DTO 字段脱敏：仅根据当前登录用户权限等级控制返回字段显隐，与准入鉴权、数据范围过滤解耦。
@@ -33,14 +34,14 @@ public final class FieldMaskHelper {
         boolean isSelf = dto.getId() != null && dto.getId().equals(viewer.getUserId());
         int level = viewer.getEffectiveLevel();
 
-        if (level <= 1 || isSelf) {
+        if (level <= Level.ADMIN || isSelf) {
             return;
         }
-        if (level == 2) {
+        if (level == Level.CLUB_LEADER) {
             maskContactFields(dto);
             return;
         }
-        if (level == 3) {
+        if (level == Level.DEPT_LEADER) {
             dto.setStudentNo(null);
             dto.setTeacherNo(null);
             maskContactFields(dto);

@@ -8,8 +8,10 @@ import org.springframework.stereotype.Component;
 import untiy.entity.SysRole;
 import untiy.entity.SysUser;
 import untiy.entity.SysUserRole;
+import untiy.entity.constants.ClubApplyConstants;
 import untiy.exception.EIException;
 import untiy.exception.ErrorConfig;
+import untiy.exception.Level;
 import untiy.exception.UserPermissionCode;
 import untiy.service.SysRoleService;
 import untiy.service.SysUserRoleService;
@@ -59,7 +61,7 @@ public class UserPermissionUtils {
             throw new EIException(ErrorConfig.LOGIN_INVALID_CODE, ErrorConfig.LOGIN_INVALID_MSG);
         }
         if (targetUserId == null) {
-            throw new EIException(4000, "目标用户ID不能为空");
+            throw new EIException(UserPermissionCode.TARGET_ID_NULL_CODE, UserPermissionCode.TARGET_ID_NULL_MSG);
         }
 
         // 规则1：不能删自己
@@ -69,7 +71,7 @@ public class UserPermissionUtils {
 
         // 规则2：仅社长及以上可删除（level ≤ 2）
         int currentLevel = currentUser.getEffectiveLevel();
-        if (currentLevel > 2) {
+        if (currentLevel > Level.CLUB_LEADER) {
             throw new EIException(UserPermissionCode.PERMISSION_DENIED_CODE,
                     "仅社长及以上有权删除用户，当前等级: " + currentLevel);
         }
@@ -105,7 +107,7 @@ public class UserPermissionUtils {
         }
         boolean scopeMatched = targetUserRoles.stream()
                 .anyMatch(ur -> ur.getScopeType() != null
-                        && ur.getScopeType() == 2  // 2 = 社团
+                        && ur.getScopeType() == ClubApplyConstants.SCOPE_TYPE_CLUB
                         && currentClubId.equals(ur.getScopeId()));
         if (!scopeMatched) {
             throw new EIException(UserPermissionCode.SCOPE_MISMATCH_CODE, UserPermissionCode.SCOPE_MISMATCH_MSG);

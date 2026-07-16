@@ -19,7 +19,6 @@ import untiy.mapper.SysUserRoleMapper;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public final class ActivitySignHelper {
 
@@ -44,10 +43,10 @@ public final class ActivitySignHelper {
                                            Long userId, Long clubId) {
         List<SysUserRole> userRoles = userRoleMapper.selectList(
                 new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId));
-        List<SysRole> roles = loadActiveRoles(userRoleMapper, roleMapper, userId);
+        List<SysRole> roles = UserScopeResolver.loadActiveRoles(userRoleMapper, roleMapper, userId);
         Long presidentClub = UserScopeResolver.resolvePrimaryClubId(userRoles, roles);
         if (!Objects.equals(presidentClub, clubId)) {
-            throw new EIException(ErrorConfig.SIGN_NO_PERMISSION_CODE, "仅社长可为成员发起补签");
+            throw new EIException(ErrorConfig.SIGN_MAKEUP_PRESIDENT_ONLY_CODE, ErrorConfig.SIGN_MAKEUP_PRESIDENT_ONLY_MSG);
         }
     }
 
@@ -84,16 +83,5 @@ public final class ActivitySignHelper {
                 + Math.cos(Math.toRadians(lat1.doubleValue())) * Math.cos(Math.toRadians(lat2.doubleValue()))
                 * Math.sin(dLng / 2) * Math.sin(dLng / 2);
         return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    private static List<SysRole> loadActiveRoles(SysUserRoleMapper userRoleMapper, SysRoleMapper roleMapper, Long userId) {
-        List<Long> roleIds = userRoleMapper.selectList(
-                        new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId))
-                .stream().map(SysUserRole::getRoleId).collect(Collectors.toList());
-        if (roleIds.isEmpty()) {
-            return java.util.Collections.emptyList();
-        }
-        return roleMapper.selectList(new LambdaQueryWrapper<SysRole>()
-                .in(SysRole::getId, roleIds).eq(SysRole::getStatus, 1));
     }
 }

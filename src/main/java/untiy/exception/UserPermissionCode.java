@@ -31,6 +31,9 @@ public class UserPermissionCode {
     public static final Integer CURRENT_NO_SCOPE_CODE = 1007;
     public static final String CURRENT_NO_SCOPE_MSG = "当前用户无社团范围";
 
+    public static final Integer TARGET_ID_NULL_CODE = 1008;
+    public static final String TARGET_ID_NULL_MSG = "目标用户ID不能为空";
+
 
 
     private UserPermissionCode() {

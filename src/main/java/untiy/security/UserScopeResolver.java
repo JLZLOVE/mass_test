@@ -1,10 +1,16 @@
 package untiy.security;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import untiy.entity.SysRole;
 import untiy.entity.SysUserRole;
+import untiy.entity.constants.ClubApplyConstants;
+import untiy.mapper.SysRoleMapper;
+import untiy.mapper.SysUserRoleMapper;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -26,6 +32,35 @@ public final class UserScopeResolver {
     }
 
     private UserScopeResolver() {
+    }
+
+    /**
+     * 加载用户已启用角色（status=1）。无角色时返回空列表。
+     */
+    public static List<SysRole> loadActiveRoles(SysUserRoleMapper userRoleMapper, SysRoleMapper roleMapper, Long userId) {
+        List<Long> roleIds = userRoleMapper.selectList(
+                        new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId))
+                .stream().map(SysUserRole::getRoleId).collect(Collectors.toList());
+        if (roleIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return roleMapper.selectList(new LambdaQueryWrapper<SysRole>()
+                .in(SysRole::getId, roleIds)
+                .eq(SysRole::getStatus, 1));
+    }
+
+    /**
+     * 是否为指导老师角色码（大小写不敏感；含 ADVISOR、ADVISOR_* 等前缀）。
+     */
+    public static boolean isAdvisorRoleCode(String roleCode) {
+        if (roleCode == null) {
+            return false;
+        }
+        return roleCode.toUpperCase(Locale.ROOT).startsWith("ADVISOR");
+    }
+
+    public static boolean isAdvisorRoleCode(SysRole role) {
+        return role != null && isAdvisorRoleCode(role.getRoleCode());
     }
 
     /**
@@ -51,7 +86,7 @@ public final class UserScopeResolver {
             return mapped;
         }
         String code = role.getRoleCode().toUpperCase();
-        if (code.startsWith("ADVISOR")) {
+        if (isAdvisorRoleCode(code)) {
             return 1;
         }
         if (role.getRoleLevel() != null) {
@@ -70,7 +105,7 @@ public final class UserScopeResolver {
                 .collect(Collectors.toSet());
         return userRoles.stream()
                 .filter(ur -> presidentRoleIds.contains(ur.getRoleId()))
-                .filter(ur -> ur.getScopeType() != null && ur.getScopeType() == 2)
+                .filter(ur -> ur.getScopeType() != null && ur.getScopeType() == ClubApplyConstants.SCOPE_TYPE_CLUB)
                 .map(SysUserRole::getScopeId)
                 .findFirst()
                 .orElse(null);
@@ -86,7 +121,7 @@ public final class UserScopeResolver {
                 .collect(Collectors.toSet());
         return userRoles.stream()
                 .filter(ur -> ministerRoleIds.contains(ur.getRoleId()))
-                .filter(ur -> ur.getScopeType() != null && ur.getScopeType() == 3)
+                .filter(ur -> ur.getScopeType() != null && ur.getScopeType() == ClubApplyConstants.SCOPE_TYPE_DEPARTMENT)
                 .map(SysUserRole::getScopeId)
                 .findFirst()
                 .orElse(null);

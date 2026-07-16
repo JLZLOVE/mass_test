@@ -22,7 +22,6 @@ import untiy.mapper.SysUserRoleMapper;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,12 +38,12 @@ public final class NoticeScopeHelper {
                                               SysClubMapper clubMapper, Long userId) {
         List<SysUserRole> userRoles = userRoleMapper.selectList(
                 new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId));
-        List<SysRole> roles = loadActiveRoles(userRoleMapper, roleMapper, userId);
+        List<SysRole> roles = UserScopeResolver.loadActiveRoles(userRoleMapper, roleMapper, userId);
         int level = UserScopeResolver.resolveEffectiveLevel(roles);
         if (level == Level.SUPER_ADMIN) {
             return NoticeConstants.PUBLISHER_SUPER_ADMIN;
         }
-        if (level == Level.ADMIN && roles.stream().anyMatch(r -> !isAdvisorCode(r.getRoleCode()))) {
+        if (level == Level.ADMIN && roles.stream().anyMatch(r -> !UserScopeResolver.isAdvisorRoleCode(r.getRoleCode()))) {
             return NoticeConstants.PUBLISHER_ADMIN;
         }
         Long clubId = UserScopeResolver.resolvePrimaryClubId(userRoles, roles);
@@ -57,7 +56,7 @@ public final class NoticeScopeHelper {
         }
         List<SysClub> advised = clubMapper.selectList(
                 new LambdaQueryWrapper<SysClub>().eq(SysClub::getAdvisorId, userId));
-        if (!advised.isEmpty() || roles.stream().anyMatch(r -> isAdvisorCode(r.getRoleCode()))) {
+        if (!advised.isEmpty() || roles.stream().anyMatch(r -> UserScopeResolver.isAdvisorRoleCode(r.getRoleCode()))) {
             return NoticeConstants.PUBLISHER_ADVISOR;
         }
         if (level <= Level.ADMIN) {
@@ -98,7 +97,7 @@ public final class NoticeScopeHelper {
      */
     public static void assertReceiverValuesValid(Integer receiverType, String receiverValues) {
         if (receiverType == null) {
-            throw new EIException(ErrorConfig.BAD_REQUEST_CODE, "接收范围类型不能为空");
+            throw new EIException(ErrorConfig.NOTICE_RECEIVER_TYPE_BLANK_CODE, ErrorConfig.NOTICE_RECEIVER_TYPE_BLANK_MSG);
         }
         switch (receiverType) {
             case NoticeConstants.RECEIVER_ALL_STUDENTS:
@@ -244,14 +243,14 @@ public final class NoticeScopeHelper {
     private static Long resolvePresidentClubId(SysUserRoleMapper userRoleMapper, SysRoleMapper roleMapper, Long userId) {
         List<SysUserRole> userRoles = userRoleMapper.selectList(
                 new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId));
-        List<SysRole> roles = loadActiveRoles(userRoleMapper, roleMapper, userId);
+        List<SysRole> roles = UserScopeResolver.loadActiveRoles(userRoleMapper, roleMapper, userId);
         return UserScopeResolver.resolvePrimaryClubId(userRoles, roles);
     }
 
     private static Long resolveMinisterDeptId(SysUserRoleMapper userRoleMapper, SysRoleMapper roleMapper, Long userId) {
         List<SysUserRole> userRoles = userRoleMapper.selectList(
                 new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId));
-        List<SysRole> roles = loadActiveRoles(userRoleMapper, roleMapper, userId);
+        List<SysRole> roles = UserScopeResolver.loadActiveRoles(userRoleMapper, roleMapper, userId);
         return UserScopeResolver.resolvePrimaryDepartmentId(userRoles, roles);
     }
 
@@ -289,24 +288,5 @@ public final class NoticeScopeHelper {
             throw new EIException(ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_CODE,
                     ErrorConfig.NOTICE_RECEIVER_VALUES_INVALID_MSG);
         }
-    }
-
-    private static List<SysRole> loadActiveRoles(SysUserRoleMapper userRoleMapper, SysRoleMapper roleMapper, Long userId) {
-        List<Long> roleIds = userRoleMapper.selectList(
-                        new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, userId))
-                .stream().map(SysUserRole::getRoleId).collect(Collectors.toList());
-        if (roleIds.isEmpty()) {
-            return java.util.Collections.emptyList();
-        }
-        return roleMapper.selectList(new LambdaQueryWrapper<SysRole>()
-                .in(SysRole::getId, roleIds).eq(SysRole::getStatus, 1));
-    }
-
-    private static boolean isAdvisorCode(String roleCode) {
-        if (roleCode == null) {
-            return false;
-        }
-        String upper = roleCode.toUpperCase(Locale.ROOT);
-        return upper.equals("ADVISOR") || upper.startsWith("ADVISOR");
     }
 }

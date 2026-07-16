@@ -320,7 +320,7 @@ untiy/
 |---|---|
 | `SecurityConfig` | 无状态 Session；仅 Swagger/静态 `permitAll()`；`AuthenticationEntryPoint` 返回 401 JSON；注册 `JwtFilter` |
 | `LoginUserDetails` | 继承 `LoginServiceImpl`；组合 `SysUser` + `effectiveLevel` + `primaryClubId` + `primaryDepartmentId`；含 Redis 可序列化 `CacheSnapshot` |
-| `UserScopeResolver` | 从角色列表解析 effectiveLevel、主社团/部门 scope_id |
+| `UserScopeResolver` | **`loadActiveRoles`**、**`isAdvisorRoleCode`**；解析 effectiveLevel、主社团/部门 scope_id |
 | `DataScopeHelper` | 用户模块行级过滤：`applySysUserScope(QueryWrapper/LambdaQueryWrapper)`、`currentUser()`、`applyLevelScope(BaseQuery)` |
 | `FieldMaskHelper` | 用户 DTO 脱敏：`maskSysUserDto(dto, viewer)` |
 | **`LevelBasedAccess`** | **全局通用等级访问控制**（数值越小权限越高）：`checkViewable`、`checkOperable`、`checkNewLevel`、`applyLevelFilter` |

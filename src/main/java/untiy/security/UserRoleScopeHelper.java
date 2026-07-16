@@ -51,7 +51,7 @@ public final class UserRoleScopeHelper {
                                      SysClubMapper clubMapper,
                                      SysDepartmentMapper departmentMapper) {
         if (dataScope == null) {
-            throw new EIException(ErrorConfig.ROLE_SCOPE_INVALID_CODE, "角色未配置数据范围");
+            throw new EIException(ErrorConfig.ROLE_SCOPE_NOT_CONFIGURED_CODE, ErrorConfig.ROLE_SCOPE_NOT_CONFIGURED_MSG);
         }
 
         switch (dataScope) {
@@ -64,19 +64,19 @@ public final class UserRoleScopeHelper {
             case DATA_SCOPE_COLLEGE:
                 requireScope(SCOPE_TYPE_COLLEGE, scopeType, scopeId);
                 if (collegeMapper.selectCount(new LambdaQueryWrapper<SysCollege>().eq(SysCollege::getId, scopeId)) == 0) {
-                    throw new EIException(ErrorConfig.ROLE_SCOPE_INVALID_CODE, "学院不存在");
+                    throw new EIException(ErrorConfig.ROLE_SCOPE_COLLEGE_NOT_FOUND_CODE, ErrorConfig.ROLE_SCOPE_COLLEGE_NOT_FOUND_MSG);
                 }
                 break;
             case DATA_SCOPE_CLUB:
                 requireScope(SCOPE_TYPE_CLUB, scopeType, scopeId);
                 if (clubMapper.selectCount(new LambdaQueryWrapper<SysClub>().eq(SysClub::getId, scopeId)) == 0) {
-                    throw new EIException(ErrorConfig.ROLE_SCOPE_INVALID_CODE, "社团不存在");
+                    throw new EIException(ErrorConfig.ROLE_SCOPE_CLUB_NOT_FOUND_CODE, ErrorConfig.ROLE_SCOPE_CLUB_NOT_FOUND_MSG);
                 }
                 break;
             case DATA_SCOPE_DEPARTMENT:
                 requireScope(SCOPE_TYPE_DEPARTMENT, scopeType, scopeId);
                 if (departmentMapper.selectCount(new LambdaQueryWrapper<SysDepartment>().eq(SysDepartment::getId, scopeId)) == 0) {
-                    throw new EIException(ErrorConfig.ROLE_SCOPE_INVALID_CODE, "部门不存在");
+                    throw new EIException(ErrorConfig.ROLE_SCOPE_DEPARTMENT_NOT_FOUND_CODE, ErrorConfig.ROLE_SCOPE_DEPARTMENT_NOT_FOUND_MSG);
                 }
                 break;
             default:
@@ -111,12 +111,12 @@ public final class UserRoleScopeHelper {
             boolean existHasScope = ur.getScopeType() != null || ur.getScopeId() != null;
 
             if (newHasScope && existGlobal) {
-                throw new EIException(ErrorConfig.ROLE_ASSIGN_DUPLICATE_CODE,
-                        "该用户已拥有此角色的全局权限，无法再分配特定范围");
+                throw new EIException(ErrorConfig.ROLE_ASSIGN_GLOBAL_CONFLICT_CODE,
+                        ErrorConfig.ROLE_ASSIGN_GLOBAL_CONFLICT_MSG);
             }
             if (newIsGlobal && existHasScope) {
-                throw new EIException(ErrorConfig.ROLE_ASSIGN_DUPLICATE_CODE,
-                        "该用户已拥有此角色的特定范围权限，无法再分配全局权限");
+                throw new EIException(ErrorConfig.ROLE_ASSIGN_SCOPE_CONFLICT_CODE,
+                        ErrorConfig.ROLE_ASSIGN_SCOPE_CONFLICT_MSG);
             }
         }
     }

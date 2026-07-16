@@ -30,7 +30,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -66,12 +65,13 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
     @Transactional
     @Override
     public void saveConfig(SignConfigDTO dto) {
-        ActivityApply apply = requireApprovedActivity(dto.getActivityId());
+        ActivityApply apply = requireApprovedActivityByNo(dto.getActivityNo());
+        assertSignConfigTimes(dto);
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         SysClub club = sysClubMapper.selectById(apply.getClubId());
         ActivitySignHelper.assertActivityOwnerOrAdvisor(apply, club, user.getUserId(), user.getEffectiveLevel());
 
-        ActivitySignConfig existing = findConfig(dto.getActivityId());
+        ActivitySignConfig existing = findConfig(apply.getId());
         if (existing != null) {
             throw new EIException(ErrorConfig.BAD_REQUEST_CODE, "签到已配置，请使用更新接口");
         }
@@ -81,12 +81,13 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
     @Transactional
     @Override
     public void updateConfig(SignConfigDTO dto) {
-        ActivityApply apply = requireApprovedActivity(dto.getActivityId());
+        ActivityApply apply = requireApprovedActivityByNo(dto.getActivityNo());
+        assertSignConfigTimes(dto);
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         SysClub club = sysClubMapper.selectById(apply.getClubId());
         ActivitySignHelper.assertActivityOwnerOrAdvisor(apply, club, user.getUserId(), user.getEffectiveLevel());
 
-        ActivitySignConfig config = findConfig(dto.getActivityId());
+        ActivitySignConfig config = findConfig(apply.getId());
         if (config == null) {
             insertConfig(dto, apply);
             return;
@@ -97,23 +98,24 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
     }
 
     @Override
-    public ActivitySignConfig getConfig(Long activityId) {
-        requireApprovedActivity(activityId);
-        ActivitySignConfig config = findConfig(activityId);
+    public ActivitySignConfig getConfig(String activityNo) {
+        ActivityApply apply = requireApprovedActivityByNo(activityNo);
+        ActivitySignConfig config = findConfig(apply.getId());
         if (config == null || config.getEnabled() == null || config.getEnabled() != 1) {
             throw new EIException(ErrorConfig.SIGN_CONFIG_NOT_FOUND_CODE, ErrorConfig.SIGN_CONFIG_NOT_FOUND_MSG);
         }
+        enrichConfigActivityNo(config, apply);
         return config;
     }
 
     @Transactional
     @Override
-    public void sign(Long activityId, SignActionDTO dto) {
-        ActivityApply apply = requireApprovedActivity(activityId);
-        ActivitySignConfig config = getConfig(activityId);
+    public void sign(String activityNo, SignActionDTO dto) {
+        ActivityApply apply = requireApprovedActivityByNo(activityNo);
+        ActivitySignConfig config = getConfig(activityNo);
         assertSignWindow(config);
         LoginUserDetails user = SecurityUtils.getCurrentUser();
-        assertNotDuplicate(activityId, user.getUserId());
+        assertNotDuplicate(apply.getId(), user.getUserId());
         assertNoTimeConflict(user.getUserId(), apply);
 
         int method = dto.getSignMethod() != null ? dto.getSignMethod() : ActivitySignConstants.MODE_LOCATION;
@@ -121,28 +123,28 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
         validateSignMethod(config, method, dto);
 
         LocalDateTime now = LocalDateTime.now();
-        ActivitySign record = buildSignRecord(activityId, user.getUserId(), signType, now, dto.getAddress(),
+        ActivitySign record = buildSignRecord(apply.getId(), user.getUserId(), signType, now, dto.getAddress(),
                 dto.getLatitude(), dto.getLongitude(), null, null);
         applyLateFlag(record, apply, now);
         save(record);
-        log.info("用户 {} 活动 {} 签到成功", user.getUserId(), activityId);
+        log.info("用户 {} 活动 {} 签到成功", user.getUserId(), activityNo);
     }
 
     @Transactional
     @Override
-    public void adminSign(Long activityId, AdminSignDTO dto) {
-        ActivityApply apply = requireApprovedActivity(activityId);
-        getConfig(activityId);
+    public void adminSign(String activityNo, AdminSignDTO dto) {
+        ActivityApply apply = requireApprovedActivityByNo(activityNo);
+        getConfig(activityNo);
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         SysClub club = sysClubMapper.selectById(apply.getClubId());
         ActivitySignHelper.assertActivityOwnerOrAdvisor(apply, club, user.getUserId(), user.getEffectiveLevel());
 
         SysUser target = UserSecurityHelper.requireInScopeByUsername(sysUserMapper, dto.getUsername());
         UserSecurityHelper.assertUserEnabled(target);
-        assertNotDuplicate(activityId, target.getId());
+        assertNotDuplicate(apply.getId(), target.getId());
 
         LocalDateTime now = LocalDateTime.now();
-        ActivitySign record = buildSignRecord(activityId, target.getId(), ActivitySignConstants.TYPE_MANUAL,
+        ActivitySign record = buildSignRecord(apply.getId(), target.getId(), ActivitySignConstants.TYPE_MANUAL,
                 now, dto.getAddress(), null, null, user.getUserId(), null);
         applyLateFlag(record, apply, now);
         save(record);
@@ -150,14 +152,14 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
 
     @Transactional
     @Override
-    public void checkout(Long activityId) {
-        ActivityApply apply = requireApprovedActivity(activityId);
-        ActivitySignConfig config = getConfig(activityId);
+    public void checkout(String activityNo) {
+        ActivityApply apply = requireApprovedActivityByNo(activityNo);
+        ActivitySignConfig config = getConfig(activityNo);
         if (config.getEnableCheckout() == null || config.getEnableCheckout() != 1) {
             throw new EIException(ErrorConfig.SIGN_CHECKOUT_DISABLED_CODE, ErrorConfig.SIGN_CHECKOUT_DISABLED_MSG);
         }
         LoginUserDetails user = SecurityUtils.getCurrentUser();
-        ActivitySign record = findSignRecord(activityId, user.getUserId());
+        ActivitySign record = findSignRecord(apply.getId(), user.getUserId());
         if (record == null) {
             throw new EIException(ErrorConfig.SIGN_NOT_SIGNED_CODE, ErrorConfig.SIGN_NOT_SIGNED_MSG);
         }
@@ -165,6 +167,7 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
             return;
         }
         LocalDateTime now = LocalDateTime.now();
+        assertCheckoutTimeValid(record.getSignTime(), now);
         record.setCheckoutTime(now);
         if (apply.getEndTime() != null && now.isBefore(apply.getEndTime())) {
             record.setIsEarlyLeave(1);
@@ -175,8 +178,8 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
 
     @Transactional
     @Override
-    public Long applyMakeup(Long activityId, MakeupApplyDTO dto) {
-        ActivityApply apply = requireApprovedActivity(activityId);
+    public Long applyMakeup(String activityNo, MakeupApplyDTO dto) {
+        ActivityApply apply = requireApprovedActivityByNo(activityNo);
         SysClub club = sysClubMapper.selectById(apply.getClubId());
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         ActivitySignHelper.assertClubPresident(sysUserRoleMapper, sysRoleMapper, user.getUserId(), apply.getClubId());
@@ -184,13 +187,13 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
         assertMakeupDeadline(apply);
         SysUser target = UserSecurityHelper.requireInScopeByUsername(sysUserMapper, dto.getUsername());
         UserSecurityHelper.assertUserEnabled(target);
-        if (findSignRecord(activityId, target.getId()) != null) {
+        if (findSignRecord(apply.getId(), target.getId()) != null) {
             throw new EIException(ErrorConfig.SIGN_ALREADY_SIGNED_CODE, ErrorConfig.SIGN_ALREADY_SIGNED_MSG);
         }
 
         LocalDateTime now = LocalDateTime.now();
         ActivitySignMakeup makeup = new ActivitySignMakeup();
-        makeup.setActivityId(activityId);
+        makeup.setActivityId(apply.getId());
         makeup.setUserId(target.getId());
         makeup.setApplicantId(user.getUserId());
         makeup.setReasonType(dto.getReasonType());
@@ -252,20 +255,20 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
     }
 
     @Override
-    public SignStatsVO stats(Long activityId) {
-        ActivityApply apply = requireApprovedActivity(activityId);
+    public SignStatsVO stats(String activityNo) {
+        ActivityApply apply = requireApprovedActivityByNo(activityNo);
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         SysClub club = sysClubMapper.selectById(apply.getClubId());
         ActivitySignHelper.assertActivityOwnerOrAdvisor(apply, club, user.getUserId(), user.getEffectiveLevel());
 
-        List<ActivitySign> signs = list(new LambdaQueryWrapper<ActivitySign>().eq(ActivitySign::getActivityId, activityId));
+        List<ActivitySign> signs = list(new LambdaQueryWrapper<ActivitySign>().eq(ActivitySign::getActivityId, apply.getId()));
         int expected = apply.getExpectedPeople() != null ? apply.getExpectedPeople() : signs.size();
         long signed = signs.size();
         long late = signs.stream().filter(s -> s.getIsLate() != null && s.getIsLate() == 1).count();
         long early = signs.stream().filter(s -> s.getIsEarlyLeave() != null && s.getIsEarlyLeave() == 1).count();
 
         SignStatsVO vo = new SignStatsVO();
-        vo.setActivityId(activityId);
+        vo.setActivityNo(activityNo);
         vo.setExpectedCount(expected);
         vo.setSignedCount(signed);
         vo.setUnsignedCount(Math.max(0, expected - (int) signed));
@@ -280,15 +283,15 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
     }
 
     @Override
-    public IPage<SignRecordVO> listRecords(Long activityId, Map<String, Object> param) {
-        ActivityApply apply = requireApprovedActivity(activityId);
+    public IPage<SignRecordVO> listRecords(String activityNo, Map<String, Object> param) {
+        ActivityApply apply = requireApprovedActivityByNo(activityNo);
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         SysClub club = sysClubMapper.selectById(apply.getClubId());
         ActivitySignHelper.assertActivityOwnerOrAdvisor(apply, club, user.getUserId(), user.getEffectiveLevel());
 
         Page<ActivitySign> page = MPUtil.getPage(param);
         IPage<ActivitySign> signPage = page(page, new LambdaQueryWrapper<ActivitySign>()
-                .eq(ActivitySign::getActivityId, activityId)
+                .eq(ActivitySign::getActivityId, apply.getId())
                 .orderByDesc(ActivitySign::getSignTime));
 
         Page<SignRecordVO> voPage = new Page<>(signPage.getCurrent(), signPage.getSize(), signPage.getTotal());
@@ -312,7 +315,8 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
                     .eq(ActivitySign::getActivityId, apply.getId())
                     .isNull(ActivitySign::getCheckoutTime));
             for (ActivitySign sign : signs) {
-                sign.setCheckoutTime(apply.getEndTime());
+                LocalDateTime checkoutTime = resolveAutoCheckoutTime(sign.getSignTime(), apply.getEndTime());
+                sign.setCheckoutTime(checkoutTime);
                 updateById(sign);
             }
         }
@@ -328,7 +332,7 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
     }
 
     private void fillConfig(ActivitySignConfig config, SignConfigDTO dto, ActivityApply apply) {
-        config.setActivityId(dto.getActivityId());
+        config.setActivityId(apply.getId());
         config.setSignMode(dto.getSignMode());
         config.setSignStartTime(dto.getSignStartTime());
         config.setSignEndTime(dto.getSignEndTime());
@@ -342,9 +346,52 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
                 config.setQrToken(UUID.randomUUID().toString().replace("-", ""));
             }
         }
-        if (config.getCenterLatitude() == null && apply.getLocationDetail() != null) {
-            // 未传坐标时保留空，由前端传中心点
+    }
+
+    private void assertSignConfigTimes(SignConfigDTO dto) {
+        LocalDateTime start = dto.getSignStartTime();
+        LocalDateTime end = dto.getSignEndTime();
+        LocalDateTime now = LocalDateTime.now();
+        if (start.isBefore(now)) {
+            throw new EIException(ErrorConfig.SIGN_START_BEFORE_NOW_CODE, ErrorConfig.SIGN_START_BEFORE_NOW_MSG);
         }
+        if (!end.isAfter(start)) {
+            throw new EIException(ErrorConfig.BAD_REQUEST_CODE, "签到开始时间必须早于签到结束时间");
+        }
+        if (end.isAfter(start.plusDays(ActivitySignConstants.SIGN_WINDOW_MAX_DAYS))) {
+            throw new EIException(ErrorConfig.SIGN_END_TOO_LATE_CODE, ErrorConfig.SIGN_END_TOO_LATE_MSG);
+        }
+    }
+
+    private void assertCheckoutTimeValid(LocalDateTime signTime, LocalDateTime checkoutTime) {
+        if (signTime == null) {
+            return;
+        }
+        if (checkoutTime.isBefore(signTime)) {
+            throw new EIException(ErrorConfig.SIGN_CHECKOUT_BEFORE_SIGN_CODE, ErrorConfig.SIGN_CHECKOUT_BEFORE_SIGN_MSG);
+        }
+        if (checkoutTime.isAfter(signTime.plusDays(ActivitySignConstants.CHECKOUT_MAX_DAYS_AFTER_SIGN))) {
+            throw new EIException(ErrorConfig.SIGN_CHECKOUT_TOO_LATE_CODE, ErrorConfig.SIGN_CHECKOUT_TOO_LATE_MSG);
+        }
+    }
+
+    private LocalDateTime resolveAutoCheckoutTime(LocalDateTime signTime, LocalDateTime activityEndTime) {
+        if (signTime == null) {
+            return activityEndTime;
+        }
+        LocalDateTime maxCheckout = signTime.plusDays(ActivitySignConstants.CHECKOUT_MAX_DAYS_AFTER_SIGN);
+        LocalDateTime checkoutTime = activityEndTime;
+        if (checkoutTime.isBefore(signTime)) {
+            checkoutTime = signTime;
+        }
+        if (checkoutTime.isAfter(maxCheckout)) {
+            checkoutTime = maxCheckout;
+        }
+        return checkoutTime;
+    }
+
+    private void enrichConfigActivityNo(ActivitySignConfig config, ActivityApply apply) {
+        config.setActivityNo(apply.getActivityNo());
     }
 
     private ActivitySign buildSignRecord(Long activityId, Long userId, int signType, LocalDateTime signTime,
@@ -454,6 +501,19 @@ public class ActivitySignServiceImpl extends ServiceImpl<ActivitySignMapper, Act
         if (today.isAfter(endDate.plusDays(1))) {
             throw new EIException(ErrorConfig.SIGN_MAKEUP_EXPIRED_CODE, ErrorConfig.SIGN_MAKEUP_EXPIRED_MSG);
         }
+    }
+
+    private ActivityApply requireApprovedActivityByNo(String activityNo) {
+        if (StringUtils.isBlank(activityNo)) {
+            throw new EIException(ErrorConfig.SIGN_ACTIVITY_NOT_FOUND_CODE, ErrorConfig.SIGN_ACTIVITY_NOT_FOUND_MSG);
+        }
+        ActivityApply apply = activityApplyMapper.selectOne(new LambdaQueryWrapper<ActivityApply>()
+                .eq(ActivityApply::getActivityNo, activityNo.trim()));
+        if (apply == null || apply.getApproveStatus() == null
+                || apply.getApproveStatus() != ActivityApplyConstants.STATUS_APPROVED) {
+            throw new EIException(ErrorConfig.SIGN_ACTIVITY_NOT_FOUND_CODE, ErrorConfig.SIGN_ACTIVITY_NOT_FOUND_MSG);
+        }
+        return apply;
     }
 
     private ActivityApply requireApprovedActivity(Long activityId) {

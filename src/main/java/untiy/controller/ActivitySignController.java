@@ -43,41 +43,41 @@ public class ActivitySignController {
 
     @RequiresLevel(minLevel = Level.STUDENT)
     @Operation(summary = "查询签到配置", description = "参与人查看签到点信息")
-    @GetMapping("/config/{activityId}")
-    public R getConfig(@PathVariable Long activityId) {
-        ActivitySignConfig config = activitySignService.getConfig(activityId);
+    @GetMapping("/config")
+    public R getConfig(@RequestParam String activityNo) {
+        ActivitySignConfig config = activitySignService.getConfig(activityNo);
         return R.ok().put("data", config);
     }
 
     @RequiresLevel(minLevel = Level.STUDENT)
     @Operation(summary = "签到", description = "定位或扫码签到")
-    @PostMapping("/sign/{activityId}")
-    public R sign(@PathVariable Long activityId, @RequestBody SignActionDTO dto) {
-        activitySignService.sign(activityId, dto);
+    @PostMapping("/sign")
+    public R sign(@RequestParam String activityNo, @RequestBody SignActionDTO dto) {
+        activitySignService.sign(activityNo, dto);
         return R.ok("签到成功");
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)
     @Operation(summary = "手动签到", description = "管理员后台标记签到")
-    @PostMapping("/admin/sign/{activityId}")
-    public R adminSign(@PathVariable Long activityId, @Valid @RequestBody AdminSignDTO dto) {
-        activitySignService.adminSign(activityId, dto);
+    @PostMapping("/admin/sign")
+    public R adminSign(@RequestParam String activityNo, @Valid @RequestBody AdminSignDTO dto) {
+        activitySignService.adminSign(activityNo, dto);
         return R.ok("签到成功");
     }
 
     @RequiresLevel(minLevel = Level.STUDENT)
     @Operation(summary = "签退")
-    @PostMapping("/checkout/{activityId}")
-    public R checkout(@PathVariable Long activityId) {
-        activitySignService.checkout(activityId);
+    @PostMapping("/checkout")
+    public R checkout(@RequestParam String activityNo) {
+        activitySignService.checkout(activityNo);
         return R.ok("签退成功");
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)
     @Operation(summary = "申请补签", description = "社长为成员发起")
-    @PostMapping("/apply/{activityId}")
-    public R applyMakeup(@PathVariable Long activityId, @Valid @RequestBody MakeupApplyDTO dto) {
-        Long id = activitySignService.applyMakeup(activityId, dto);
+    @PostMapping("/apply")
+    public R applyMakeup(@RequestParam String activityNo, @Valid @RequestBody MakeupApplyDTO dto) {
+        Long id = activitySignService.applyMakeup(activityNo, dto);
         return R.ok("补签申请已提交").put("data", id);
     }
 
@@ -91,17 +91,20 @@ public class ActivitySignController {
 
     @RequiresLevel(minLevel = Level.ADMIN)
     @Operation(summary = "签到统计")
-    @GetMapping("/stats/{activityId}")
-    public R stats(@PathVariable Long activityId) {
-        SignStatsVO stats = activitySignService.stats(activityId);
+    @GetMapping("/stats")
+    public R stats(@RequestParam String activityNo) {
+        SignStatsVO stats = activitySignService.stats(activityNo);
         return R.ok().put("data", stats);
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)
     @Operation(summary = "签到明细列表")
-    @GetMapping("/list/{activityId}")
-    public R list(@PathVariable Long activityId, @RequestParam Map<String, Object> param) {
-        IPage<SignRecordVO> page = activitySignService.listRecords(activityId, param);
+    @GetMapping("/list")
+    public R list(@RequestParam String activityNo, @RequestParam(required = false) Map<String, Object> param) {
+        if (param != null) {
+            param.remove("activityNo");
+        }
+        IPage<SignRecordVO> page = activitySignService.listRecords(activityNo, param);
         return R.ok().put("data", page);
     }
 }

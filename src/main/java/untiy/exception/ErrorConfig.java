@@ -272,4 +272,12 @@ public class ErrorConfig {
     public static final String SIGN_MAKEUP_NOT_APPROVER_MSG = "您不是当前补签审批人";
     public static final Integer SIGN_USER_NOT_FOUND_CODE = 6515;
     public static final String SIGN_USER_NOT_FOUND_MSG = "补签用户不存在";
+    public static final Integer SIGN_START_BEFORE_NOW_CODE = 6516;
+    public static final String SIGN_START_BEFORE_NOW_MSG = "签到开始时间不能早于当前时间";
+    public static final Integer SIGN_END_TOO_LATE_CODE = 6517;
+    public static final String SIGN_END_TOO_LATE_MSG = "签到结束时间不能超过开始时间后7天";
+    public static final Integer SIGN_CHECKOUT_BEFORE_SIGN_CODE = 6518;
+    public static final String SIGN_CHECKOUT_BEFORE_SIGN_MSG = "签退时间不能早于签到时间";
+    public static final Integer SIGN_CHECKOUT_TOO_LATE_CODE = 6519;
+    public static final String SIGN_CHECKOUT_TOO_LATE_MSG = "签退时间不能超过签到时间后7天";
 }

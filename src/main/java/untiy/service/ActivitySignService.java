@@ -14,21 +14,21 @@ public interface ActivitySignService extends com.baomidou.mybatisplus.extension.
 
     void updateConfig(SignConfigDTO dto);
 
-    ActivitySignConfig getConfig(Long activityId);
+    ActivitySignConfig getConfig(String activityNo);
 
-    void sign(Long activityId, SignActionDTO dto);
+    void sign(String activityNo, SignActionDTO dto);
 
-    void adminSign(Long activityId, AdminSignDTO dto);
+    void adminSign(String activityNo, AdminSignDTO dto);
 
-    void checkout(Long activityId);
+    void checkout(String activityNo);
 
-    Long applyMakeup(Long activityId, MakeupApplyDTO dto);
+    Long applyMakeup(String activityNo, MakeupApplyDTO dto);
 
     void approveMakeup(Long applyId, MakeupApproveDTO dto);
 
-    SignStatsVO stats(Long activityId);
+    SignStatsVO stats(String activityNo);
 
-    IPage<SignRecordVO> listRecords(Long activityId, Map<String, Object> param);
+    IPage<SignRecordVO> listRecords(String activityNo, Map<String, Object> param);
 
     void autoCheckoutExpired();
 }

@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-16（username 暴露、Redis v2、社团申请、通知模板编码、receiverValues 校验）  
+> 更新时间：2026-07-16（username 暴露、Redis v2、社团申请、通知模板编码、receiverValues 校验、签到 activityNo 与时间校验）  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -251,8 +251,7 @@ untiy/
 | **字段脱敏** | 低权限隐藏敏感 DTO 字段 | `FieldMaskHelper` + `UserSecurityHelper.toMaskedDto` |
 
 > 设计原则：同一业务仅保留单一 Controller 接口；`@RequiresLevel` 不做数据/字段差异化。  
-> **已完成重构**：… **`NoticeInfoController`**、**`NoticeTemplateController`**、**`ActivitySignController`**  
-> **待重构**：`NoticeCategoryController`、`NoticeReadRecordController`、`ActivityApproveFlowController` 等仍保留 `_F/_B` 旧接口。
+> **已完成重构**：全部 Controller 已统一为单一接口，无残留 `_F/_B` 旧接口。
 
 ### 3.3 权限等级常量（`untiy.exception.Level`）
 
@@ -468,7 +467,7 @@ untiy/
 | `92xx` | 社团申请/合议 | 9201~9218 |
 | **`93xx`** | **活动审批** | **9301~9314** |
 | **`64xx`** | **通知 + 模板** | **6401~6415** |
-| **`65xx`** | **活动签到** | **6501~6515** |
+| **`65xx`** | **活动签到** | **6501~6519** |
 
 ### 9.2 角色权限（9xxx）
 
@@ -584,6 +583,10 @@ untiy/
 | 6513 | `SIGN_MAKEUP_EXPIRED` | 已超过补签申请期限 |
 | 6514 | `SIGN_MAKEUP_NOT_APPROVER` | 您不是当前补签审批人 |
 | 6515 | `SIGN_USER_NOT_FOUND` | 补签用户不存在 |
+| 6516 | `SIGN_START_BEFORE_NOW` | 签到开始时间不能早于当前时间 |
+| 6517 | `SIGN_END_TOO_LATE` | 签到结束时间不能超过开始时间后 7 天 |
+| 6518 | `SIGN_CHECKOUT_BEFORE_SIGN` | 签退时间不能早于签到时间 |
+| 6519 | `SIGN_CHECKOUT_TOO_LATE` | 签退时间不能超过签到时间后 7 天 |
 
 ### 9.8 认证 / 用户（节选）
 
@@ -741,11 +744,11 @@ untiy/
 
 | 方法 | 说明 |
 |---|---|
-| `saveConfig` / `updateConfig` | 活动负责人/指导老师配置签到方式、窗口、半径、签退 |
-| `getConfig` | 参与人查看配置（含 qrToken） |
-| `sign` | 定位/扫码签到；窗口校验；半径校验；迟到标记；去重；时间冲突检测 |
-| `adminSign` | 管理员手动签到 |
-| `checkout` | 签退；早于活动结束标记早退 |
+| `saveConfig` / `updateConfig` | Body **`activityNo`**；`@StartBeforeEnd` 校验窗口；开始 ≥ 当前时间；结束 ≤ 开始 +7 天 |
+| `getConfig` | `?activityNo=`；直接读库返回 **`activityNo`**（`activityId` `@JsonIgnore`） |
+| `sign` | `?activityNo=` 定位/扫码签到；窗口校验；半径校验；迟到标记；去重；时间冲突检测 |
+| `adminSign` | `?activityNo=` 管理员手动签到（Body **`username`**） |
+| `checkout` | `?activityNo=` 签退；签退 ≥ 签到时间且 ≤ 签到 +7 天；早于活动结束标记早退 |
 | `applyMakeup` | 社长发起补签；活动结束+1天内 |
 | `approveMakeup` | 院级指导老师 / 校级指导老师→学院书记 |
 | `stats` | 应签/已签/签到率/迟到/早退/半小时分布 |
@@ -778,9 +781,9 @@ untiy/
 | **`ActivitySummaryDTO`** | `version`、`summaryContent`、`summaryAttachment` | 活动总结 |
 | **`NoticeSendDTO`** | 标题、内容、分类、`receiverType`、`receiverValues`（JSON 数组字符串）等 | `POST /notice-info/send` |
 | **`NoticeTemplateDTO`** | 创建无 `templateName`；更新必填 `templateName`；**无 id** | 通知模板 |
-| **`SignConfigDTO`** | 签到方式、窗口、半径、签退、中心坐标 | `POST/PUT /activity-sign/config` |
-| **`SignActionDTO`** | 定位/扫码参数、`qrToken` | `POST /activity-sign/sign/{id}` |
-| **`AdminSignDTO`** | `userId`、地址 | 手动签到 |
+| **`SignConfigDTO`** | **`activityNo`**、签到方式、窗口（`@StartBeforeEnd`）、半径、签退、中心坐标 | `POST/PUT /activity-sign/config` |
+| **`SignActionDTO`** | 定位/扫码参数、`qrToken` | `POST /activity-sign/sign?activityNo=` |
+| **`AdminSignDTO`** | **`username`**、地址 | 手动签到 |
 | **`MakeupApplyDTO`** / **`MakeupApproveDTO`** | 补签申请/审批 | 补签流程 |
 
 ### VO（`entity/vo/`）
@@ -793,7 +796,7 @@ untiy/
 | `CouncilSignRecordVO` | `userId`、`roleCode`、`level`、`signTime` | 合议签字 JSON 元素 |
 | **`ActivityApplyDetailVO`** | `apply`、`flows`、`histories`、`currentApproverName`、`queryTime` | 活动详情 |
 | **`NoticeDetailVO`** | `notice`、`highlight`、`visibleAttachments`、已读/确认、统计 | 通知详情 |
-| **`SignStatsVO`** | 应签/已签/签到率/迟到/早退/时间分布 | 签到统计 |
+| **`SignStatsVO`** | **`activityNo`**、应签/已签/签到率/迟到/早退/时间分布 | 签到统计 |
 | **`SignRecordVO`** | 姓名、方式、时间、地点、迟到/早退 | 签到明细 |
 
 ### 常量 / 工具
@@ -809,7 +812,7 @@ untiy/
 | **`ActivityFileStorageUtil`** | 活动申请/总结附件本地存储 |
 | **`NoticeConstants`** | 通知状态、接收类型、重要/紧急、来源类型 |
 | **`NoticeFileStorageUtil`** | 通知附件本地存储（`uploads/notice`） |
-| **`ActivitySignConstants`** | 签到方式、记录类型、补签状态 |
+| **`ActivitySignConstants`** | 签到方式、记录类型、补签状态；**`SIGN_WINDOW_MAX_DAYS=7`**、**`CHECKOUT_MAX_DAYS_AFTER_SIGN=7`** |
 
 ### Mapper
 
@@ -853,8 +856,6 @@ untiy/
 | `/deleteSysUser/{username}` | DELETE | `ADMIN (1)` | 单个删除 |
 | `/deleteSysUser` | DELETE | `ADMIN (1)` | 批量删除，Body: `List<String>` usernames |
 
-**已移除的旧接口：** `listSysUser_F/B`、`detailSysUser_F/B`、`add_B`、`updateSysUser_B`、`deleteSysUser_B`、`query`（公开）
-
 ### 11.3 `SysUserRoleController`（已统一为 4 接口）
 
 根路径：`/sys-user-role`
@@ -865,8 +866,6 @@ untiy/
 | **`/revoke/{id}`** | DELETE | `ADMIN (1)` | 撤销角色关联；不可撤销高于自身等级或自己持有的角色 |
 | **`/list`** | GET | `ADMIN (1)` | 分页联查；支持 `keyword`；按管理员数据范围过滤 |
 | **`/my-roles`** | GET | `STUDENT (4)` | 当前登录用户角色列表 |
-
-**已移除的旧接口：** `listSysUserRole`、`listSysUserRole_F/B`、`query`、`detailSysUserRole_F/B`、`add_B`、`updateSysUserRole_B`、`deleteSysUserRole_B`、`/revoke`（无路径参数版）
 
 ### 11.4 `SysRoleController`（已统一单接口）
 
@@ -882,8 +881,6 @@ untiy/
 | `/deleteSysRole/{id}` | DELETE | `ADMIN (1)` | 单个删除；同步清理 `sys_user_role` |
 | `/deleteSysRole` | DELETE | `ADMIN (1)` | 批量删除，Body: `List<Long>` ids |
 
-**已移除的旧接口：** `listSysRole_F/B`、`detailSysRole_F/B`、`add_B`、`updateSysRole_B`、`deleteSysRole_B`、`query`
-
 ### 11.5 `SysMenuController`（已统一为 4 接口）
 
 根路径：`/sys-menu`
@@ -895,8 +892,6 @@ untiy/
 | `/save` | POST | `ADMIN (1)` | 新增/更新；校验父级、循环、同级名、类型字段 |
 | `/delete/{id}` | DELETE | `ADMIN (1)` | 无子菜单且可操作时删除；清理 `sys_role_menu` |
 
-**已移除的旧接口：** `listSysMenu`、`listSysMenu_F/B`、`query`、`detailSysMenu_F/B`、`add_B`、`updateSysMenu_B`、`deleteSysMenu_B`
-
 ### 11.6 `SysRoleMenuController`（已统一为 2 接口）
 
 根路径：`/sys-role-menu`
@@ -905,8 +900,6 @@ untiy/
 |---|---|---|---|
 | `/assign` | POST | `ADMIN (1)` | 全量覆盖分配；Body: `AssignRoleMenuDTO`；先删后增 |
 | `/listByRole/{roleId}` | GET | `ADMIN (1)` | 返回已绑定 `menu_id` 列表 |
-
-**已移除的旧接口：** `listSysRoleMenu`、`listSysRoleMenu_F/B`、`query`、`detailSysRoleMenu_F/B`、`add_B`、`updateSysRoleMenu_B`、`deleteSysRoleMenu_B`
 
 ### 11.7 `ClubApplicationController`（9 接口）
 
@@ -948,10 +941,6 @@ untiy/
 | `/list` | GET | `ADMIN (1)` | 分页列表 |
 | `/detail/{id}` | GET | `ADMIN (1)` | 详情（审批流 + 变更历史） |
 
-**已移除的旧接口：** `listActivityApply_F/B`、`detailActivityApply_F/B`、`add_B`、`updateActivityApply_B`、`deleteActivityApply_B`、`query`
-
-> `ActivityApproveFlowController` 仍保留旧 CRUD，新业务不依赖。
-
 ### 11.10 `NoticeInfoController`（10 接口）
 
 根路径：`/notice-info`（规范见 `.cursor/skills/通知.md`）
@@ -968,8 +957,6 @@ untiy/
 | `/sent` | GET | `ADMIN (1)` | 我发送的通知 |
 | `/stats/{id}` | GET | `ADMIN (1)` | 已读/确认统计 |
 | `/upload` | POST | `ADMIN (1)` | 上传附件 |
-
-**已移除的旧接口：** `listNoticeInfo_F/B`、`detailNoticeInfo_F/B`、`add_B`、`updateNoticeInfo_B`、`deleteNoticeInfo_B`、`query`
 
 ### 11.11 `NoticeTemplateController`（5 接口）
 
@@ -989,44 +976,31 @@ untiy/
 
 | 路径 | 方法 | `@RequiresLevel` | 说明 |
 |---|---|---|---|
-| `/config` | POST | `ADMIN (1)` | 配置签到 |
-| `/config` | PUT | `ADMIN (1)` | 更新配置 |
-| `/config/{activityId}` | GET | `STUDENT (4)` | 查询配置 |
-| `/sign/{activityId}` | POST | `STUDENT (4)` | 定位/扫码签到 |
-| `/admin/sign/{activityId}` | POST | `ADMIN (1)` | 手动签到 |
-| `/checkout/{activityId}` | POST | `STUDENT (4)` | 签退 |
-| `/apply/{activityId}` | POST | `ADMIN (1)` | 社长发起补签 |
+| `/config` | POST | `ADMIN (1)` | Body **`activityNo`**；配置签到 |
+| `/config` | PUT | `ADMIN (1)` | Body **`activityNo`**；更新配置 |
+| `/config` | GET | `STUDENT (4)` | **`?activityNo=`** 查询配置 |
+| `/sign` | POST | `STUDENT (4)` | **`?activityNo=`** 定位/扫码签到 |
+| `/admin/sign` | POST | `ADMIN (1)` | **`?activityNo=`** 手动签到 |
+| `/checkout` | POST | `STUDENT (4)` | **`?activityNo=`** 签退 |
+| `/apply` | POST | `ADMIN (1)` | **`?activityNo=`** 社长发起补签 |
 | `/approve/{applyId}` | POST | `ADMIN (1)` | 补签审批 |
-| `/stats/{activityId}` | GET | `ADMIN (1)` | 签到统计 |
-| `/list/{activityId}` | GET | `ADMIN (1)` | 签到明细 |
-
-**已移除的旧接口：** `listActivitySign_F/B`、`detailActivitySign_F/B`、`add_B`、`updateActivitySign_B`、`deleteActivitySign_B`、`query`
+| `/stats` | GET | `ADMIN (1)` | **`?activityNo=`** 签到统计 |
+| `/list` | GET | `ADMIN (1)` | **`?activityNo=`** 签到明细 |
 
 ### 11.13 其他 Controller 根路径
 
-| Controller | 根路径 |
-|---|---|
-| `SysDataPermissionController` | `/sys-data-permission` |
-| `SysCollegeController` | `/sys-college` |
-| `SysDepartmentController` | `/sys-department` |
-| `SysMajorController` | `/sys-major` |
-| `SysClubController` | `/sys-club` |
-| `ActivityCategoryController` | `/activity-category` |
-| `ActivityApplyController` | `/activity-apply` |
-| `ActivityApproveFlowController` | `/activity-approve-flow` |
-| `ActivitySignController` | `/activity-sign` |
-| `NoticeCategoryController` | `/notice-category` |
-| `NoticeInfoController` | `/notice-info` |
-| **`NoticeTemplateController`** | **`/notice-template`** |
-| `NoticeReadRecordController` | `/notice-read-record`（旧 CRUD，已读/确认已内聚于 `NoticeInfoService`） |
-| `ClubStatisticsController` | `/club-statistics` |
+| Controller | 根路径 | 说明 |
+|---|---|---|
+| `LoginController` | `/login` | 登录（见 11.1） |
+| `RegisterController` | `/register` | 注册（见 11.1） |
+| `NotificationGrantController` | — | 空类，预留扩展 |
 
 ---
 
 ## 12. 前端结构（`club-admin-frontend`）
 
 ```
-src/api/crudFactory.ts    # 仍生成 listF/listB 等（待对齐 SysUser/SysRole 新接口）
+src/api/crudFactory.ts    # 通用 CRUD 工厂
 src/utils/request.ts      # baseURL=/Mass_Test，Header Token 注入
 src/stores/user.ts        # token、username、角色
 src/router/dynamic.ts     # 后端菜单驱动动态路由
@@ -1114,20 +1088,23 @@ login → JWT(subject=username) → Redis user:v2:{username}（CacheSnapshot）
 ### 13.7 活动签到
 
 ```
-配置：POST/PUT /activity-sign/config → 负责人/指导老师设置 sign_mode、窗口、半径、签退
-      → 扫码模式生成 qrToken
+配置：POST/PUT /activity-sign/config → Body activityNo、sign_mode、窗口、半径、签退
+      → @StartBeforeEnd：signStartTime < signEndTime
+      → signStartTime ≥ 当前时间；signEndTime ≤ signStartTime + 7 天（6516/6517）
+      → 扫码模式生成 qrToken；响应 activityNo（不暴露 activityId）
 
-签到：POST /sign/{id} → 窗口校验 → 定位(Haversine)/扫码 → 迟到标记 → uk_activity_user 去重
-      → 同时段其他活动冲突拒绝(9511)
+签到：POST /sign?activityNo= → 窗口校验 → 定位(Haversine)/扫码 → 迟到标记 → uk_activity_user 去重
+      → 同时段其他活动冲突拒绝(6511)
 
-签退：POST /checkout/{id} → 启用签退时；早于结束时间标记早退
-      → ActivitySignCheckoutTask 每5分钟：活动结束后自动签退
+签退：POST /checkout?activityNo= → 启用签退时；签退时间 ≥ 签到时间且 ≤ 签到 +7 天（6518/6519）
+      → 早于活动结束时间标记早退
+      → ActivitySignCheckoutTask 每5分钟：活动结束后自动签退（时间钳制在 [签到, 签到+7天]）
 
-补签：POST /apply/{id}（社长）→ 活动结束+1天内
+补签：POST /apply?activityNo=（社长）→ 活动结束+1天内
       → POST /approve/{applyId}：院级指导老师 / 校级指导老师→学院书记
       → 通过写入 sign_type=3
 
-统计：GET /stats/{id}、GET /list/{id}
+统计：GET /stats?activityNo=、GET /list?activityNo=
 ```
 
 ---
@@ -1192,7 +1169,8 @@ flowchart TB
 | ✅ 已完成 | 社团申请/合议模块 | `ClubApplicationController` + `ClubCouncilController`；见 `活动.md` |
 | ✅ 已完成 | **活动审批模块** | `ActivityApplyController` 10 接口；见 `活动审批模块.md` |
 | ✅ 已完成 | **通知模块** | `NoticeInfoController` + `NoticeTemplateController`；见 `通知.md` |
-| ✅ 已完成 | **活动签到模块** | `ActivitySignController` 10 接口；见 `签到.md` |
+| ✅ 已完成 | **活动签到模块** | `ActivitySignController` 10 接口；**`activityNo`** 对外；时间校验见 `签到.md` |
+| ✅ 已修复 | 签到 DTO/接口暴露 activityId | 改为 **`activityNo`** + 签退/配置时间校验（6516~6519） |
 | ✅ 已修复 | Redis CacheSnapshot 反序列化 | `@JsonProperty` 全字段；Key 升级 **`user:v2:{username}`**；脏数据删 Key |
 | ✅ 已修复 | 通知 receiverValues 静默失败 | **`assertReceiverValuesValid`**；6414/6415 |
 | ✅ 已完成 | 通知模板编码 | **`template_name` 存编码**；`TemplateCodeUtil`；6412/6413 防篡改 |
@@ -1200,8 +1178,6 @@ flowchart TB
 | ✅ 已清理 | 无引用空壳 Service | 删除 9 组仅 MyBatis-Plus 脚手架 Service（Mapper 仍保留） |
 | ⏳ 待做 | 种子角色 `CLUB_PRESIDENT` | 创建申请校级通过后绑定社长依赖该角色 |
 | ⏳ 待做 | 通知跨范围审批 | 当前跨范围发送返回 **6404**，完整审批流待实现 |
-| ⏳ 待做 | `NoticeCategoryController` 等旧 CRUD | 分类/阅读记录 Controller 待统一 |
-| ⏳ 待做 | 前端 `crudFactory` 对齐 | `listF/listB` → 统一 `listSysUser` / `listSysRole` 等 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
 | ⏳ 待做 | entity / model 重复 | 统一实体包 |
 | ⏳ 待做 | Fastjson 1.2.83 安全风险 | 升级或替换 Jackson |
@@ -1253,6 +1229,19 @@ flowchart TB
 | **`security/NoticeScopeHelper.java`** | **`assertReceiverValuesValid`**；`parseLongList` 严格化 |
 | **`exception/ErrorConfig.java`** | **6412~6415**；签到段改为 **65xx** |
 | **删除无引用 Service×9** | `CommonService`、`SysClubService`、`ActivityApproveFlowService` 等空壳 |
+
+### 17.0D 2026-07-16 活动签到 activityNo 与时间校验
+
+| 包 / 文件 | 变更摘要 |
+|---|---|
+| **`controller/ActivitySignController.java`** | 路径参数 `{activityId}` → **`?activityNo=`** |
+| **`entity/dto/SignConfigDTO.java`** | **`activityNo`** + **`@StartBeforeEnd`** |
+| **`entity/ActivitySignConfig.java`** | `@JsonIgnore activityId`；`activityNo` 为 `@TableField(exist=false)` 瞬态字段，查询时从 `ActivityApply` 反查附加 |
+| **`entity/vo/SignStatsVO.java`** | **`activityNo`** 替代 `activityId` |
+| **`service/impl/ActivitySignServiceImpl.java`** | `enrichConfigActivityNo` 反查附加；`requireApprovedActivityByNo`；配置/签退时间校验 |
+| **`mysql/activity_sign_migration.sql`** | 通过 `activity_id` 关联活动，`activityNo` 不冗余存储 |
+| **`entity/constants/ActivitySignConstants.java`** | `SIGN_WINDOW_MAX_DAYS`、`CHECKOUT_MAX_DAYS_AFTER_SIGN` |
+| **`exception/ErrorConfig.java`** | **6516~6519** |
 
 ### 17.0 2026-07-05 活动审批模块
 

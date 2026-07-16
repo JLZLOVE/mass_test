@@ -3,16 +3,20 @@ package untiy.entity.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
+import untiy.annotation.StartBeforeEnd;
 
+import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
+@StartBeforeEnd(startField = "signStartTime", endField = "signEndTime",
+        message = "签到开始时间必须早于签到结束时间")
 public class SignConfigDTO {
 
-    @NotNull(message = "活动ID不能为空")
-    private Long activityId;
+    @NotBlank(message = "活动编号不能为空")
+    private String activityNo;
 
     @NotNull(message = "签到方式不能为空")
     private Integer signMode;

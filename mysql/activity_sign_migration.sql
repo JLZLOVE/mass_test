@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS `activity_sign_makeup` (
     INDEX `idx_activity_user` (`activity_id`, `user_id`) USING BTREE
 ) ENGINE = InnoDB COMMENT = '补签申请';
 
+-- ========== 存量库增量（表已存在时执行）==========
 ALTER TABLE `activity_sign`
     ADD COLUMN `latitude` decimal(10, 7) NULL DEFAULT NULL COMMENT '纬度' AFTER `sign_time`,
     ADD COLUMN `longitude` decimal(10, 7) NULL DEFAULT NULL COMMENT '经度' AFTER `latitude`,

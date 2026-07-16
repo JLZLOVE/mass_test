@@ -30,6 +30,12 @@ public final class ActivitySignConstants {
 
     public static final int DEFAULT_RADIUS_METERS = 100;
 
+    /** 签到结束时间相对开始时间最长间隔（天） */
+    public static final int SIGN_WINDOW_MAX_DAYS = 7;
+
+    /** 签退时间相对签到时间最长间隔（天） */
+    public static final int CHECKOUT_MAX_DAYS_AFTER_SIGN = 7;
+
     private ActivitySignConstants() {
     }
 }

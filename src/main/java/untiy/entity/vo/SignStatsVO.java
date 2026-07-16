@@ -14,7 +14,7 @@ public class SignStatsVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private Long activityId;
+    private String activityNo;
 
     private Integer expectedCount;
 

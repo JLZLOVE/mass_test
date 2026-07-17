@@ -9,18 +9,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import untiy.annotation.IgnoreAuthConstants;
 import untiy.config.IgnoreAuthRegistry;
-import untiy.exception.EIException;
 import untiy.security.LoginUserDetails;
 import untiy.security.UserCacheHelper;
 import untiy.service.AuthorService;
-import untiy.service.impl.UserDetailServiceImpl;
 import untiy.utils.JwtUtil;
 
 import javax.servlet.FilterChain;
@@ -31,21 +27,20 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 /**
  * JWT 认证过滤器。
  * <p>
- * 流程：静态资源白名单 → {@link untiy.annotation.IgnoreAuth} 路径匹配（启动扫描注册表）
- * → Token 校验 → Redis 缓存 {@link LoginUserDetails} → SecurityContext。
+ * 流程：静态资源白名单 → {@link untiy.annotation.IgnoreAuth} 路径匹配
+ * → Token 校验 → Redis {@code user:v2:{username}} 必须存在 → SecurityContext。
+ * <p>
+ * Redis 缓存缺失时直接 401（不回源数据库），与注销删缓存语义一致。
  */
 @Component
 @EnableConfigurationProperties(IgnorePathsProperties.class)
 public class JwtFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(JwtFilter.class);
-
-    private static final long CACHE_TTL_HOURS = 1L;
 
     private static final String UNAUTHORIZED_JSON = "{\"code\":401,\"msg\":\"未登录或Token无效\"}";
 
@@ -54,9 +49,6 @@ public class JwtFilter extends OncePerRequestFilter {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
-
-    @Autowired
-    private UserDetailServiceImpl userDetailService;
 
     @Autowired
     private AuthorService authorService;
@@ -119,8 +111,9 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         String cacheKey = UserCacheHelper.keyForUsername(username);
-        LoginUserDetails loginUser = loadLoginUserDetails(username, cacheKey);
+        LoginUserDetails loginUser = readFromCache(cacheKey);
         if (loginUser == null) {
+            log.debug("用户 {} Redis 会话不存在或已失效，拒绝访问 {}", username, lookupPath);
             sendUnauthorizedJson(response);
             return;
         }
@@ -128,34 +121,6 @@ public class JwtFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(loginUser, null, loginUser.getAuthorities()));
         chain.doFilter(request, response);
-    }
-
-    private LoginUserDetails loadLoginUserDetails(String username, String cacheKey) {
-        LoginUserDetails cached = readFromCache(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-
-        try {
-            UserDetails userDetails = userDetailService.loadUserByUsername(username);
-            if (!(userDetails instanceof LoginUserDetails)) {
-                log.error("loadUserByUsername 未返回 LoginUserDetails：{}", username);
-                return null;
-            }
-            LoginUserDetails loginUser = (LoginUserDetails) userDetails;
-            redisTemplate.opsForValue().set(
-                    cacheKey, loginUser.toCacheSnapshot(), CACHE_TTL_HOURS, TimeUnit.HOURS);
-            return loginUser;
-        } catch (UsernameNotFoundException e) {
-            log.warn("用户 {} 不存在", username);
-            return null;
-        } catch (EIException e) {
-            log.warn("用户 {} 加载失败：{}", username, e.getMessage());
-            return null;
-        } catch (Exception e) {
-            log.error("加载用户 {} 时发生系统异常", username, e);
-            return null;
-        }
     }
 
     private LoginUserDetails readFromCache(String cacheKey) {
@@ -169,7 +134,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 return LoginUserDetails.fromCacheSnapshot(snapshot, authorService);
             }
             if (cached instanceof Collection) {
-                log.info("Redis Key {} 为旧版权限集合缓存，删除并回源", cacheKey);
+                log.info("Redis Key {} 为旧版权限集合缓存，删除", cacheKey);
                 redisTemplate.delete(cacheKey);
             }
         } catch (Exception e) {

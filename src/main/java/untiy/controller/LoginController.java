@@ -1,38 +1,38 @@
 package untiy.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import untiy.annotation.IgnoreAuth;
-import org.springframework.security.core.userdetails.UserDetails;
+import untiy.annotation.RequiresLevel;
+import untiy.exception.Level;
 import untiy.security.LoginUserDetails;
 import untiy.security.UserCacheHelper;
 import untiy.utils.JwtUtil;
 import untiy.utils.R;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+
 import java.util.concurrent.TimeUnit;
 
 /**
- * 登录接口。
+ * 登录 / 注销接口。
  * <p>
- * POST /login/allocation?name={学号/工号}&password={密码}
- * <p>
- * 认证成功后：签发 JWT（subject = username）、将 LoginUserDetails 快照写入 Redis。
+ * POST /login/allocation — 登录：签发 JWT，写入 Redis {@code user:v2:{username}}<br>
+ * POST /login/logout — 注销：删除 Redis 会话缓存，后续同 Token 由 JwtFilter 返回 401
  */
-
-
-
 @Slf4j
 @RestController
-@Tag(name = "登录认证", description = "用户登录接口，获取JWT令牌")
+@Tag(name = "登录认证", description = "用户登录与注销")
 @RequestMapping("/login")
 public class LoginController {
 
@@ -61,21 +61,16 @@ public class LoginController {
     public R login(@RequestParam String name, @RequestParam String password) {
         log.info("用户 {} 尝试登录", name);
 
-        // 1. 创建认证令牌 username 传入 Spring Security
         UsernamePasswordAuthenticationToken authToken =
                 new UsernamePasswordAuthenticationToken(name, password);
 
-        // 2. 认证（自动调用 UserDetailServiceImpl.loadUserByUsername 并比对密码）
         Authentication authentication = authenticationManager.authenticate(authToken);
 
-        // 3. 获取认证后的 UserDetails
         UserDetails principal = (UserDetails) authentication.getPrincipal();
         String username = principal.getUsername();
 
-        // 4. 签发 JWT，subject 必须为 username（学号/工号），禁止存储数据库主键 ID
         String token = jwtTokenUtil.generateToken(username);
 
-        // 5. 缓存 LoginUserDetails 快照，与 JwtFilter 读取规则一致
         String cacheKey = UserCacheHelper.keyForUsername(username);
         if (principal instanceof LoginUserDetails) {
             redisTemplate.opsForValue().set(
@@ -86,7 +81,26 @@ public class LoginController {
         }
         log.info("用户 {} 登录成功，用户快照已缓存至 Redis Key: {}", username, cacheKey);
 
-        // 6. 返回 token 与 username，响应格式与前端约定一致（R.code=0，字段平铺在 body）
         return R.ok().put("token", token).put("username", username);
+    }
+
+    /**
+     * 注销：删除 Redis 会话缓存。不手动 clearContext（由框架在请求结束后清理）。
+     * <p>
+     * 幂等：上下文无有效 {@link LoginUserDetails} 时仍返回成功。
+     */
+    @RequiresLevel(minLevel = Level.STUDENT)
+    @Operation(summary = "退出登录", description = "删除当前用户 Redis 会话缓存；需携带有效 Token")
+    @PostMapping("/logout")
+    public R logout() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof LoginUserDetails)) {
+            return R.ok("已退出");
+        }
+        LoginUserDetails user = (LoginUserDetails) auth.getPrincipal();
+        String username = user.getUsername();
+        UserCacheHelper.evictByUsername(redisTemplate, username);
+        log.info("用户 {} 已退出登录，已清除 Redis 会话缓存", username);
+        return R.ok("已退出");
     }
 }

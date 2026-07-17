@@ -3,6 +3,7 @@ package untiy.security;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.Collection;
+import java.util.Collections;
 
 /**
  * 用户 Redis 登录缓存。Key 规则与 {@link untiy.controller.LoginController} / {@link untiy.filter.JwtFilter} 一致。
@@ -17,6 +18,13 @@ public final class UserCacheHelper {
 
     public static String keyForUsername(String username) {
         return REDIS_USER_KEY_PREFIX + username;
+    }
+
+    public static void evictByUsername(RedisTemplate<String, Object> redisTemplate, String username) {
+        if (username == null || username.isEmpty()) {
+            return;
+        }
+        evictByUsernames(redisTemplate, Collections.singletonList(username));
     }
 
     public static void evictByUsernames(RedisTemplate<String, Object> redisTemplate, Collection<String> usernames) {

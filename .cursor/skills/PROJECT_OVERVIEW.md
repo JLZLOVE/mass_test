@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-16（username 暴露、Redis v2、社团申请、通知模板编码、receiverValues 校验、签到 activityNo 与时间校验）  
+> 更新时间：2026-07-16（角色分配 PRESIDENT/ADMIN 校验、用户删除权限校验 UserPermissionUtils、SysUserController 详情/删除改用 username、SysUserMapper 新增 deleteByUsername）  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -233,7 +233,7 @@ untiy/
 ├── entity/                         # 实体、DTO、VO
 ├── annotation/          (6)        # 自定义注解 + LevelAspect
 ├── config/              (9)        # Spring / JWT / Redis / CORS 等
-├── security/            (16+)      # 含 ActivityApproverHelper、ActivityApprovalChainHelper、ClubSecurityHelper 等
+├── security/            (17+)      # 含 ActivityApproverHelper、ActivityApprovalChainHelper、ClubSecurityHelper、UserPermissionUtils 等
 ├── filter/              (2)        # JwtFilter、IgnorePathsProperties
 ├── task/                           # ActivityApprovalTimeoutTask 定时任务
 ├── converter/           (2)        # MapStruct：SysUserConverter、SysRoleConvert
@@ -337,7 +337,7 @@ untiy/
 | **`NoticeScopeHelper`** | **通知**：发起人识别、**`assertReceiverValuesValid`**（receiverType=3/4/5 须合法 JSON 数组）、接收人解析、置顶/加红 |
 | **`NoticeAutoPublisher`** | **系统自动通知**：活动取消时通知参与人 |
 | **`ActivitySignHelper`** | **签到**：权限、Haversine 距离、补签审批人 |
-| `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、等级比较、同社团 scope 等） |
+| `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、仅社长可删、等级比较、同社团 scope 匹配） |
 
 ### 7.0 工具类 `SecurityUtils`（`utils` 包）
 
@@ -353,15 +353,16 @@ untiy/
 ```
 登录：POST /login/allocation → AuthenticationManager → UserDetailServiceImpl
      → JwtUtil.generateToken(username) → Redis 写入 user:v2:{username}（CacheSnapshot）
-请求：JwtFilter → 校验 Token → 加载 LoginUserDetails → SecurityContext
+请求：JwtFilter → 校验 Token → Redis 必须命中 → SecurityContext（缓存缺失则 401，不回源 DB）
+注销：POST /login/logout → UserCacheHelper.evictByUsername → 删 Redis；后续同 Token 401
 ```
 
 | Redis 项 | 规范 |
 |---|---|
 | Key | **`user:v2:{username}`**（`UserCacheHelper.keyForUsername`） |
 | Value | `LoginUserDetails.CacheSnapshot`（构造参数 + 字段均 `@JsonProperty`） |
-| 旧 Key | `user:{username}` 在 evict 时一并删除；命中旧 `Collection` 格式则删 Key 回源 |
-| 脏数据 | 反序列化失败 → **delete Key** → `loadUserByUsername` 重写快照 |
+| 旧 Key | `user:{username}` 在 evict 时一并删除；命中旧 `Collection` 格式则删 Key |
+| 脏数据 / 缺失 | 反序列化失败或 Key 不存在 → **401**（会话以 Redis 为准，与注销语义一致） |
 | TTL | 1 小时 |
 | JWT 过期 | `jwt.expiration = 3600000`（1 小时，与 Redis TTL 对齐） |
 | **菜单树 Key** | **`menu:tree:{userId}`** → `MenuTreeResultVO`；变更后全量清除 |
@@ -621,7 +622,7 @@ untiy/
 | `updateUser` | — | — | 学生仅可改自己；白名单字段（realName/gender/phone/email/avatar） |
 | **`toggleStatus`** | ✅ `findInScope` | — | 批量启用/禁用；禁用时不可含自己；**`UserCacheHelper.evictByUsernames`** |
 | **`listDisabled`** | ✅ `applySysUserScope` + `status=0` | ✅ | 关键词模糊搜索 username/realName |
-| `deleteByUsername` / `deleteUsers` | ✅ `UserSecurityHelper.findInScope` | — | 越权抛 `AccessDeniedException` |
+| `deleteByUsername` / `deleteUsers` | — | 按 username 单个删除；批量按 List<Long> ids 删除；越权抛 `AccessDeniedException` |
 | `register` | — | — | 注册逻辑（`RegisterController` 调用） |
 
 ### 10.3 `SysRoleServiceImpl`
@@ -642,8 +643,8 @@ untiy/
 
 | 方法 | 等级/范围控制 | 说明 |
 |---|---|---|
-| `assign(AssignRoleDTO)` | ✅ `findActiveInScope` + `LevelBasedAccess.checkNewLevel` | 目标须未禁用且在数据范围；**`UserRoleScopeHelper.validateScope(role.dataScope, ...)`**；防重复 |
-| `revoke(id)` | ✅ `checkOperable` + `assertNotRevokingOwnRole` | 不可撤销高于自身等级；不可撤销自己持有的角色 |
+| `assign(userId, roleId, scopeType, scopeId)` | ✅ 角色码校验 + 用户类型校验 | **PRESIDENT 仅限 userType=1（学生），ADMIN 仅限 userType=2（老师）**；插入 `sys_user_role` |
+| `revoke(id)` | — | 根据 id 删除 `sys_user_role` 记录 |
 | `pageQuery(param, keyword)` | ✅ `DataScopeHelper.applySysUserScope` → 限定 userIds | 联查 `SysUserRoleVO`（username、realName、roleName） |
 | `listMyRoles()` | — | 当前登录用户角色列表 |
 
@@ -838,6 +839,7 @@ untiy/
 | 路径 | 方法 | 权限 | 说明 |
 |---|---|---|---|
 | `/login/allocation` | POST | `@IgnoreAuth` | `name` + `password` → `{ token, username }` |
+| `/login/logout` | POST | `STUDENT (4)` | 删 Redis `user:v2:{username}`；返回「已退出」；幂等 |
 | `/register/single` | POST | `@IgnoreAuth` | `RegisterDTO` 注册 |
 
 ### 11.2 `SysUserController`（已统一单接口）
@@ -862,8 +864,8 @@ untiy/
 
 | 路径 | 方法 | `@RequiresLevel` | 说明 |
 |---|---|---|---|
-| **`/assign`** | POST | `ADMIN (1)` | 分配角色；Body: `AssignRoleDTO`；校验 `data_scope`、防重复、目标未禁用 |
-| **`/revoke/{id}`** | DELETE | `ADMIN (1)` | 撤销角色关联；不可撤销高于自身等级或自己持有的角色 |
+| **`/assign`** | POST | `ADMIN (1)` | 分配角色；Query 参数：`userId`、`roleId`、`scopeType`、`scopeId`；**PRESIDENT 仅限 userType=1（学生），ADMIN 仅限 userType=2（老师）** |
+| **`/revoke`** | DELETE | `ADMIN (1)` | 撤销角色关联；Query 参数：`id` |
 | **`/list`** | GET | `ADMIN (1)` | 分页联查；支持 `keyword`；按管理员数据范围过滤 |
 | **`/my-roles`** | GET | `STUDENT (4)` | 当前登录用户角色列表 |
 
@@ -1217,8 +1219,8 @@ flowchart TB
 |---|---|
 | **`security/LoginUserDetails.java`** | `CacheSnapshot` 全字段 `@JsonProperty` + `@Getter` |
 | **`security/UserCacheHelper.java`** | Redis Key **`user:v2:{username}`**；evict 含旧 Key |
-| **`filter/JwtFilter.java`** | 脏缓存 delete；Map→CacheSnapshot；LoginController 写快照 |
-| **`controller/LoginController.java`** | 登录写入 `CacheSnapshot` 非 Authorities |
+| **`filter/JwtFilter.java`** | Redis 会话必存在；缺失/脏数据 401；不回源 DB |
+| **`controller/LoginController.java`** | 登录写 `CacheSnapshot`；**`POST /logout`** 删会话缓存 |
 | **`security/UserExposeHelper.java`** | 社团/活动/通知用户 FK → `*Username` |
 | **`controller/ClubApplicationController.java`** | username 查询/审批；无路径 id |
 | **`entity/dto/ClubCreateApplyDTO.java`** | `proposedLeaderUsername`；`UsernameStringDeserializer` |
@@ -1229,6 +1231,20 @@ flowchart TB
 | **`security/NoticeScopeHelper.java`** | **`assertReceiverValuesValid`**；`parseLongList` 严格化 |
 | **`exception/ErrorConfig.java`** | **6412~6415**；签到段改为 **65xx** |
 | **删除无引用 Service×9** | `CommonService`、`SysClubService`、`ActivityApproveFlowService` 等空壳 |
+
+### 17.0E 2026-07-01 角色分配校验 / 用户删除权限 / username 重构
+
+| 包 / 文件 | 变更摘要 |
+|---|---|
+| **`security/UserPermissionUtils.java`** | **新增**：`@Component` 注入，`checkDeletePermission` / `canDelete` 两条方法；规则：不能删自己、仅社长可删、等级高于目标、同社团 scope 匹配 |
+| **`controller/SysUserRoleController.java`** | 新增 `POST /assign`（Query 参数：userId/roleId/scopeType/scopeId）+ `DELETE /revoke`（Query 参数：id）；均加 `@RequiresLevel(minLevel = Level.ADMIN)` |
+| **`service/SysUserRoleService.java`** | 新增 `assign(userId, roleId, scopeType, scopeId)`、`revoke(id)` |
+| **`service/impl/SysUserRoleServiceImpl.java`** | `assign`：校验 PRESIDENT 仅限 userType=1、ADMIN 仅限 userType=2；`revoke`：按 id 删除 |
+| **`controller/SysUserController.java`** | 修复 `GET /detailSysUser/{username}` 路径（原为损坏字符串）；新增 `DELETE /deleteSysUser/{username}`；`addSysUser` 中 `getDetail` 改用 `username` |
+| **`service/SysUserService.java`** | `getDetail(String name)` → `getDetail(String username)`；新增 `deleteByUsername(String username)` |
+| **`service/impl/SysUserServiceImpl.java`** | `getDetail` 参数重命名；新增 `deleteByUsername` 实现（调用 `baseMapper.deleteByUsername`） |
+| **`mapper/SysUserMapper.java`** | 新增 `deleteByUsername(@Param("username") String username)` |
+| **`mapper/SysUserMapper.xml`** | 新增 `<delete id="deleteByUsername">` SQL |
 
 ### 17.0D 2026-07-16 活动签到 activityNo 与时间校验
 

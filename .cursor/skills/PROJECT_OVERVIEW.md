@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-16（门户设计方案定稿、DB 迁移 7 字段、活动编号格式重构、ClubDissolveExecutor 补充 MEMBER 清理、deleteByUsername 集成 UserPermissionUtils、STATUS_BLOCKED=8）  
+> 更新时间：2026-07-18（三个编号格式统一为 {社团6类前缀}{yyyyMMddHHmm}{5位随机}、noticeNo 自动生成、防篡改适配新格式）  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -336,7 +336,7 @@ untiy/
 | **`ActivityApprovalChainHelper`** | **活动审批链**：按发起人角色 + 院/校级动态生成步骤 |
 | **`UserExposeHelper`** | **API 用户标识转换**：`usernameOf`、`*Username` 字段填充（社团申请/活动/审批流） |
 | **`NoticeScopeHelper`** | **通知**：发起人识别、**`assertReceiverValuesValid`**（receiverType=3/4/5 须合法 JSON 数组）、接收人解析、置顶/加红 |
-| **`NoticeAutoPublisher`** | **系统自动通知**：活动取消时通知参与人 |
+| **`NoticeAutoPublisher`** | **系统自动通知**：活动取消时通知参与人；**活动编号防篡改封锁时通知管理员（院级→院长，校级→SUPER_ADMIN）** |
 | **`ActivitySignHelper`** | **签到**：权限、Haversine 距离、补签审批人 |
 | `UserPermissionUtils` | 删除权限细粒度校验（不能删自己、仅社长可删、等级比较、同社团 scope 匹配） |
 
@@ -464,7 +464,7 @@ untiy/
 | `6xxx` | 活动 | 活动分类/内容/编号 |
 | `71xx` | 菜单 | 7101~7108 |
 | `72xx` | 社团申请/合议 | 7201~7220 |
-| **`73xx`** | **活动审批** | **7301~7318** |
+| **`73xx`** | **活动审批** | **7301~7319** |
 | `8xxx` | 认证/Token | 未登录 8001、Token 过期 8003 等 |
 | `9xxx` | 角色权限 | 9001~9020 |
 | **`64xx`** | **通知 + 模板** | **6401~6416** |
@@ -544,6 +544,11 @@ untiy/
 | 7312 | `ACT_SUMMARY_WINDOW` | 活动总结须在结束后1-3天内上传 |
 | 7313 | `ACT_TIME_INVALID` | 开始时间必须早于结束时间 |
 | 7314 | `ACT_LEVEL_ADJUST_LOCKED` | 活动级别已调整过，不可再次修改 |
+| 7315 | `ACT_APPROVER_PRESIDENT_NOT_FOUND` | 未找到该社团社长 |
+| 7316 | `ACT_APPROVER_NO_COLLEGE` | 社团未挂靠学院，无法确定学院书记 |
+| 7317 | `ACT_APPROVER_SUPER_ADMIN_NOT_FOUND` | 未找到校书记（超级管理员） |
+| 7318 | `ACT_APPROVER_NOT_FOUND_TEMPLATE` | 未找到%s（模板占位） |
+| **7319** | **`ACT_CODE_TAMPER`** | **活动编号与创建时间不一致，数据可能被篡改** |
 
 ### 9.6 通知 / 模板（64xx）
 
@@ -694,6 +699,8 @@ untiy/
 | `uploadSummary` | 已通过活动；结束后 1~3 天；文字 + 附件 |
 | `getDetail` | 申请 + 审批流 + 变更历史 + 当前审批人 |
 | `pageQuery` | 分页条件查询 |
+| **`portalList`** | **门户活动列表：freezeTime 校验（5分钟上限）、6个月窗口、approve_status=4、联查社团+分类** |
+| **`portalDetail`** | **门户活动详情：防篡改校验（activityNo 日期 vs create_time）、封锁（status=8）+ 通知管理员 + 抛 7319、联查签到配置（不含 GPS）** |
 
 **审批链路径（正常申请）：**
 
@@ -727,6 +734,8 @@ untiy/
 | `confirmRead` | 需确认通知的确认操作 |
 | `myInbox` / `mySent` | 收件箱 / 发件箱 |
 | `readStats` | 发布人查看已读/已确认/接收人数 |
+| **`portalList`** | **门户通知列表：receiver_type=1 + status=1、批量查 readCount、摘要截取（<50 展示标题，50~150 取前20%，>150 取前150字符）** |
+| **`portalDetail`** | **门户通知详情：按 noticeNo 查、异步 viewCount+1、附件仅 attachment_min_level 为 null/0 时返回** |
 
 **receiverValues 校验链路：** `assertCanSendToScope` 入口调用 **`NoticeScopeHelper.assertReceiverValuesValid`**；`parseLongList` 不再吞异常；非法如 `"abc"` 抛 **6414**，空数组 **6415**。
 
@@ -757,6 +766,14 @@ untiy/
 | `autoCheckoutExpired` | 活动结束后自动签退 |
 
 **定时（`ActivitySignCheckoutTask`）：** 每 5 分钟扫描已结束活动自动签退。
+
+### 10.13 `SysClubServiceImpl`（`@Slf4j`）**【新增】**
+
+| 方法 | 说明 |
+|---|---|
+| **`portalList`** | **门户社团列表：status=1、可选 category 筛选、联查 sys_college 取 college_name、全量返回不分页** |
+
+> SysClubService 接口与 SysClubServiceImpl 实现均为本次新建，为门户 `/portal/clubs` 提供社团数据。
 
 ---
 
@@ -799,6 +816,11 @@ untiy/
 | **`NoticeDetailVO`** | `notice`、`highlight`、`visibleAttachments`、已读/确认、统计 | 通知详情 |
 | **`SignStatsVO`** | **`activityNo`**、应签/已签/签到率/迟到/早退/时间分布 | 签到统计 |
 | **`SignRecordVO`** | 姓名、方式、时间、地点、迟到/早退 | 签到明细 |
+| **`PortalNoticeListVO`** | noticeNo、title、summary、publishTime、topFlag、coverImage、hasAttachment、readCount、receiverCount、readRate、viewCount | 门户通知列表 |
+| **`PortalNoticeDetailVO`** | noticeNo、title、content、publishTime、topFlag、coverImage、attachments、readCount、receiverCount、readRate、viewCount | 门户通知详情 |
+| **`PortalActivityListVO`** | activityNo、activityName、startTime、endTime、location、clubName、clubCategoryName、activityLevel、categoryName、coverImage | 门户活动列表 |
+| **`PortalActivityDetailVO`** | extends PortalActivityListVO + content、organizerNote、signAvailable、signStartTime、signEndTime、signMode、checkoutEnabled | 门户活动详情（不含 GPS） |
+| **`PortalClubVO`** | clubName、category、description、logo、collegeName | 门户社团风采 |
 
 ### 常量 / 工具
 
@@ -807,9 +829,9 @@ untiy/
 | `ClubApplyConstants` | 申请类型、状态、合议状态、scope 类型、角色码常量 |
 | **`ActivityApplyConstants`** | 活动状态、级别、审批流类型、发起人/审批人类型、历史状态 |
 | `ClubCodeGeneratorUtil` | 申请编号 **`SQ*`**、社团编号 `{类别前缀}{时间戳}` |
-| **`TemplateCodeUtil`** | 模板/业务编码 `{前缀}_{yyyyMMddHHmm}_{6位随机}` + 防篡改校验 |
-| **`TemplateCodePrefix`** | `NOTICE` / `CLUB` / `ACT` |
-| **`ActivityCodeGeneratorUtil`** | 生成活动编号：`{社团类别前缀}{yyyyMMdd}{4位序列号}`（如 `WH202607180032`），按 clubId 解析类别前缀 |
+| **`TemplateCodeUtil`** | 统一编号：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`（21位）+ 防篡改校验（分钟级） |
+| **`TemplateCodePrefix`** | 社团6类前缀（SXZZ/XSKJ/CXCY/WHTY/ZYGY/ZLZH）+ 默认 `TONG` |
+| **`ActivityCodeGeneratorUtil`** | 生成活动编号：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`（如 `WHTY20260718143082739`），按 clubId 解析类别前缀；同时提供 `generate(prefix, time)` 通用方法和 `ensureUnique` 唯一性保证 |
 | **`ActivityFileStorageUtil`** | 活动申请/总结附件本地存储 |
 | **`NoticeConstants`** | 通知状态、接收类型、重要/紧急、来源类型 |
 | **`NoticeFileStorageUtil`** | 通知附件本地存储（`uploads/notice`） |
@@ -998,6 +1020,7 @@ untiy/
 | `LoginController` | `/login` | 登录（见 11.1） |
 | `RegisterController` | `/register` | 注册（见 11.1） |
 | `NotificationGrantController` | — | 空类，预留扩展 |
+| **`PortalController`** | **`/portal`** | **`@IgnoreAuth` 免登录；通知列表/详情、活动列表/详情、社团列表** |
 
 ---
 
@@ -1186,9 +1209,11 @@ flowchart TB
 | ✅ 已完成 | 单条删除集成权限校验 | `deleteByUsername` 集成 `UserPermissionUtils.checkDeletePermission` |
 | ✅ 已完成 | ClubDissolveExecutor 补充 MEMBER | 解散时同步清理 MEMBER 角色绑定；`ClubApplyConstants` 新增 `ROLE_MEMBER` |
 | ✅ 已完成 | 活动编号格式重构 | `ActivityCodeGeneratorUtil`：`{类别前缀}{日期}{4位序列}`，按 clubId 解析 |
+| ✅ 已完成 | 活动编号格式统一 v2 | 三编号格式统一：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`，活动/模板/通知均使用 21 位统一格式；noticeNo 发布时自动生成 |
 | ✅ 已完成 | STATUS_BLOCKED=8 | `ActivityApplyConstants.STATUS_BLOCKED` 已定义；门户防篡改触发时写入 |
 | ✅ 已完成 | 门户 DB 迁移 | `notice_info` +4 字段、`activity_apply` +2 字段、`sys_club` + `dissolve_time` |
 | ✅ 已完成 | 业务编号去下划线 | `WH20260718_0032` → `WH202607180032`；设计文档同步更新 |
+| ✅ 已完成 | 门户 5 接口 Service 实现 | NoticeInfoServiceImpl.portalList/portalDetail、ActivityApplyServiceImpl.portalList/portalDetail、SysClubServiceImpl.portalList；防篡改封锁通知（7319）、摘要截取（<50/50~150/>150）、freezeTime 5 分钟校验 |
 | ⏳ 待做 | 种子角色 `CLUB_PRESIDENT` | 创建申请校级通过后绑定社长依赖该角色 |
 | ⏳ 待做 | 通知跨范围审批 | 当前跨范围发送返回 **6404**，完整审批流待实现 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
@@ -1243,7 +1268,7 @@ flowchart TB
 | **`service/impl/NoticeTemplateServiceImpl.java`** | `template_name` 存编码；API 不暴露 id |
 | **`security/NoticeScopeHelper.java`** | **`assertReceiverValuesValid`**；`parseLongList` 严格化 |
 | **`exception/ErrorConfig.java`** | **6412~6415**；签到段改为 **65xx** |
-| **删除无引用 Service×9** | `CommonService`、`SysClubService`、`ActivityApproveFlowService` 等空壳 |
+| **删除无引用 Service×9** | `CommonService`、`SysClubService`、`ActivityApproveFlowService` 等空壳删除；**SysClubService 已于 2026-07-18 重新创建（含 portalList）** |
 
 ### 17.0F 2026-07-16 门户设计方案 / DB 迁移 / 编号重构 / 解散修复
 
@@ -1260,6 +1285,37 @@ flowchart TB
 | **`utils/ActivityCodeGeneratorUtil.java`** | **重构**：`ACT{date}{random}{suffix}` → `{类别前缀}{date}{4位序列}`（如 `WH202607180032`）；方法签名改为 `generateCode(Long clubId)`，自动解析社团类别前缀 |
 | **`service/impl/ActivityApplyServiceImpl.java`** | `generateCode(dto.getCategoryId())` → `generateCode(dto.getClubId())` |
 | **`D:\冯\masss\后端.md`** | 门户设计方案定稿：方案 A（noticeNo）、签到不暴露 GPS、仅返回 topFlag、时间冻结 freezeTime、图片延迟删除、编号去下划线 |
+
+### 17.0G 2026-07-18 门户 Service 实现 / 防篡改 / 错误码 / SysClubService
+
+| 包 / 文件 | 变更摘要 |
+|---|---|
+| **`exception/ErrorConfig.java`** | 新增 `ACT_CODE_TAMPER = 7319`（活动编号与创建时间不一致，数据可能被篡改） |
+| **`service/NoticeInfoService.java`** | 新增 `portalList(int page, int size)`、`portalDetail(String noticeNo)` |
+| **`service/impl/NoticeInfoServiceImpl.java`** | 实现 `portalList`（receiver_type=1+status=1、批量查 readCount、摘要截取算法）、`portalDetail`（noticeNo 查询、异步 viewCount+1、附件权限过滤）、`extractSummary`（<50 展示标题、50~150 取前20%、>150 取前150）、`stripHtmlAndPunctuation`、`filterPortalAttachments`、`incrementViewCount`（@Async） |
+| **`service/ActivityApplyService.java`** | 新增 `portalList(int page, int size, LocalDateTime freezeTime)`、`portalDetail(String activityNo)` |
+| **`service/impl/ActivityApplyServiceImpl.java`** | 实现 `portalList`（freezeTime 5分钟上限校验、6个月窗口、approve_status=4、联查社团+分类）、`portalDetail`（防篡改校验 `checkActivityNoTamper`：解析 activityNo 日期比对 create_time → 封锁 status=8 + 通知管理员 + 抛 7319、联查签到配置不含 GPS、signAvailable 运行时计算） |
+| **`service/NoticeAutoPublisher.java`** | 新增 `publishBlockedNotice`（院级活动通知院长、校级通知所有 SUPER_ADMIN）；新增 `SysRoleMapper`、`SysUserRoleMapper` 注入 |
+| **`service/SysClubService.java`** | **新建**：`extends IService<SysClub>`，`portalList(String category)` |
+| **`service/impl/SysClubServiceImpl.java`** | **新建**：`@Service` 实现，`portalList`（status=1、可选 category 筛选、联查 sys_college、全量返回不分页） |
+| **`entity/vo/PortalNoticeListVO.java`** | 已创建（noticeNo/title/summary/publishTime/topFlag/coverImage/hasAttachment/readCount/receiverCount/readRate/viewCount） |
+| **`entity/vo/PortalNoticeDetailVO.java`** | 已创建（noticeNo/title/content/publishTime/topFlag/coverImage/attachments/readCount/receiverCount/readRate/viewCount） |
+| **`entity/vo/PortalActivityListVO.java`** | 已创建（activityNo/activityName/startTime/endTime/location/clubName/clubCategoryName/activityLevel/categoryName/coverImage） |
+| **`entity/vo/PortalActivityDetailVO.java`** | 已创建（extends PortalActivityListVO + content/organizerNote/signAvailable/signStartTime/signEndTime/signMode/checkoutEnabled） |
+| **`entity/vo/PortalClubVO.java`** | 已创建（clubName/category/description/logo/collegeName） |
+| **`.cursor/skills/无权限mvc构造.md`** | 修复：6412→7319、freezeTime 加 @DateTimeFormat、新增 5 分钟校验注释、更新摘要截取及 Service 层注释、TEMPLATE_CODE_TAMPER→ACT_CODE_TAMPER |
+
+### 17.0H 2026-07-18 三编号格式统一
+
+| 包 / 文件 | 变更摘要 |
+|---|---|
+| **`utils/ActivityCodeGeneratorUtil.java`** | **重构**：格式 `{prefix}{yyyyMMdd}{4位序列}` → `{prefix}{yyyyMMddHHmm}{5位随机}`；使用 `ClubCategory.prefixOf()` 替代内部 `CATEGORY_PREFIX`；新增 `generate(prefix, time)` 和 `ensureUnique(prefix, time)` 通用方法；`generateCode(clubId)` 内部调用 `ensureUnique` |
+| **`utils/TemplateCodeUtil.java`** | **重构**：格式 `{PREFIX}_{yyyyMMddHHmm}_{6位随机}` → `{prefix}{yyyyMMddHHmm}{5位随机}`；去掉下划线；正则匹配 `^(SXZZ\|XSKJ\|CXCY\|WHTY\|ZYGY\|ZLZH)\\d{12}\\d{5}$`；`extractMinutePart` 改为 `substring(4, 16)`；新增 `extractPrefix` |
+| **`entity/constants/TemplateCodePrefix.java`** | **重构**：改用社团6类前缀（SXZZ/XSKJ/CXCY/WHTY/ZYGY/ZLZH）+ 默认 `TONG`；新增 `fromCategory(String)` |
+| **`service/impl/NoticeTemplateServiceImpl.java`** | `TemplateCodePrefix.NOTICE` → `TemplateCodePrefix.DEFAULT` |
+| **`entity/dto/NoticeTemplateDTO.java`** | 注释更新：格式说明改为新格式 |
+| **`service/impl/NoticeInfoServiceImpl.java`** | `doPublish` 新增 `noticeNo` 自动生成（`generateNoticeNo`）：从发布者关联社团获取类别前缀，无社团则用 `TONG`；注入 `ActivityCodeGeneratorUtil`；导入 `ClubCategory`、`TemplateCodePrefix`、`SysUserRole` |
+| **`service/impl/ActivityApplyServiceImpl.java`** | `checkActivityNoTamper` 适配新格式：`substring(4, 16)` 提取 yyyyMMddHHmm，与 `create_time` 截断到分钟比对 |
 
 ### 17.0E 2026-07-01 角色分配校验 / 用户删除权限 / username 重构
 

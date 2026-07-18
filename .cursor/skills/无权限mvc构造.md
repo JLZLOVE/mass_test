@@ -155,7 +155,7 @@ public class PortalController {
 
 &#x20;       // Service 层逻辑：
 
-&#x20;       // 1. 防篡改校验：从 activityNo 提取日期时间（substring(4,16)），与 create\_time 截断到分钟比对
+&#x20;       // 1. 防篡改校验：从 activityNo 提取日期时间（substring(2,14)），与 create\_time 截断到分钟比对
 
 &#x20;       // 2. 不一致 → 封锁（approve\_status=8）+ 通知管理员 + 抛 7319
 
@@ -456,11 +456,9 @@ GROUP BY notice\_id;
 
 \### 4.3 活动编号防篡改 + 封锁事务
 
-**统一编号格式：** `{社团6类前缀}{yyyyMMddHHmm}{5位随机}`（21位），例 `WHTY20260718143082739`
-
+**统一编号格式：** `{2位缩写前缀}{yyyyMMddHHmm}{5位随机}`（19位），例 `WH20260718143082739`
 在 `portalDetail` 中：
-
-1\. 解析 `activityNo.substring(4, 16)` 提取时间（yyyyMMddHHmm）
+1\. 解析 `activityNo.substring(2, 14)` 提取时间（yyyyMMddHHmm）
 
 2\. 与 `create\_time` 截断到分钟比对
 

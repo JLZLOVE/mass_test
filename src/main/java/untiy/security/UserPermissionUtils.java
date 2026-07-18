@@ -2,6 +2,7 @@ package untiy.security;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 public class UserPermissionUtils {
 
     @Autowired
+    @Lazy
     private SysUserService sysUserService;
 
     @Autowired

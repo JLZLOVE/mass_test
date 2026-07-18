@@ -227,6 +227,9 @@ public class ErrorConfig {
     public static final Integer ACT_APPROVER_NOT_FOUND_TEMPLATE_CODE = 7318;
     public static final String ACT_APPROVER_NOT_FOUND_TEMPLATE_MSG = "未找到%s";
 
+    public static final Integer ACT_CODE_TAMPER_CODE = 7319;
+    public static final String ACT_CODE_TAMPER_MSG = "活动编号与创建时间不一致，数据可能被篡改";
+
     // ====================== 通知 (64xx) ======================
     public static final Integer NOTICE_NOT_FOUND_CODE = 6401;
     public static final String NOTICE_NOT_FOUND_MSG = "通知不存在";

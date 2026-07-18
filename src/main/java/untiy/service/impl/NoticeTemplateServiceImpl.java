@@ -116,7 +116,7 @@ public class NoticeTemplateServiceImpl extends ServiceImpl<NoticeTemplateMapper,
     private String generateUniqueName(LocalDateTime createTime) {
         String name;
         do {
-            name = TemplateCodeUtil.generate(TemplateCodePrefix.NOTICE, createTime);
+            name = TemplateCodeUtil.generate(TemplateCodePrefix.DEFAULT, createTime);
         } while (count(new LambdaQueryWrapper<NoticeTemplate>().eq(NoticeTemplate::getTemplateName, name)) > 0);
         return name;
     }

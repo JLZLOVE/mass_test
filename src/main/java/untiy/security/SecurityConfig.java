@@ -61,7 +61,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                         "/favicon.ico",
                         "/js/**",
                         "/css/**",
-                        "/img/**"
+                        "/img/**",
+                        // 门户静态图（不含 /portal/admin 上传接口）
+                        "/portal/notice/**",
+                        "/portal/activity/**",
+                        "/portal/club/**"
                 ).permitAll()
                 .anyRequest().authenticated()
                 .and()

@@ -13,7 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import untiy.entity.ActivityApply;
 import untiy.entity.ActivityApplyHistory;
 import untiy.entity.ActivityApproveFlow;
+import untiy.entity.ActivityCategory;
+import untiy.entity.ActivitySignConfig;
 import untiy.entity.SysClub;
+import untiy.entity.SysCollege;
 import untiy.entity.SysUser;
 import untiy.entity.constants.ActivityApplyConstants;
 import untiy.entity.constants.ClubApplyConstants;
@@ -23,11 +26,15 @@ import untiy.entity.dto.ActivityChangeDTO;
 import untiy.entity.dto.ActivitySubmitDTO;
 import untiy.entity.dto.ActivitySummaryDTO;
 import untiy.entity.vo.ActivityApplyDetailVO;
+import untiy.entity.vo.PortalActivityDetailVO;
+import untiy.entity.vo.PortalActivityListVO;
 import untiy.exception.EIException;
 import untiy.exception.ErrorConfig;
 import untiy.mapper.ActivityApplyHistoryMapper;
 import untiy.mapper.ActivityApplyMapper;
 import untiy.mapper.ActivityApproveFlowMapper;
+import untiy.mapper.ActivityCategoryMapper;
+import untiy.mapper.ActivitySignConfigMapper;
 import untiy.mapper.SysClubMapper;
 import untiy.mapper.SysCollegeMapper;
 import untiy.mapper.SysDepartmentMapper;
@@ -45,10 +52,12 @@ import untiy.utils.MPUtil;
 import untiy.utils.SecurityUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -84,6 +93,12 @@ public class ActivityApplyServiceImpl extends ServiceImpl<ActivityApplyMapper, A
 
     @Autowired
     private NoticeAutoPublisher noticeAutoPublisher;
+
+    @Autowired
+    private ActivityCategoryMapper activityCategoryMapper;
+
+    @Autowired
+    private ActivitySignConfigMapper activitySignConfigMapper;
 
     @Transactional
     @Override
@@ -511,6 +526,154 @@ public class ActivityApplyServiceImpl extends ServiceImpl<ActivityApplyMapper, A
     private void validateTimeRange(LocalDateTime start, LocalDateTime end) {
         if (start == null || end == null || !start.isBefore(end)) {
             throw new EIException(ErrorConfig.ACT_TIME_INVALID_CODE, ErrorConfig.ACT_TIME_INVALID_MSG);
+        }
+    }
+
+    // ====================== 门户方法 ======================
+
+    @Override
+    public Page<PortalActivityListVO> portalList(int page, int size, LocalDateTime freezeTime) {
+        LocalDateTime now = LocalDateTime.now();
+        if (freezeTime == null) {
+            freezeTime = now;
+        } else if (freezeTime.isAfter(now.plusMinutes(5))) {
+            freezeTime = now;
+        }
+
+        LocalDateTime windowStart = freezeTime.minusMonths(6);
+        LocalDateTime windowEnd = freezeTime.plusMonths(2);
+
+        Page<ActivityApply> pageParam = new Page<>(page, size);
+        IPage<ActivityApply> activityPage = page(pageParam, new LambdaQueryWrapper<ActivityApply>()
+                .eq(ActivityApply::getApproveStatus, ActivityApplyConstants.STATUS_APPROVED)
+                .ge(ActivityApply::getStartTime, windowStart)
+                .le(ActivityApply::getStartTime, windowEnd)
+                .orderByAsc(ActivityApply::getStartTime));
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        List<PortalActivityListVO> voList = activityPage.getRecords().stream().map(activity -> {
+            PortalActivityListVO vo = new PortalActivityListVO();
+            vo.setActivityNo(activity.getActivityNo());
+            vo.setActivityName(activity.getActivityName());
+            vo.setStartTime(activity.getStartTime() != null ? activity.getStartTime().format(dtf) : null);
+            vo.setEndTime(activity.getEndTime() != null ? activity.getEndTime().format(dtf) : null);
+            vo.setLocation(activity.getLocation());
+            vo.setActivityLevel(activity.getActivityLevel());
+            vo.setCoverImage(activity.getCoverImage());
+
+            // 联查社团
+            if (activity.getClubId() != null) {
+                SysClub club = sysClubMapper.selectById(activity.getClubId());
+                if (club != null) {
+                    vo.setClubName(club.getClubName());
+                    vo.setClubCategoryName(club.getCategory());
+                }
+            }
+            // 联查活动分类
+            if (activity.getCategoryId() != null) {
+                ActivityCategory category = activityCategoryMapper.selectById(activity.getCategoryId());
+                if (category != null) {
+                    vo.setCategoryName(category.getCategoryName());
+                }
+            }
+            return vo;
+        }).collect(Collectors.toList());
+
+        Page<PortalActivityListVO> result = new Page<>(page, size);
+        result.setTotal(activityPage.getTotal());
+        result.setRecords(voList);
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public PortalActivityDetailVO portalDetail(String activityNo) {
+        ActivityApply activity = getOne(new LambdaQueryWrapper<ActivityApply>()
+                .eq(ActivityApply::getActivityNo, activityNo));
+        if (activity == null) {
+            throw new EIException(ErrorConfig.ACT_APPLY_NOT_FOUND_CODE, ErrorConfig.ACT_APPLY_NOT_FOUND_MSG);
+        }
+
+        // 防篡改校验
+        checkActivityNoTamper(activity);
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        PortalActivityDetailVO vo = new PortalActivityDetailVO();
+        vo.setActivityNo(activity.getActivityNo());
+        vo.setActivityName(activity.getActivityName());
+        vo.setStartTime(activity.getStartTime() != null ? activity.getStartTime().format(dtf) : null);
+        vo.setEndTime(activity.getEndTime() != null ? activity.getEndTime().format(dtf) : null);
+        vo.setLocation(activity.getLocation());
+        vo.setActivityLevel(activity.getActivityLevel());
+        vo.setCoverImage(activity.getCoverImage());
+        vo.setContent(activity.getActivityContent());
+        vo.setOrganizerNote(activity.getOrganizerNote());
+
+        // 联查社团
+        if (activity.getClubId() != null) {
+            SysClub club = sysClubMapper.selectById(activity.getClubId());
+            if (club != null) {
+                vo.setClubName(club.getClubName());
+                vo.setClubCategoryName(club.getCategory());
+            }
+        }
+        // 联查活动分类
+        if (activity.getCategoryId() != null) {
+            ActivityCategory category = activityCategoryMapper.selectById(activity.getCategoryId());
+            if (category != null) {
+                vo.setCategoryName(category.getCategoryName());
+            }
+        }
+        // 联查签到配置（仅公开字段）
+        ActivitySignConfig signConfig = activitySignConfigMapper.selectOne(
+                new LambdaQueryWrapper<ActivitySignConfig>()
+                        .eq(ActivitySignConfig::getActivityId, activity.getId()));
+        if (signConfig != null && signConfig.getEnabled() != null && signConfig.getEnabled() == 1) {
+            vo.setSignMode(signConfig.getSignMode());
+            vo.setSignStartTime(signConfig.getSignStartTime() != null ? signConfig.getSignStartTime().format(dtf) : null);
+            vo.setSignEndTime(signConfig.getSignEndTime() != null ? signConfig.getSignEndTime().format(dtf) : null);
+            vo.setCheckoutEnabled(signConfig.getEnableCheckout() != null && signConfig.getEnableCheckout() == 1);
+            // 运行时计算 signAvailable
+            LocalDateTime now = LocalDateTime.now();
+            vo.setSignAvailable(signConfig.getSignStartTime() != null && signConfig.getSignEndTime() != null
+                    && now.isAfter(signConfig.getSignStartTime())
+                    && now.isBefore(signConfig.getSignEndTime()));
+        }
+        return vo;
+    }
+
+    /**
+     * 防篡改校验：从 activityNo 提取日期，与 create_time 比对
+     */
+    private void checkActivityNoTamper(ActivityApply activity) {
+        String activityNo = activity.getActivityNo();
+        if (activityNo == null || activityNo.length() < 19) {
+            return;
+        }
+        try {
+            // activityNo 格式：{2位前缀}{yyyyMMddHHmm}{5位随机}（19位），如 WH20260718143082739
+            String dateStr = activityNo.substring(2, 14);
+            LocalDateTime noDate = LocalDateTime.parse(dateStr, DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
+            LocalDateTime createMinute = activity.getCreateTime() != null
+                    ? activity.getCreateTime().withSecond(0).withNano(0)
+                    : null;
+
+            if (createMinute != null && !noDate.equals(createMinute)) {
+                // 篡改：封锁活动
+                activity.setApproveStatus(ActivityApplyConstants.STATUS_BLOCKED);
+                activity.setUpdateTime(LocalDateTime.now());
+                updateById(activity);
+
+                // 通知管理员
+                noticeAutoPublisher.publishBlockedNotice(activity);
+
+                throw new EIException(ErrorConfig.ACT_CODE_TAMPER_CODE, ErrorConfig.ACT_CODE_TAMPER_MSG);
+            }
+        } catch (Exception e) {
+            if (e instanceof EIException) {
+                throw (EIException) e;
+            }
+            log.warn("活动编号 {} 日期解析失败", activityNo, e);
         }
     }
 }

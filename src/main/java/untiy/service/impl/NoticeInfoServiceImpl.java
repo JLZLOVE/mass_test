@@ -8,15 +8,23 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import untiy.entity.ClubCategory;
 import untiy.entity.NoticeCategory;
 import untiy.entity.NoticeInfo;
 import untiy.entity.NoticeReadRecord;
+import untiy.entity.SysClub;
 import untiy.entity.SysUser;
+import untiy.entity.SysUserRole;
+import untiy.entity.constants.ClubApplyConstants;
 import untiy.entity.constants.NoticeConstants;
+import untiy.entity.constants.TemplateCodePrefix;
 import untiy.entity.dto.NoticeSendDTO;
 import untiy.entity.vo.NoticeDetailVO;
+import untiy.entity.vo.PortalNoticeDetailVO;
+import untiy.entity.vo.PortalNoticeListVO;
 import untiy.exception.EIException;
 import untiy.exception.ErrorConfig;
 import untiy.exception.Level;
@@ -31,10 +39,12 @@ import untiy.mapper.SysUserRoleMapper;
 import untiy.security.LoginUserDetails;
 import untiy.security.NoticeScopeHelper;
 import untiy.service.NoticeInfoService;
+import untiy.utils.ActivityCodeGeneratorUtil;
 import untiy.utils.MPUtil;
 import untiy.utils.SecurityUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -67,6 +77,9 @@ public class NoticeInfoServiceImpl extends ServiceImpl<NoticeInfoMapper, NoticeI
 
     @Autowired
     private SysDepartmentMapper sysDepartmentMapper;
+
+    @Autowired
+    private ActivityCodeGeneratorUtil activityCodeGeneratorUtil;
 
     @Transactional
     @Override
@@ -252,6 +265,12 @@ public class NoticeInfoServiceImpl extends ServiceImpl<NoticeInfoMapper, NoticeI
     private void doPublish(NoticeInfo notice) {
         NoticeScopeHelper.assertReceiverValuesValid(notice.getReceiverType(), notice.getReceiverValues());
         LocalDateTime now = LocalDateTime.now();
+
+        // 生成 noticeNo（仅首次发布时生成）
+        if (notice.getNoticeNo() == null) {
+            notice.setNoticeNo(generateNoticeNo(notice.getPublisherId(), now));
+        }
+
         notice.setStatus(NoticeConstants.STATUS_PUBLISHED);
         notice.setPublishTime(now);
         notice.setUpdateTime(now);
@@ -459,5 +478,178 @@ public class NoticeInfoServiceImpl extends ServiceImpl<NoticeInfoMapper, NoticeI
             page.setRecords(list.subList(from, to));
         }
         return page;
+    }
+
+    // ====================== 门户方法 ======================
+
+    @Override
+    public Page<PortalNoticeListVO> portalList(int page, int size) {
+        Page<NoticeInfo> pageParam = new Page<>(page, size);
+        IPage<NoticeInfo> noticePage = page(pageParam, new LambdaQueryWrapper<NoticeInfo>()
+                .eq(NoticeInfo::getReceiverType, NoticeConstants.RECEIVER_ALL_STUDENTS)
+                .eq(NoticeInfo::getStatus, NoticeConstants.STATUS_PUBLISHED)
+                .le(NoticeInfo::getPublishTime, LocalDateTime.now())
+                .orderByDesc(NoticeInfo::getIsPinned)
+                .orderByDesc(NoticeInfo::getPublishTime));
+
+        List<Long> noticeIds = noticePage.getRecords().stream()
+                .map(NoticeInfo::getId).collect(Collectors.toList());
+
+        Map<Long, Long> readCountMap = Map.of();
+        if (!noticeIds.isEmpty()) {
+            List<NoticeReadRecord> records = noticeReadRecordMapper.selectList(
+                    new LambdaQueryWrapper<NoticeReadRecord>()
+                            .in(NoticeReadRecord::getNoticeId, noticeIds)
+                            .isNotNull(NoticeReadRecord::getReadTime));
+            readCountMap = records.stream()
+                    .collect(Collectors.groupingBy(NoticeReadRecord::getNoticeId, Collectors.counting()));
+        }
+
+        Map<Long, Long> finalReadCountMap = readCountMap;
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        List<PortalNoticeListVO> voList = noticePage.getRecords().stream().map(notice -> {
+            PortalNoticeListVO vo = new PortalNoticeListVO();
+            vo.setNoticeNo(notice.getNoticeNo());
+            vo.setTitle(notice.getTitle());
+            vo.setSummary(extractSummary(notice.getTitle(), notice.getContent()));
+            vo.setPublishTime(notice.getPublishTime() != null ? notice.getPublishTime().format(dtf) : null);
+            vo.setTopFlag(notice.getIsPinned() != null && notice.getIsPinned() == 1);
+            vo.setCoverImage(notice.getCoverImage());
+            vo.setHasAttachment(notice.getAttachments() != null
+                    && (notice.getAttachmentMinLevel() == null || notice.getAttachmentMinLevel() == 0));
+            vo.setReadCount(finalReadCountMap.getOrDefault(notice.getId(), 0L).intValue());
+            vo.setReceiverCount(notice.getReceiverCount());
+            if (notice.getReceiverCount() != null && notice.getReceiverCount() > 0) {
+                int read = finalReadCountMap.getOrDefault(notice.getId(), 0L).intValue();
+                vo.setReadRate(String.format("%.1f%%", read * 100.0 / notice.getReceiverCount()));
+            }
+            vo.setViewCount(notice.getViewCount());
+            return vo;
+        }).collect(Collectors.toList());
+
+        Page<PortalNoticeListVO> result = new Page<>(page, size);
+        result.setTotal(noticePage.getTotal());
+        result.setRecords(voList);
+        return result;
+    }
+
+    @Override
+    public PortalNoticeDetailVO portalDetail(String noticeNo) {
+        NoticeInfo notice = getOne(new LambdaQueryWrapper<NoticeInfo>()
+                .eq(NoticeInfo::getNoticeNo, noticeNo));
+        if (notice == null) {
+            throw new EIException(ErrorConfig.NOTICE_NOT_FOUND_CODE, ErrorConfig.NOTICE_NOT_FOUND_MSG);
+        }
+
+        // 异步 +1 浏览量
+        incrementViewCount(notice.getId());
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        PortalNoticeDetailVO vo = new PortalNoticeDetailVO();
+        vo.setNoticeNo(notice.getNoticeNo());
+        vo.setTitle(notice.getTitle());
+        vo.setContent(notice.getContent());
+        vo.setPublishTime(notice.getPublishTime() != null ? notice.getPublishTime().format(dtf) : null);
+        vo.setTopFlag(notice.getIsPinned() != null && notice.getIsPinned() == 1);
+        vo.setCoverImage(notice.getCoverImage());
+        vo.setViewCount(notice.getViewCount());
+
+        // 附件：仅 attachment_min_level 为 null 或 0 时返回
+        vo.setAttachments(filterPortalAttachments(notice));
+
+        // 统计 readCount / receiverCount / readRate
+        long readCount = noticeReadRecordMapper.selectCount(new LambdaQueryWrapper<NoticeReadRecord>()
+                .eq(NoticeReadRecord::getNoticeId, notice.getId())
+                .isNotNull(NoticeReadRecord::getReadTime));
+        vo.setReadCount((int) readCount);
+        vo.setReceiverCount(notice.getReceiverCount());
+        if (notice.getReceiverCount() != null && notice.getReceiverCount() > 0) {
+            vo.setReadRate(String.format("%.1f%%", readCount * 100.0 / notice.getReceiverCount()));
+        }
+        return vo;
+    }
+
+    @Async
+    void incrementViewCount(Long noticeId) {
+        NoticeInfo notice = getById(noticeId);
+        if (notice != null) {
+            notice.setViewCount(notice.getViewCount() != null ? notice.getViewCount() + 1 : 1);
+            updateById(notice);
+        }
+    }
+
+    private List<String> filterPortalAttachments(NoticeInfo notice) {
+        if (StringUtils.isBlank(notice.getAttachments())) {
+            return new ArrayList<>();
+        }
+        // attachment_min_level 为 null 或 0 时公开全部附件
+        if (notice.getAttachmentMinLevel() != null && notice.getAttachmentMinLevel() > 0) {
+            return new ArrayList<>();
+        }
+        return JSON.parseArray(notice.getAttachments(), String.class);
+    }
+
+    /**
+     * 摘要截取逻辑：
+     * - 有效字符 < 50 → 不截取，展示原标题
+     * - 50 ≤ 有效字符 ≤ 150 → 取前 20%
+     * - 有效字符 > 150 → 取前 150
+     */
+    private String extractSummary(String title, String content) {
+        if (StringUtils.isBlank(content)) {
+            return title;
+        }
+        String plain = stripHtmlAndPunctuation(content);
+        int len = plain.length();
+        if (len < 50) {
+            return title;
+        } else if (len <= 150) {
+            int cut = (int) (len * 0.2);
+            return plain.substring(0, Math.max(cut, 1));
+        } else {
+            return plain.substring(0, 150);
+        }
+    }
+
+    private String stripHtmlAndPunctuation(String html) {
+        if (html == null) {
+            return "";
+        }
+        // 去除 HTML 标签
+        String text = html.replaceAll("<[^>]+>", "");
+        // 去除标点符号和空白字符（保留中文、英文、数字）
+        text = text.replaceAll("[\\p{P}\\p{S}\\s]+", "");
+        return text;
+    }
+
+    /**
+     * 生成 noticeNo：从发布者关联的社团获取类别前缀，无社团则用默认前缀
+     */
+    private String generateNoticeNo(Long publisherId, LocalDateTime now) {
+        String prefix = TemplateCodePrefix.DEFAULT;
+        if (publisherId != null) {
+            // 查找发布者关联的社团角色
+            List<SysUserRole> roles = sysUserRoleMapper.selectList(
+                    new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, publisherId));
+            for (SysUserRole ur : roles) {
+                if (ur.getScopeType() != null && ur.getScopeType() == 2 && ur.getScopeId() != null) {
+                    SysClub club = sysClubMapper.selectById(ur.getScopeId());
+                    if (club != null && club.getCategory() != null) {
+                        try {
+                            prefix = ClubCategory.prefixOf(club.getCategory());
+                            break;
+                        } catch (IllegalArgumentException ignored) {
+                            // 非六类社团，继续查
+                        }
+                    }
+                }
+            }
+        }
+        // 确保 notice_no 唯一
+        String code;
+        do {
+            code = activityCodeGeneratorUtil.generate(prefix, now);
+        } while (count(new LambdaQueryWrapper<NoticeInfo>().eq(NoticeInfo::getNoticeNo, code)) > 0);
+        return code;
     }
 }

@@ -1337,6 +1337,22 @@ flowchart TB
 | **`application.yml`** | 更新 | `portal.upload-dir`；Jwt ignore 同源静态路径 |
 | **`advice/GlobalExceptionHandler.java`** | 更新 | `MaxUploadSizeExceededException` → 400 |
 
+### 17.0J 2026-07-18 PortalController 创建 + 全接口验证 + 测试
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| **`controller/PortalController.java`** | **新建** | 5 个公开门户端点：`GET /portal/notices`、`/notices/{noticeNo}`、`/activities`、`/activities/{activityNo}`、`/clubs`，`@IgnoreAuth` |
+| **`.cursor/skills/无权限mvc构造.md`** | 修复 | 4.3 节编号格式 21位→19位、`substring(4,16)`→`substring(2,14)` |
+| | **验证** | 全部 5 个 Portal VO、3 个 Service portal 方法、PortalAdminController、PortalFileService、SecurityConfig、NoticeAutoPublisher 均与设计文档一致 |
+| **`security/UserPermissionUtils.java`** | 修复 | 循环依赖：`sysUserServiceImpl`↔`userPermissionUtils`，`@Lazy` 解决 |
+| **`sql/portal_migration.sql`** | 执行 | 补充 `notice_info.notice_no`/`cover_image`/`view_count`/`receiver_count`、`activity_apply.cover_image`/`organizer_note`、`sys_club.dissolve_time` |
+| **`test/.../NoticeInfoServiceImplPortalTest.java`** | **新建** | 14 个测试：portalList（过滤/排序/分页/summary截取/hasAttachment）、portalDetail（查询/404/附件过滤/read统计） |
+| **`test/.../ActivityApplyServiceImplPortalTest.java`** | **新建** | 12 个测试：portalList（approve_status/freezeTime/5min边界/6月窗口/联查）、portalDetail（查询/404/防篡改封锁/签到配置/signAvailable） |
+| **`test/.../SysClubServiceImplPortalTest.java`** | **新建** | 6 个测试：portalList（status/category筛选/空分类/联查学院/字段完整性） |
+| **`test/.../PortalFileServiceImplTest.java`** | **新建** | 11 个测试：上传成功/实体更新/404/空文件/类型校验/大小校验/jpeg归一化 |
+| **`.cursor/skills/测试策略.md`** | **新建** | 全链路测试策略：17 个 Service 边界值分析、等价类划分、风险热力图、3 轮 55 用例计划 |
+| | **测试结果** | **43/43 全部通过** |
+
 ### 17.0E 2026-07-01 角色分配校验 / 用户删除权限 / username 重构
 
 | 包 / 文件 | 变更摘要 |

@@ -6,6 +6,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import untiy.exception.EIException;
 import untiy.utils.R;
 
@@ -20,6 +21,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EIException.class)
     public R handleEIException(EIException e) {
         return R.error(e.getCode(), e.getMsg());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public R handleMaxUploadSizeExceeded(MaxUploadSizeExceededException e) {
+        return R.error(400, "上传文件过大");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

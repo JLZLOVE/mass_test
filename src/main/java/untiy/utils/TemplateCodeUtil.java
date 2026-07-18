@@ -10,53 +10,69 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 
 /**
- * templateCode 生成与防篡改校验。
+ * 统一编号生成与防篡改校验（模板编号、通知编号复用）。
  * <p>
- * 格式：{业务前缀}_{yyyyMMddHHmm}_{6位随机数字}，例 CLUB_202607161430_827391
+ * 统一格式：{社团6类前缀}{yyyyMMddHHmm}{5位随机}（19位），例 WH20260718143082739
  */
 public final class TemplateCodeUtil {
 
     private static final DateTimeFormatter MINUTE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
 
-    private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Z][A-Z0-9]*_\\d{12}_\\d{6}$");
+    /** 格式：{2位前缀}{12位时间}{5位随机} = 19 位，前缀为社团6类缩写（SZ/XS/CX/WH/GY/ZL） */
+    private static final Pattern CODE_PATTERN = Pattern.compile("^(SZ|XS|CX|WH|GY|ZL)\\d{12}\\d{5}$");
 
     private TemplateCodeUtil() {
     }
 
-    public static String generate(String businessPrefix, LocalDateTime createTime) {
-        if (StringUtils.isBlank(businessPrefix)) {
+    /**
+     * 生成统一格式编号：{prefix}{yyyyMMddHHmm}{5位随机}
+     */
+    public static String generate(String prefix, LocalDateTime createTime) {
+        if (StringUtils.isBlank(prefix)) {
             throw new EIException(ErrorConfig.TEMPLATE_CODE_INVALID_CODE, ErrorConfig.TEMPLATE_CODE_INVALID_MSG);
         }
-        LocalDateTime minute = truncateToMinute(createTime != null ? createTime : LocalDateTime.now());
-        int random = ThreadLocalRandom.current().nextInt(1_000_000);
-        return businessPrefix.trim().toUpperCase() + "_"
-                + minute.format(MINUTE_FORMAT) + "_"
-                + String.format("%06d", random);
+        LocalDateTime minute = createTime != null ? createTime : LocalDateTime.now();
+        int random = ThreadLocalRandom.current().nextInt(100_000);
+        return prefix.trim().toUpperCase()
+                + minute.format(MINUTE_FORMAT)
+                + String.format("%05d", random);
     }
 
-    /** 解析编码中的分钟级时间串，并与 createTime 截断到分钟后比对 */
-    public static void assertMatchesCreateTime(String templateCode, LocalDateTime createTime) {
-        if (StringUtils.isBlank(templateCode)) {
+    /**
+     * 防篡改校验：解析编码中的时间串，与 createTime 截断到分钟后比对
+     */
+    public static void assertMatchesCreateTime(String code, LocalDateTime createTime) {
+        if (StringUtils.isBlank(code)) {
             throw new EIException(ErrorConfig.TEMPLATE_CODE_INVALID_CODE, ErrorConfig.TEMPLATE_CODE_INVALID_MSG);
         }
         if (createTime == null) {
             throw new EIException(ErrorConfig.TEMPLATE_CODE_TAMPER_CODE, ErrorConfig.TEMPLATE_CODE_TAMPER_MSG);
         }
-        String encodedMinute = extractMinutePart(templateCode);
-        String expectedMinute = truncateToMinute(createTime).format(MINUTE_FORMAT);
+        String encodedMinute = extractMinutePart(code);
+        String expectedMinute = createTime.withSecond(0).withNano(0).format(MINUTE_FORMAT);
         if (!expectedMinute.equals(encodedMinute)) {
             throw new EIException(ErrorConfig.TEMPLATE_CODE_TAMPER_CODE, ErrorConfig.TEMPLATE_CODE_TAMPER_MSG);
         }
     }
 
-    public static String extractMinutePart(String templateCode) {
-        if (!CODE_PATTERN.matcher(templateCode).matches()) {
+    /**
+     * 从统一格式编号中提取时间部分（yyyyMMddHHmm）
+     * 格式：{2位前缀}{12位时间}{5位随机} = 19 位
+     */
+    public static String extractMinutePart(String code) {
+        if (!CODE_PATTERN.matcher(code).matches()) {
             throw new EIException(ErrorConfig.TEMPLATE_CODE_INVALID_CODE, ErrorConfig.TEMPLATE_CODE_INVALID_MSG);
         }
-        return templateCode.split("_", 3)[1];
+        return code.substring(2, 14);
     }
 
-    public static LocalDateTime truncateToMinute(LocalDateTime time) {
-        return time.withSecond(0).withNano(0);
+    /**
+     * 从统一格式编号中提取前缀部分
+     */
+    public static String extractPrefix(String code) {
+        if (!CODE_PATTERN.matcher(code).matches()) {
+            throw new EIException(ErrorConfig.TEMPLATE_CODE_INVALID_CODE, ErrorConfig.TEMPLATE_CODE_INVALID_MSG);
+        }
+        return code.substring(0, 2);
     }
 }

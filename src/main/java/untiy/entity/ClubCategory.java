@@ -28,12 +28,12 @@ public final class ClubCategory {
 
     static {
         Map<String, String> map = new LinkedHashMap<>();
-        map.put(IDEOLOGY, "SXZZ");
-        map.put(ACADEMIC, "XSKJ");
-        map.put(INNOVATION, "CXCY");
-        map.put(CULTURE_SPORTS, "WHTY");
-        map.put(VOLUNTEER, "ZYGY");
-        map.put(SELF_DISCIPLINE, "ZLZH");
+        map.put(IDEOLOGY, "SZ");
+        map.put(ACADEMIC, "XS");
+        map.put(INNOVATION, "CX");
+        map.put(CULTURE_SPORTS, "WH");
+        map.put(VOLUNTEER, "GY");
+        map.put(SELF_DISCIPLINE, "ZL");
         PREFIX_BY_CATEGORY = Collections.unmodifiableMap(map);
     }
 

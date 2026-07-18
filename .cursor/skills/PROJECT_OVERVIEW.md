@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-18（三个编号格式统一为 {社团6类前缀}{yyyyMMddHHmm}{5位随机}、noticeNo 自动生成、防篡改适配新格式）  
+> 更新时间：2026-07-18（RBAC 说明书 role.md；门户图像；skills 对齐）   
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -55,6 +55,7 @@
 | 日志级别 | `untiy.mapper: debug`，`untiy.filter: debug`，`org.springframework.security: DEBUG` |
 | **活动附件目录** | `activity.upload-dir: static/activity`（本地存储，预留 OSS） |
 | **通知附件目录** | `notice.upload-dir: uploads/notice`（本地存储，预留 OSS） |
+| **门户图像目录** | `portal.upload-dir: static/portal`（通知封面/活动封面/社团 Logo） |
 | **定时任务** | `@EnableScheduling`；活动审批超时每小时；通知每分钟；签到自动签退每5分钟 |
 
 ### 1.4 根目录结构
@@ -73,11 +74,13 @@ Mass_Test/
     ├── 项目.md                     # 项目分析指令
     ├── login.md                    # JWT/登录规范
     ├── jwt.md                      # JWT 安全重构说明
-    ├── 权限过滤.md                 # 五级可见范围与权限过滤方案
+    ├── role.md                     # RBAC 权限过滤说明书
+    ├── 权限过滤.md                 # 早期五级草稿（见 role.md）
     ├── 活动.md                     # 社团创建/解散/合议业务流程
     ├── 活动审批模块.md             # 活动申请/审批/变更/取消/总结/超时
     ├── 通知.md                     # 通知发送/撤回/已读/模板/定时
     ├── 签到.md                     # 活动签到/签退/补签/统计
+    ├── 图像.md                     # 门户封面/Logo 上传
     ├── id.md                       # 对外 username / 对内 userId 暴露规范
     └── skill.md                    # 前端开发规范
 ```
@@ -310,7 +313,7 @@ untiy/
 1. `IgnorePathsProperties` 白名单 → 直接放行  
 2. `IgnoreAuthRegistry.matches(request)` → 设置 `IGNORE_AUTH`，注入占位 Authentication  
 3. 读取 Header `Token` → `JwtUtil.validateToken()`  
-4. Redis Key **`user:v2:{username}`**：读 `LoginUserDetails.CacheSnapshot`（`@JsonProperty` 全字段）；旧版 `Collection` 或脏数据 → **删除 Key 后回源 DB**  
+4. Redis Key **`user:v2:{username}`**：读 `LoginUserDetails.CacheSnapshot`；旧版 `Collection` 或脏数据 → **删除 Key**；**缓存缺失直接 401（不回源 DB，与注销语义一致）**  
 5. `SecurityContext` principal = `LoginUserDetails`
 
 ---
@@ -829,9 +832,9 @@ untiy/
 | `ClubApplyConstants` | 申请类型、状态、合议状态、scope 类型、角色码常量 |
 | **`ActivityApplyConstants`** | 活动状态、级别、审批流类型、发起人/审批人类型、历史状态 |
 | `ClubCodeGeneratorUtil` | 申请编号 **`SQ*`**、社团编号 `{类别前缀}{时间戳}` |
-| **`TemplateCodeUtil`** | 统一编号：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`（21位）+ 防篡改校验（分钟级） |
-| **`TemplateCodePrefix`** | 社团6类前缀（SXZZ/XSKJ/CXCY/WHTY/ZYGY/ZLZH）+ 默认 `TONG` |
-| **`ActivityCodeGeneratorUtil`** | 生成活动编号：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`（如 `WHTY20260718143082739`），按 clubId 解析类别前缀；同时提供 `generate(prefix, time)` 通用方法和 `ensureUnique` 唯一性保证 |
+| **`TemplateCodeUtil`** | 统一编号：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`（19位）+ 防篡改校验（分钟级） |
+| **`TemplateCodePrefix`** | 社团6类2位缩写（SZ/XS/CX/WH/GY/ZL）+ 默认 `TO` |
+| **`ActivityCodeGeneratorUtil`** | 生成活动编号：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`（19位，如 `WH20260718143082739`），同时提供 `generate(prefix, time)` 通用方法和 `ensureUnique` |
 | **`ActivityFileStorageUtil`** | 活动申请/总结附件本地存储 |
 | **`NoticeConstants`** | 通知状态、接收类型、重要/紧急、来源类型 |
 | **`NoticeFileStorageUtil`** | 通知附件本地存储（`uploads/notice`） |
@@ -1021,6 +1024,7 @@ untiy/
 | `RegisterController` | `/register` | 注册（见 11.1） |
 | `NotificationGrantController` | — | 空类，预留扩展 |
 | **`PortalController`** | **`/portal`** | **`@IgnoreAuth` 免登录；通知列表/详情、活动列表/详情、社团列表** |
+| **`PortalAdminController`** | **`/portal/admin`** | **`@RequiresLevel(ADMIN)`；通知封面/活动封面/社团 Logo 上传** |
 
 ---
 
@@ -1209,11 +1213,12 @@ flowchart TB
 | ✅ 已完成 | 单条删除集成权限校验 | `deleteByUsername` 集成 `UserPermissionUtils.checkDeletePermission` |
 | ✅ 已完成 | ClubDissolveExecutor 补充 MEMBER | 解散时同步清理 MEMBER 角色绑定；`ClubApplyConstants` 新增 `ROLE_MEMBER` |
 | ✅ 已完成 | 活动编号格式重构 | `ActivityCodeGeneratorUtil`：`{类别前缀}{日期}{4位序列}`，按 clubId 解析 |
-| ✅ 已完成 | 活动编号格式统一 v2 | 三编号格式统一：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`，活动/模板/通知均使用 21 位统一格式；noticeNo 发布时自动生成 |
+| ✅ 已完成 | 活动编号格式统一 v2 | 三编号统一：`{社团6类前缀}{yyyyMMddHHmm}{5位随机}`（19位），2位缩写 SZ/XS/CX/WH/GY/ZL，默认 TO；noticeNo 发布时自动生成 |
 | ✅ 已完成 | STATUS_BLOCKED=8 | `ActivityApplyConstants.STATUS_BLOCKED` 已定义；门户防篡改触发时写入 |
 | ✅ 已完成 | 门户 DB 迁移 | `notice_info` +4 字段、`activity_apply` +2 字段、`sys_club` + `dissolve_time` |
 | ✅ 已完成 | 业务编号去下划线 | `WH20260718_0032` → `WH202607180032`；设计文档同步更新 |
 | ✅ 已完成 | 门户 5 接口 Service 实现 | NoticeInfoServiceImpl.portalList/portalDetail、ActivityApplyServiceImpl.portalList/portalDetail、SysClubServiceImpl.portalList；防篡改封锁通知（7319）、摘要截取（<50/50~150/>150）、freezeTime 5 分钟校验 |
+| ✅ 已完成 | **门户图像上传** | `PortalAdminController` 3 端点；见 **`图像.md`** |
 | ⏳ 待做 | 种子角色 `CLUB_PRESIDENT` | 创建申请校级通过后绑定社长依赖该角色 |
 | ⏳ 待做 | 通知跨范围审批 | 当前跨范围发送返回 **6404**，完整审批流待实现 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
@@ -1229,13 +1234,15 @@ flowchart TB
 | **项目概览（本文档）** | `.cursor/skills/PROJECT_OVERVIEW.md` | 结构与接口说明 |
 | 更新扫描清单 | `.cursor/skills/更新信息.md` | 本文档更新依据 |
 | **username 暴露规范** | `.cursor/skills/id.md` | 对外 username、对内 userId |
-| JWT 登录规范 | `.cursor/skills/login.md` | Redis Key `user:v2:`、subject 规范 |
-| 权限过滤方案 | `.cursor/skills/权限过滤.md` | 五级可见范围 |
-| **异常码规范** | `.cursor/skills/Erroconfig.md` | 编码区间与常量命名 |
+| **RBAC 权限过滤** | `.cursor/skills/role.md` | 三层分离、等级、data_scope、菜单与分配 |
+| JWT 登录规范 | `.cursor/skills/login.md` | Redis `user:v2:`、注销、会话必存在 |
+| **异常码规范** | `.cursor/skills/Erroconfig.md` | 64xx/65xx/72xx/73xx 等 |
+| 权限过滤方案（草稿） | `.cursor/skills/权限过滤.md` | 早期五级方案；以 role.md 为准 |
 | **社团申请/合议** | `.cursor/skills/活动.md` | 创建/解散/审批/合议业务规范 |
 | **活动审批** | `.cursor/skills/活动审批模块.md` | 活动申请/审批/变更/取消/总结/超时 |
 | **通知** | `.cursor/skills/通知.md` | 通知发送/撤回/已读/模板/定时 |
-| **活动签到** | `.cursor/skills/签到.md` | 签到配置/执行/补签/统计 |
+| **活动签到** | `.cursor/skills/签到.md` | activityNo + 时间校验 |
+| **门户图像上传** | `.cursor/skills/图像.md` | 封面/Logo 上传 |
 | 前端开发规范 | `.cursor/skills/skill.md` | Vue3/Element Plus |
 | OpenAPI JSON | `src/api/spec/api-docs.json` | 机器可读 API |
 | 数据库脚本 | `mysql/mass_test1.sql` | 建表 + 种子 |
@@ -1309,13 +1316,26 @@ flowchart TB
 
 | 包 / 文件 | 变更摘要 |
 |---|---|
-| **`utils/ActivityCodeGeneratorUtil.java`** | **重构**：格式 `{prefix}{yyyyMMdd}{4位序列}` → `{prefix}{yyyyMMddHHmm}{5位随机}`；使用 `ClubCategory.prefixOf()` 替代内部 `CATEGORY_PREFIX`；新增 `generate(prefix, time)` 和 `ensureUnique(prefix, time)` 通用方法；`generateCode(clubId)` 内部调用 `ensureUnique` |
-| **`utils/TemplateCodeUtil.java`** | **重构**：格式 `{PREFIX}_{yyyyMMddHHmm}_{6位随机}` → `{prefix}{yyyyMMddHHmm}{5位随机}`；去掉下划线；正则匹配 `^(SXZZ\|XSKJ\|CXCY\|WHTY\|ZYGY\|ZLZH)\\d{12}\\d{5}$`；`extractMinutePart` 改为 `substring(4, 16)`；新增 `extractPrefix` |
-| **`entity/constants/TemplateCodePrefix.java`** | **重构**：改用社团6类前缀（SXZZ/XSKJ/CXCY/WHTY/ZYGY/ZLZH）+ 默认 `TONG`；新增 `fromCategory(String)` |
+| **`utils/ActivityCodeGeneratorUtil.java`** | **重构**：格式 `{prefix}{yyyyMMdd}{4位序列}` → `{prefix}{yyyyMMddHHmm}{5位随机}`（19位）；使用 `ClubCategory.prefixOf()`（2位缩写）；新增 `generate(prefix, time)` 和 `ensureUnique(prefix, time)` 通用方法 |
+| **`utils/TemplateCodeUtil.java`** | **重构**：格式 `{PREFIX}_{yyyyMMddHHmm}_{6位随机}` → `{prefix}{yyyyMMddHHmm}{5位随机}`（19位）；去掉下划线；正则 `^(SZ\|XS\|CX\|WH\|GY\|ZL)\\d{12}\\d{5}$`；`extractMinutePart` → `substring(2, 14)` |
+| **`entity/constants/TemplateCodePrefix.java`** | **重构**：2位缩写（SZ/XS/CX/WH/GY/ZL）+ 默认 `TO`；新增 `fromCategory(String)` |
+| **`entity/ClubCategory.java`** | 前缀缩写从4位→2位：SXZZ→SZ, XSKJ→XS, CXCY→CX, WHTY→WH, ZYGY→GY, ZLZH→ZL |
 | **`service/impl/NoticeTemplateServiceImpl.java`** | `TemplateCodePrefix.NOTICE` → `TemplateCodePrefix.DEFAULT` |
-| **`entity/dto/NoticeTemplateDTO.java`** | 注释更新：格式说明改为新格式 |
-| **`service/impl/NoticeInfoServiceImpl.java`** | `doPublish` 新增 `noticeNo` 自动生成（`generateNoticeNo`）：从发布者关联社团获取类别前缀，无社团则用 `TONG`；注入 `ActivityCodeGeneratorUtil`；导入 `ClubCategory`、`TemplateCodePrefix`、`SysUserRole` |
-| **`service/impl/ActivityApplyServiceImpl.java`** | `checkActivityNoTamper` 适配新格式：`substring(4, 16)` 提取 yyyyMMddHHmm，与 `create_time` 截断到分钟比对 |
+| **`entity/dto/NoticeTemplateDTO.java`** | 注释更新为19位格式 |
+| **`service/impl/NoticeInfoServiceImpl.java`** | `doPublish` 新增 noticeNo 自动生成（`generateNoticeNo`）：从发布者关联社团获取2位前缀，无社团则用 `TO` |
+| `service/impl/ActivityApplyServiceImpl.java` | `checkActivityNoTamper` 适配新格式：`substring(2, 14)` 分钟级比对 |
+
+### 17.0I 2026-07-18 门户图像上传（已实现）
+
+| 文件 | 操作 | 说明 |
+|---|---|---|
+| **`.cursor/skills/图像.md`** | 设计 + 实现状态同步 | 路径/校验/错误码与代码一致 |
+| **`controller/PortalAdminController.java`** | **新建** | `POST .../upload/notice-cover|activity-cover|club-logo` |
+| **`service/PortalFileService.java`** | **新建** | 上传接口 |
+| **`service/impl/PortalFileServiceImpl.java`** | **新建** | 5MB/类型校验、前缀分层、更新 coverImage/logo、删旧图 |
+| **`security/SecurityConfig.java`** | 更新 | 放行静态图 `/portal/notice|activity|club/**` |
+| **`application.yml`** | 更新 | `portal.upload-dir`；Jwt ignore 同源静态路径 |
+| **`advice/GlobalExceptionHandler.java`** | 更新 | `MaxUploadSizeExceededException` → 400 |
 
 ### 17.0E 2026-07-01 角色分配校验 / 用户删除权限 / username 重构
 
@@ -1337,10 +1357,10 @@ flowchart TB
 |---|---|
 | **`controller/ActivitySignController.java`** | 路径参数 `{activityId}` → **`?activityNo=`** |
 | **`entity/dto/SignConfigDTO.java`** | **`activityNo`** + **`@StartBeforeEnd`** |
-| **`entity/ActivitySignConfig.java`** | `@JsonIgnore activityId`；`activityNo` 为 `@TableField(exist=false)` 瞬态字段，查询时从 `ActivityApply` 反查附加 |
+| **`entity/ActivitySignConfig.java`** | `@JsonIgnore activityId`；**`activityNo` 持久化列** |
 | **`entity/vo/SignStatsVO.java`** | **`activityNo`** 替代 `activityId` |
 | **`service/impl/ActivitySignServiceImpl.java`** | `enrichConfigActivityNo` 反查附加；`requireApprovedActivityByNo`；配置/签退时间校验 |
-| **`mysql/activity_sign_migration.sql`** | 通过 `activity_id` 关联活动，`activityNo` 不冗余存储 |
+| **`mysql/activity_sign_migration.sql`** | **`activity_sign_config.activity_no`** 列 |
 | **`entity/constants/ActivitySignConstants.java`** | `SIGN_WINDOW_MAX_DAYS`、`CHECKOUT_MAX_DAYS_AFTER_SIGN` |
 | **`exception/ErrorConfig.java`** | **6516~6519** |
 
@@ -1486,5 +1506,34 @@ flowchart TB
 | **`entity/ClubApplication.java`** | 对应 `club_application` 表 |
 | **`entity/ClubCouncil.java`** | 对应 `club_council` 表（`signatories` JSON） |
 | **`entity/ActivityApply.java`** | 活动申请实体（含乐观锁与新字段） |
+
+---
+
+## 18. 中小厂实习能力自评（基于 `src/main`）
+
+> 结论：**达到中小厂 / 中小互联网后端实习投递门槛，优于纯 CRUD 课设**；大厂校招实习仍偏薄（测试、工程化、性能与云原生不足）。
+
+### 18.1 可写进简历的亮点
+
+| 维度 | 证据 |
+|---|---|
+| 业务完整度 | RBAC + 社团生命周期 + 活动审批链 + 通知 + 签到 + 门户上传，多状态机与定时任务 |
+| 安全 | JWT + Redis 会话（`user:v2`）、注销删缓存、等级准入、数据范围、字段脱敏 |
+| API 设计 | 对外 username / activityNo / noticeNo，避免路径暴露内部 id |
+| 工程习惯 | 统一异常码分段、Helper 抽公共逻辑、Bean Validation、事务边界、Knife4j |
+
+### 18.2 面试易被追问的短板
+
+| 短板 | 建议补强 |
+|---|---|
+| 单测/集成测偏少 | 为核心鉴权、编号防篡改、签到冲突补集成测试 |
+| `@Async` 未 `@EnableAsync` | 修掉或删掉伪异步 |
+| 仍用 `WebSecurityConfigurerAdapter` | 可升级为 `SecurityFilterChain` 作为加分项 |
+| 门户公开 Controller 未齐 | Service/VO 已有，补 `/portal` 对外接口 |
+| 配置含明文口令 | README 说明环境变量 / 本地 profile |
+
+### 18.3 投递建议话术（1 句话）
+
+「基于 Spring Boot + Security + Redis 的校园社团管理后端：实现 JWT 会话失效、多级 RBAC 与数据权限、活动多级审批与签到补签、通知范围校验与门户资源上传。」
 
 *文档结束*

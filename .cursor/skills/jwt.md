@@ -3,7 +3,14 @@
 
 **目标**：注册 JWT 过滤器，移除 Security 业务白名单，统一由 `@IgnoreAuth` 控制免登录。
 
-**改动范围**：`SecurityConfig.java`、`application.yml`、确认 `JwtFilter`。
+**改动范围**：`SecurityConfig.java`、`application.yml`、`JwtFilter`。
+
+**现行补充（2026-07-18）**：
+
+- Redis 会话 Key：`user:v2:{username}`；缓存缺失 → 401（不回源）
+- 注销：`POST /login/logout`
+- 静态放行：`/portal/notice/**`、`/portal/activity/**`、`/portal/club/**`
+- 代码仍可能使用 `WebSecurityConfigurerAdapter`（Boot 2.7）；重构目标可用 `SecurityFilterChain`
 
 ---
 

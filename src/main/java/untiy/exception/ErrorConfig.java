@@ -36,8 +36,7 @@ public class ErrorConfig {
     public static final Integer NO_PERM_DELETE_USER_CODE = 1009;
     public static final String NO_PERM_DELETE_USER_MSG = "无权改变用户: ";
 
-    // ====================== 通用校验 (7xxx) ======================
-    public static final Integer ILLEGAL_Character_CODE = 7001;
+    public static final Integer ILLEGAL_Character_CODE = 1010;
     public static final String ILLEGAL_Character_MSG = "包含非法字符";
 
     // ====================== 认证 / Token (8xxx) ======================
@@ -122,110 +121,110 @@ public class ErrorConfig {
     public static final Integer ROLE_ASSIGN_SCOPE_CONFLICT_CODE = 9020;
     public static final String ROLE_ASSIGN_SCOPE_CONFLICT_MSG = "该用户已拥有此角色的特定范围权限，无法再分配全局权限";
 
-    // ====================== 菜单管理 (91xx) ======================
-    public static final Integer MENU_NOT_FOUND_CODE = 9101;
+    // ====================== 菜单管理 (71xx) ======================
+    public static final Integer MENU_NOT_FOUND_CODE = 7101;
     public static final String MENU_NOT_FOUND_MSG = "菜单不存在";
 
-    public static final Integer MENU_PARENT_NOT_FOUND_CODE = 9102;
+    public static final Integer MENU_PARENT_NOT_FOUND_CODE = 7102;
     public static final String MENU_PARENT_NOT_FOUND_MSG = "父菜单不存在";
 
-    public static final Integer MENU_CYCLE_CODE = 9103;
+    public static final Integer MENU_CYCLE_CODE = 7103;
     public static final String MENU_CYCLE_MSG = "不能将菜单挂到自身或子级下";
 
-    public static final Integer MENU_NAME_DUPLICATE_CODE = 9104;
+    public static final Integer MENU_NAME_DUPLICATE_CODE = 7104;
     public static final String MENU_NAME_DUPLICATE_MSG = "同级菜单名称已存在";
 
-    public static final Integer MENU_HAS_CHILDREN_CODE = 9105;
+    public static final Integer MENU_HAS_CHILDREN_CODE = 7105;
     public static final String MENU_HAS_CHILDREN_MSG = "存在子菜单，无法删除";
 
-    public static final Integer MENU_BOUND_HIGHER_ROLE_CODE = 9106;
+    public static final Integer MENU_BOUND_HIGHER_ROLE_CODE = 7106;
     public static final String MENU_BOUND_HIGHER_ROLE_MSG = "该菜单已被更高权限角色绑定，无法操作";
 
-    public static final Integer MENU_COMPONENT_REQUIRED_CODE = 9107;
+    public static final Integer MENU_COMPONENT_REQUIRED_CODE = 7107;
     public static final String MENU_COMPONENT_REQUIRED_MSG = "菜单类型为页面时，组件路径不能为空";
 
-    public static final Integer MENU_IDS_INVALID_CODE = 9108;
+    public static final Integer MENU_IDS_INVALID_CODE = 7108;
     public static final String MENU_IDS_INVALID_MSG = "部分菜单不存在或已失效";
 
-    // ====================== 社团申请 / 合议 (92xx) ======================
-    public static final Integer CLUB_APPLY_NOT_FOUND_CODE = 9201;
+    // ====================== 社团申请 / 合议 (72xx) ======================
+    public static final Integer CLUB_APPLY_NOT_FOUND_CODE = 7201;
     public static final String CLUB_APPLY_NOT_FOUND_MSG =
             "社团申请不存在，请用 username（申请人）或 applicationNo（申请编号）查询";
-    public static final Integer CLUB_NOT_FOUND_CODE = 9202;
+    public static final Integer CLUB_NOT_FOUND_CODE = 7202;
     public static final String CLUB_NOT_FOUND_MSG = "社团不存在";
-    public static final Integer CLUB_NOT_NORMAL_CODE = 9203;
+    public static final Integer CLUB_NOT_NORMAL_CODE = 7203;
     public static final String CLUB_NOT_NORMAL_MSG = "社团状态异常，无法操作";
-    public static final Integer CLUB_NAME_DUPLICATE_CODE = 9204;
+    public static final Integer CLUB_NAME_DUPLICATE_CODE = 7204;
     public static final String CLUB_NAME_DUPLICATE_MSG = "同一学院下社团名称已存在";
-    public static final Integer CLUB_NOT_ADVISOR_CODE = 9205;
+    public static final Integer CLUB_NOT_ADVISOR_CODE = 7205;
     public static final String CLUB_NOT_ADVISOR_MSG = "当前用户不是该社团指导老师";
-    public static final Integer CLUB_HAS_ACTIVE_ACTIVITY_CODE = 9206;
+    public static final Integer CLUB_HAS_ACTIVE_ACTIVITY_CODE = 7206;
     public static final String CLUB_HAS_ACTIVE_ACTIVITY_MSG = "社团存在进行中的活动，无法解散";
-    public static final Integer CLUB_APPLY_STATUS_INVALID_CODE = 9207;
+    public static final Integer CLUB_APPLY_STATUS_INVALID_CODE = 7207;
     public static final String CLUB_APPLY_STATUS_INVALID_MSG = "申请状态不允许此操作";
-    public static final Integer CLUB_NOT_DEAN_CODE = 9208;
+    public static final Integer CLUB_NOT_DEAN_CODE = 7208;
     public static final String CLUB_NOT_DEAN_MSG = "仅学院负责人可审批该申请";
-    public static final Integer CLUB_CANNOT_APPROVE_SELF_CODE = 9209;
+    public static final Integer CLUB_CANNOT_APPROVE_SELF_CODE = 7209;
     public static final String CLUB_CANNOT_APPROVE_SELF_MSG = "不能审批自己提交的申请";
-    public static final Integer CLUB_COUNCIL_NOT_FOUND_CODE = 9210;
+    public static final Integer CLUB_COUNCIL_NOT_FOUND_CODE = 7210;
     public static final String CLUB_COUNCIL_NOT_FOUND_MSG = "合议记录不存在";
-    public static final Integer CLUB_COUNCIL_IN_PROGRESS_CODE = 9211;
+    public static final Integer CLUB_COUNCIL_IN_PROGRESS_CODE = 7211;
     public static final String CLUB_COUNCIL_IN_PROGRESS_MSG = "该社团已有进行中的合议";
-    public static final Integer CLUB_COUNCIL_NOT_IN_PROGRESS_CODE = 9212;
+    public static final Integer CLUB_COUNCIL_NOT_IN_PROGRESS_CODE = 7212;
     public static final String CLUB_COUNCIL_NOT_IN_PROGRESS_MSG = "合议不在进行中";
-    public static final Integer CLUB_ALREADY_SIGNED_CODE = 9213;
+    public static final Integer CLUB_ALREADY_SIGNED_CODE = 7213;
     public static final String CLUB_ALREADY_SIGNED_MSG = "您已签字，不能重复签字";
-    public static final Integer CLUB_COLLEGE_OUT_OF_SCOPE_CODE = 9214;
+    public static final Integer CLUB_COLLEGE_OUT_OF_SCOPE_CODE = 7214;
     public static final String CLUB_COLLEGE_OUT_OF_SCOPE_MSG = "不在该学院管理范围内";
-    public static final Integer CLUB_ROLE_NOT_FOUND_CODE = 9215;
+    public static final Integer CLUB_ROLE_NOT_FOUND_CODE = 7215;
     public static final String CLUB_ROLE_NOT_FOUND_MSG = "系统角色配置缺失";
-    public static final Integer CLUB_PROPOSED_LEADER_INVALID_CODE = 9216;
+    public static final Integer CLUB_PROPOSED_LEADER_INVALID_CODE = 7216;
     public static final String CLUB_PROPOSED_LEADER_INVALID_MSG = "拟定社长不存在或已被禁用";
-    public static final Integer CLUB_REQUIRE_ADVISOR_ROLE_CODE = 9217;
+    public static final Integer CLUB_REQUIRE_ADVISOR_ROLE_CODE = 7217;
     public static final String CLUB_REQUIRE_ADVISOR_ROLE_MSG = "需要指导老师角色";
-    public static final Integer CLUB_REQUIRE_ADMIN_ROLE_CODE = 9218;
+    public static final Integer CLUB_REQUIRE_ADMIN_ROLE_CODE = 7218;
     public static final String CLUB_REQUIRE_ADMIN_ROLE_MSG = "需要校级管理员权限";
-    public static final Integer CLUB_CATEGORY_INVALID_CODE = 9219;
+    public static final Integer CLUB_CATEGORY_INVALID_CODE = 7219;
     public static final String CLUB_CATEGORY_INVALID_MSG = "社团类别无效";
-    public static final Integer CLUB_APPLY_SAVE_FAILED_CODE = 9220;
+    public static final Integer CLUB_APPLY_SAVE_FAILED_CODE = 7220;
     public static final String CLUB_APPLY_SAVE_FAILED_MSG = "申请保存失败，请重试";
 
-    // ====================== 活动审批 (93xx) ======================
-    public static final Integer ACT_APPLY_NOT_FOUND_CODE = 9301;
+    // ====================== 活动审批 (73xx) ======================
+    public static final Integer ACT_APPLY_NOT_FOUND_CODE = 7301;
     public static final String ACT_APPLY_NOT_FOUND_MSG = "活动申请不存在";
-    public static final Integer ACT_CLUB_NOT_FOUND_CODE = 9302;
+    public static final Integer ACT_CLUB_NOT_FOUND_CODE = 7302;
     public static final String ACT_CLUB_NOT_FOUND_MSG = "主办社团不存在或状态异常";
-    public static final Integer ACT_SUBMIT_NO_PERMISSION_CODE = 9303;
+    public static final Integer ACT_SUBMIT_NO_PERMISSION_CODE = 7303;
     public static final String ACT_SUBMIT_NO_PERMISSION_MSG = "当前用户无权发起活动申请";
-    public static final Integer ACT_LEVEL_INVALID_CODE = 9304;
+    public static final Integer ACT_LEVEL_INVALID_CODE = 7304;
     public static final String ACT_LEVEL_INVALID_MSG = "活动级别必须为院级或校级";
-    public static final Integer ACT_STATUS_INVALID_CODE = 9305;
+    public static final Integer ACT_STATUS_INVALID_CODE = 7305;
     public static final String ACT_STATUS_INVALID_MSG = "活动状态不允许此操作";
-    public static final Integer ACT_NOT_CURRENT_APPROVER_CODE = 9306;
+    public static final Integer ACT_NOT_CURRENT_APPROVER_CODE = 7306;
     public static final String ACT_NOT_CURRENT_APPROVER_MSG = "您不是当前步骤审批人";
-    public static final Integer ACT_OPINION_REQUIRED_CODE = 9307;
+    public static final Integer ACT_OPINION_REQUIRED_CODE = 7307;
     public static final String ACT_OPINION_REQUIRED_MSG = "审批意见不能为空";
-    public static final Integer ACT_VERSION_CONFLICT_CODE = 9308;
+    public static final Integer ACT_VERSION_CONFLICT_CODE = 7308;
     public static final String ACT_VERSION_CONFLICT_MSG = "数据已被修改，请刷新重试";
-    public static final Integer ACT_APPROVER_NOT_FOUND_CODE = 9309;
+    public static final Integer ACT_APPROVER_NOT_FOUND_CODE = 7309;
     public static final String ACT_APPROVER_NOT_FOUND_MSG = "无法确定审批人，请检查角色配置";
-    public static final Integer ACT_NOT_APPLICANT_CODE = 9310;
+    public static final Integer ACT_NOT_APPLICANT_CODE = 7310;
     public static final String ACT_NOT_APPLICANT_MSG = "仅申请人可执行此操作";
-    public static final Integer ACT_CHANGE_FIELDS_INVALID_CODE = 9311;
+    public static final Integer ACT_CHANGE_FIELDS_INVALID_CODE = 7311;
     public static final String ACT_CHANGE_FIELDS_INVALID_MSG = "变更仅允许修改时间或地点";
-    public static final Integer ACT_SUMMARY_WINDOW_CODE = 9312;
+    public static final Integer ACT_SUMMARY_WINDOW_CODE = 7312;
     public static final String ACT_SUMMARY_WINDOW_MSG = "活动总结须在结束后1-3天内上传";
-    public static final Integer ACT_TIME_INVALID_CODE = 9313;
+    public static final Integer ACT_TIME_INVALID_CODE = 7313;
     public static final String ACT_TIME_INVALID_MSG = "开始时间必须早于结束时间";
-    public static final Integer ACT_LEVEL_ADJUST_LOCKED_CODE = 9314;
+    public static final Integer ACT_LEVEL_ADJUST_LOCKED_CODE = 7314;
     public static final String ACT_LEVEL_ADJUST_LOCKED_MSG = "活动级别已调整过，不可再次修改";
-    public static final Integer ACT_APPROVER_PRESIDENT_NOT_FOUND_CODE = 9315;
+    public static final Integer ACT_APPROVER_PRESIDENT_NOT_FOUND_CODE = 7315;
     public static final String ACT_APPROVER_PRESIDENT_NOT_FOUND_MSG = "未找到该社团社长";
-    public static final Integer ACT_APPROVER_NO_COLLEGE_CODE = 9316;
+    public static final Integer ACT_APPROVER_NO_COLLEGE_CODE = 7316;
     public static final String ACT_APPROVER_NO_COLLEGE_MSG = "社团未挂靠学院，无法确定学院书记";
-    public static final Integer ACT_APPROVER_SUPER_ADMIN_NOT_FOUND_CODE = 9317;
+    public static final Integer ACT_APPROVER_SUPER_ADMIN_NOT_FOUND_CODE = 7317;
     public static final String ACT_APPROVER_SUPER_ADMIN_NOT_FOUND_MSG = "未找到校书记（超级管理员）";
-    public static final Integer ACT_APPROVER_NOT_FOUND_TEMPLATE_CODE = 9318;
+    public static final Integer ACT_APPROVER_NOT_FOUND_TEMPLATE_CODE = 7318;
     public static final String ACT_APPROVER_NOT_FOUND_TEMPLATE_MSG = "未找到%s";
 
     // ====================== 通知 (64xx) ======================

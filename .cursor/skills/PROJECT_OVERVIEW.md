@@ -1,7 +1,7 @@
 # Mass_Test 项目概览文档
 
 > 本文档基于 `.cursor/skills/更新信息.md` 扫描结果维护，用于团队沟通与后续重构参考。  
-> 更新时间：2026-07-16（角色分配 PRESIDENT/ADMIN 校验、用户删除权限校验 UserPermissionUtils、SysUserController 详情/删除改用 username、SysUserMapper 新增 deleteByUsername）  
+> 更新时间：2026-07-16（门户设计方案定稿、DB 迁移 7 字段、活动编号格式重构、ClubDissolveExecutor 补充 MEMBER 清理、deleteByUsername 集成 UserPermissionUtils、STATUS_BLOCKED=8）  
 > 文档位置：`.cursor/skills/PROJECT_OVERVIEW.md`
 
 ---
@@ -66,6 +66,7 @@ Mass_Test/
 ├── src/                            # 后端源码
 ├── club-admin-frontend/            # Vue 3 管理端
 ├── mysql/                          # 数据库脚本（含 *_migration.sql）
+├── sql/                            # 门户迁移脚本（portal_migration.sql）
 └── .cursor/skills/
     ├── PROJECT_OVERVIEW.md         # 本文档
     ├── 更新信息.md                 # 文档更新扫描清单
@@ -125,7 +126,8 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 
 > 活动审批增量 DDL：`mysql/activity_approval_migration.sql`  
 > 通知模块增量 DDL：`mysql/notice_module_migration.sql`  
-> **签到模块增量 DDL：`mysql/activity_sign_migration.sql`**
+> **签到模块增量 DDL：`mysql/activity_sign_migration.sql`**  
+> **门户模块增量 DDL：`sql/portal_migration.sql`**（notice_info +4 字段、activity_apply +2 字段、sys_club +1 字段）
 
 ### 2.2A `club_application` 状态
 
@@ -158,6 +160,7 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 | 5 | 已驳回 |
 | 6 | 已取消 |
 | 7 | 变更审批中 |
+| **8** | **已封锁（防篡改触发，门户不展示，管理后台禁止操作）** |
 
 `activity_level`：1=院级，2=校级。`version`：乐观锁。
 
@@ -216,9 +219,7 @@ RBAC：sys_user ←→ sys_user_role ←→ sys_role → sys_role_menu ←→ sy
 
 ### 2.4 种子数据说明
 
-- SQL 种子部分 `password` 为明文，应用使用 `BCryptPasswordEncoder` 校验。
-- 建议通过 `POST /register/single` 注册，或执行 `mysql/fix_bcrypt_passwords.sql`。
-
+`mysql密码全部加密非用户本身看不到
 ---
 
 ## 3. 代码架构
@@ -330,7 +331,7 @@ untiy/
 | **`MenuTreeHelper`** | **菜单树内存组装**：纯静态、一次遍历建索引挂接，禁止递归查库；`buildTree`、`expandWithAncestors`、`collectPermissionCodes`、`pruneEmptyDirectories` |
 | **`MenuCacheHelper`** | **菜单树 Redis 缓存**：Key `menu:tree:{userId}`（非 effectiveLevel）；`get/put/evictAll`，TTL 1 小时 |
 | **`ClubSecurityHelper`** | **社团申请/合议**：指导老师、院长、校级管理员、学院范围校验 |
-| **`ClubDissolveExecutor`** | **执行解散**：社团状态、部门、活动清理、角色解绑（进行中活动含 status 7） |
+| **`ClubDissolveExecutor`** | **执行解散**：社团状态、dissolveTime、部门、活动清理、**CLUB_PRESIDENT + CLUB_MINISTER + MEMBER 角色解绑**（进行中活动含 status 7） |
 | **`ActivityApproverHelper`** | **活动审批**：发起人识别、社长/指导老师/学院书记/校书记查找、超时转交 |
 | **`ActivityApprovalChainHelper`** | **活动审批链**：按发起人角色 + 院/校级动态生成步骤 |
 | **`UserExposeHelper`** | **API 用户标识转换**：`usernameOf`、`*Username` 字段填充（社团申请/活动/审批流） |
@@ -459,16 +460,15 @@ untiy/
 | 编码段 | 模块 | 说明 |
 |---|---|---|
 | `400` | 通用 | `Usual.BAD_REQUEST` → `ErrorConfig.BAD_REQUEST` |
-| `1xxx` | 用户 | 注册、用户名、无权操作用户（1009） |
+| `1xxx` | 用户 | 注册、用户名、无权操作用户（1009）、通用校验（1010） |
 | `6xxx` | 活动 | 活动分类/内容/编号 |
-| `7xxx` | 通用校验 | 非法字符等 |
+| `71xx` | 菜单 | 7101~7108 |
+| `72xx` | 社团申请/合议 | 7201~7220 |
+| **`73xx`** | **活动审批** | **7301~7318** |
 | `8xxx` | 认证/Token | 未登录 8001、Token 过期 8003 等 |
-| `9xxx` | 角色权限 | 9001~9014 |
-| `91xx` | 菜单 | 9101~9108 |
-| `92xx` | 社团申请/合议 | 9201~9218 |
-| **`93xx`** | **活动审批** | **9301~9314** |
-| **`64xx`** | **通知 + 模板** | **6401~6415** |
-| **`65xx`** | **活动签到** | **6501~6519** |
+| `9xxx` | 角色权限 | 9001~9020 |
+| **`64xx`** | **通知 + 模板** | **6401~6416** |
+| **`65xx`** | **活动签到** | **6501~6520** |
 
 ### 9.2 角色权限（9xxx）
 
@@ -489,61 +489,61 @@ untiy/
 | 9013 | `ROLE_REVOKE_SELF` | 不能撤销自己当前持有的角色 |
 | 9014 | `USER_ROLE_NOT_FOUND` | 用户角色关联不存在 |
 
-### 9.3 菜单管理（91xx）
+### 9.3 菜单管理（71xx）
 
 | Code | 常量 | 消息 |
 |---|---|---|
-| 9101 | `MENU_NOT_FOUND` | 菜单不存在 |
-| 9102 | `MENU_PARENT_NOT_FOUND` | 父菜单不存在 |
-| 9103 | `MENU_CYCLE` | 不能将菜单挂到自身或子级下 |
-| 9104 | `MENU_NAME_DUPLICATE` | 同级菜单名称已存在 |
-| 9105 | `MENU_HAS_CHILDREN` | 存在子菜单，无法删除 |
-| 9106 | `MENU_BOUND_HIGHER_ROLE` | 该菜单已被更高权限角色绑定 |
-| 9107 | `MENU_COMPONENT_REQUIRED` | 页面类型组件路径不能为空 |
-| 9108 | `MENU_IDS_INVALID` | 部分菜单不存在或已失效 |
+| 7101 | `MENU_NOT_FOUND` | 菜单不存在 |
+| 7102 | `MENU_PARENT_NOT_FOUND` | 父菜单不存在 |
+| 7103 | `MENU_CYCLE` | 不能将菜单挂到自身或子级下 |
+| 7104 | `MENU_NAME_DUPLICATE` | 同级菜单名称已存在 |
+| 7105 | `MENU_HAS_CHILDREN` | 存在子菜单，无法删除 |
+| 7106 | `MENU_BOUND_HIGHER_ROLE` | 该菜单已被更高权限角色绑定 |
+| 7107 | `MENU_COMPONENT_REQUIRED` | 页面类型组件路径不能为空 |
+| 7108 | `MENU_IDS_INVALID` | 部分菜单不存在或已失效 |
 
-### 9.4 社团申请 / 合议（92xx）
-
-| Code | 常量 | 消息 |
-|---|---|---|
-| 9201 | `CLUB_APPLY_NOT_FOUND` | 社团申请不存在 |
-| 9202 | `CLUB_NOT_FOUND` | 社团不存在 |
-| 9203 | `CLUB_NOT_NORMAL` | 社团状态异常，无法操作 |
-| 9204 | `CLUB_NAME_DUPLICATE` | 同一学院下社团名称已存在 |
-| 9205 | `CLUB_NOT_ADVISOR` | 当前用户不是该社团指导老师 |
-| 9206 | `CLUB_HAS_ACTIVE_ACTIVITY` | 社团存在进行中的活动，无法解散 |
-| 9207 | `CLUB_APPLY_STATUS_INVALID` | 申请状态不允许此操作 |
-| 9208 | `CLUB_NOT_DEAN` | 仅学院负责人可审批该申请 |
-| 9209 | `CLUB_CANNOT_APPROVE_SELF` | 不能审批自己提交的申请 |
-| 9210 | `CLUB_COUNCIL_NOT_FOUND` | 合议记录不存在 |
-| 9211 | `CLUB_COUNCIL_IN_PROGRESS` | 该社团已有进行中的合议 |
-| 9212 | `CLUB_COUNCIL_NOT_IN_PROGRESS` | 合议不在进行中 |
-| 9213 | `CLUB_ALREADY_SIGNED` | 您已签字，不能重复签字 |
-| 9214 | `CLUB_COLLEGE_OUT_OF_SCOPE` | 不在该学院管理范围内 |
-| 9215 | `CLUB_ROLE_NOT_FOUND` | 系统角色配置缺失 |
-| 9216 | `CLUB_PROPOSED_LEADER_INVALID` | 拟定社长不存在或已被禁用 |
-| 9217 | `CLUB_REQUIRE_ADVISOR_ROLE` | 需要指导老师角色 |
-| 9219 | `CLUB_CATEGORY_INVALID` | 社团类别无效 |
-| 9220 | `CLUB_APPLY_SAVE_FAILED` | 申请保存失败 |
-
-### 9.5 活动审批（93xx）
+### 9.4 社团申请 / 合议（72xx）
 
 | Code | 常量 | 消息 |
 |---|---|---|
-| 9301 | `ACT_APPLY_NOT_FOUND` | 活动申请不存在 |
-| 9302 | `ACT_CLUB_NOT_FOUND` | 主办社团不存在或状态异常 |
-| 9303 | `ACT_SUBMIT_NO_PERMISSION` | 当前用户无权发起活动申请 |
-| 9304 | `ACT_LEVEL_INVALID` | 活动级别必须为院级或校级 |
-| 9305 | `ACT_STATUS_INVALID` | 活动状态不允许此操作 |
-| 9306 | `ACT_NOT_CURRENT_APPROVER` | 您不是当前步骤审批人 |
-| 9307 | `ACT_OPINION_REQUIRED` | 审批意见不能为空 |
-| 9308 | `ACT_VERSION_CONFLICT` | 数据已被修改，请刷新重试 |
-| 9309 | `ACT_APPROVER_NOT_FOUND` | 无法确定审批人，请检查角色配置 |
-| 9310 | `ACT_NOT_APPLICANT` | 仅申请人可执行此操作 |
-| 9311 | `ACT_CHANGE_FIELDS_INVALID` | 变更仅允许修改时间或地点 |
-| 9312 | `ACT_SUMMARY_WINDOW` | 活动总结须在结束后1-3天内上传 |
-| 9313 | `ACT_TIME_INVALID` | 开始时间必须早于结束时间 |
-| 9314 | `ACT_LEVEL_ADJUST_LOCKED` | 活动级别已调整过，不可再次修改 |
+| 7201 | `CLUB_APPLY_NOT_FOUND` | 社团申请不存在 |
+| 7202 | `CLUB_NOT_FOUND` | 社团不存在 |
+| 7203 | `CLUB_NOT_NORMAL` | 社团状态异常，无法操作 |
+| 7204 | `CLUB_NAME_DUPLICATE` | 同一学院下社团名称已存在 |
+| 7205 | `CLUB_NOT_ADVISOR` | 当前用户不是该社团指导老师 |
+| 7206 | `CLUB_HAS_ACTIVE_ACTIVITY` | 社团存在进行中的活动，无法解散 |
+| 7207 | `CLUB_APPLY_STATUS_INVALID` | 申请状态不允许此操作 |
+| 7208 | `CLUB_NOT_DEAN` | 仅学院负责人可审批该申请 |
+| 7209 | `CLUB_CANNOT_APPROVE_SELF` | 不能审批自己提交的申请 |
+| 7210 | `CLUB_COUNCIL_NOT_FOUND` | 合议记录不存在 |
+| 7211 | `CLUB_COUNCIL_IN_PROGRESS` | 该社团已有进行中的合议 |
+| 7212 | `CLUB_COUNCIL_NOT_IN_PROGRESS` | 合议不在进行中 |
+| 7213 | `CLUB_ALREADY_SIGNED` | 您已签字，不能重复签字 |
+| 7214 | `CLUB_COLLEGE_OUT_OF_SCOPE` | 不在该学院管理范围内 |
+| 7215 | `CLUB_ROLE_NOT_FOUND` | 系统角色配置缺失 |
+| 7216 | `CLUB_PROPOSED_LEADER_INVALID` | 拟定社长不存在或已被禁用 |
+| 7217 | `CLUB_REQUIRE_ADVISOR_ROLE` | 需要指导老师角色 |
+| 7219 | `CLUB_CATEGORY_INVALID` | 社团类别无效 |
+| 7220 | `CLUB_APPLY_SAVE_FAILED` | 申请保存失败 |
+
+### 9.5 活动审批（73xx）
+
+| Code | 常量 | 消息 |
+|---|---|---|
+| 7301 | `ACT_APPLY_NOT_FOUND` | 活动申请不存在 |
+| 7302 | `ACT_CLUB_NOT_FOUND` | 主办社团不存在或状态异常 |
+| 7303 | `ACT_SUBMIT_NO_PERMISSION` | 当前用户无权发起活动申请 |
+| 7304 | `ACT_LEVEL_INVALID` | 活动级别必须为院级或校级 |
+| 7305 | `ACT_STATUS_INVALID` | 活动状态不允许此操作 |
+| 7306 | `ACT_NOT_CURRENT_APPROVER` | 您不是当前步骤审批人 |
+| 7307 | `ACT_OPINION_REQUIRED` | 审批意见不能为空 |
+| 7308 | `ACT_VERSION_CONFLICT` | 数据已被修改，请刷新重试 |
+| 7309 | `ACT_APPROVER_NOT_FOUND` | 无法确定审批人，请检查角色配置 |
+| 7310 | `ACT_NOT_APPLICANT` | 仅申请人可执行此操作 |
+| 7311 | `ACT_CHANGE_FIELDS_INVALID` | 变更仅允许修改时间或地点 |
+| 7312 | `ACT_SUMMARY_WINDOW` | 活动总结须在结束后1-3天内上传 |
+| 7313 | `ACT_TIME_INVALID` | 开始时间必须早于结束时间 |
+| 7314 | `ACT_LEVEL_ADJUST_LOCKED` | 活动级别已调整过，不可再次修改 |
 
 ### 9.6 通知 / 模板（64xx）
 
@@ -622,7 +622,7 @@ untiy/
 | `updateUser` | — | — | 学生仅可改自己；白名单字段（realName/gender/phone/email/avatar） |
 | **`toggleStatus`** | ✅ `findInScope` | — | 批量启用/禁用；禁用时不可含自己；**`UserCacheHelper.evictByUsernames`** |
 | **`listDisabled`** | ✅ `applySysUserScope` + `status=0` | ✅ | 关键词模糊搜索 username/realName |
-| `deleteByUsername` / `deleteUsers` | — | 按 username 单个删除；批量按 List<Long> ids 删除；越权抛 `AccessDeniedException` |
+| `deleteByUsername` / `deleteUsers` | ✅ `findInScope` + **`UserPermissionUtils.checkDeletePermission`** | 单条删除：先 scope 校验，再四条规则（不能删自己、仅社长、等级、同社团）；批量按 `List<String>` usernames 删除 |
 | `register` | — | — | 注册逻辑（`RegisterController` 调用） |
 
 ### 10.3 `SysRoleServiceImpl`
@@ -809,7 +809,7 @@ untiy/
 | `ClubCodeGeneratorUtil` | 申请编号 **`SQ*`**、社团编号 `{类别前缀}{时间戳}` |
 | **`TemplateCodeUtil`** | 模板/业务编码 `{前缀}_{yyyyMMddHHmm}_{6位随机}` + 防篡改校验 |
 | **`TemplateCodePrefix`** | `NOTICE` / `CLUB` / `ACT` |
-| **`ActivityCodeGeneratorUtil`** | 生成 `ACT*` 活动编号（按分类后缀 + 防重复） |
+| **`ActivityCodeGeneratorUtil`** | 生成活动编号：`{社团类别前缀}{yyyyMMdd}{4位序列号}`（如 `WH202607180032`），按 clubId 解析类别前缀 |
 | **`ActivityFileStorageUtil`** | 活动申请/总结附件本地存储 |
 | **`NoticeConstants`** | 通知状态、接收类型、重要/紧急、来源类型 |
 | **`NoticeFileStorageUtil`** | 通知附件本地存储（`uploads/notice`） |
@@ -821,6 +821,8 @@ untiy/
 |---|---|---|
 | `SysUserRoleMapper.selectPageWithDetail` | 分页联查 | JOIN `sys_user`、`sys_role`；按 `userIds` + `keyword` |
 | `SysUserRoleMapper.selectListByUserId` | 列表 | 当前用户全部角色关联 |
+| `SysUserMapper.selectByUsername` | 查询 | 按 username 查用户 |
+| `SysUserMapper.deleteByUsername` | 删除 | 按 username 删用户 |
 | **`ActivityApplyHistoryMapper`** | — | 活动变更历史 |
 | **`NoticeTemplateMapper`** | — | 通知模板 |
 | **`ActivitySignConfigMapper`** | — | 签到配置 |
@@ -1051,8 +1053,8 @@ login → JWT(subject=username) → Redis user:v2:{username}（CacheSnapshot）
 禁用用户：PUT /toggleStatus → findInScope → 不可禁自己 → 更新 status → UserCacheHelper 清 Redis
 登录拦截：UserDetailServiceImpl → status≠1 → USER_DISABLED(9008)
 批量更新：updateUsers → assertBatchNoDisabled → 含禁用用户整批拒绝
-角色分配：POST /sys-user-role/assign → findActiveInScope → validateScope(role.dataScope) → 防重复
-角色撤销：DELETE /sys-user-role/revoke/{id} → checkOperable → 不可撤销自身角色
+角色分配：POST /sys-user-role/assign → PRESIDENT 仅限 userType=1；ADMIN 仅限 userType=2 → 插入 sys_user_role
+角色撤销：DELETE /sys-user-role/revoke?id= → 按 id 删除
 ```
 
 ### 13.4 菜单与角色菜单
@@ -1167,7 +1169,7 @@ flowchart TB
 | ✅ 已修复 | `data_scope` 分配无效 | `validateScope` 改为读取 `role.getDataScope()` |
 | ✅ 已完成 | 菜单模块单接口化 | `SysMenuController` 4 接口 + `MenuTreeHelper` + `MenuCacheHelper` |
 | ✅ 已完成 | 角色-菜单分配 | `SysRoleMenuController` 2 接口；全量覆盖 `assign` |
-| ✅ 已完成 | 异常码分段重构 | `9xxx` 角色、`91xx` 菜单、`92xx` 社团；通用码迁入 `Usual.java` |
+| ✅ 已完成 | 异常码分段重构 | `9xxx` 角色、`71xx` 菜单、`72xx` 社团；通用码迁入 `Usual.java` |
 | ✅ 已完成 | 社团申请/合议模块 | `ClubApplicationController` + `ClubCouncilController`；见 `活动.md` |
 | ✅ 已完成 | **活动审批模块** | `ActivityApplyController` 10 接口；见 `活动审批模块.md` |
 | ✅ 已完成 | **通知模块** | `NoticeInfoController` + `NoticeTemplateController`；见 `通知.md` |
@@ -1178,6 +1180,15 @@ flowchart TB
 | ✅ 已完成 | 通知模板编码 | **`template_name` 存编码**；`TemplateCodeUtil`；6412/6413 防篡改 |
 | ✅ 已完成 | username 对外暴露 | 社团申请/用户模块；见 **`id.md`** |
 | ✅ 已清理 | 无引用空壳 Service | 删除 9 组仅 MyBatis-Plus 脚手架 Service（Mapper 仍保留） |
+| ✅ 已完成 | 角色分配 PRESIDENT/ADMIN 校验 | `SysUserRoleServiceImpl.assign` 按 `role_code` 校验 `user_type` |
+| ✅ 已完成 | 用户删除权限校验 | `UserPermissionUtils` 四条规则：不能删自己、仅社长、等级、scope |
+| ✅ 已完成 | SysUser 详情/删除改用 username | Controller、Service、Mapper 三层统一改用 username |
+| ✅ 已完成 | 单条删除集成权限校验 | `deleteByUsername` 集成 `UserPermissionUtils.checkDeletePermission` |
+| ✅ 已完成 | ClubDissolveExecutor 补充 MEMBER | 解散时同步清理 MEMBER 角色绑定；`ClubApplyConstants` 新增 `ROLE_MEMBER` |
+| ✅ 已完成 | 活动编号格式重构 | `ActivityCodeGeneratorUtil`：`{类别前缀}{日期}{4位序列}`，按 clubId 解析 |
+| ✅ 已完成 | STATUS_BLOCKED=8 | `ActivityApplyConstants.STATUS_BLOCKED` 已定义；门户防篡改触发时写入 |
+| ✅ 已完成 | 门户 DB 迁移 | `notice_info` +4 字段、`activity_apply` +2 字段、`sys_club` + `dissolve_time` |
+| ✅ 已完成 | 业务编号去下划线 | `WH20260718_0032` → `WH202607180032`；设计文档同步更新 |
 | ⏳ 待做 | 种子角色 `CLUB_PRESIDENT` | 创建申请校级通过后绑定社长依赖该角色 |
 | ⏳ 待做 | 通知跨范围审批 | 当前跨范围发送返回 **6404**，完整审批流待实现 |
 | ⏳ 待做 | 种子密码明文 | BCrypt 迁移或重新注册 |
@@ -1206,6 +1217,8 @@ flowchart TB
 | 活动审批 DDL | `mysql/activity_approval_migration.sql` | 活动模块增量 |
 | **通知 DDL** | `mysql/notice_module_migration.sql` | 通知模块增量 |
 | **签到 DDL** | `mysql/activity_sign_migration.sql` | 签到配置/补签/签到表扩展 |
+| **门户 DDL** | `sql/portal_migration.sql` | 门户 7 字段 + notice_no 索引 |
+| **门户设计** | `D:\冯\masss\后端.md` | 前台门户展示方案（已定稿） |
 
 ---
 
@@ -1231,6 +1244,22 @@ flowchart TB
 | **`security/NoticeScopeHelper.java`** | **`assertReceiverValuesValid`**；`parseLongList` 严格化 |
 | **`exception/ErrorConfig.java`** | **6412~6415**；签到段改为 **65xx** |
 | **删除无引用 Service×9** | `CommonService`、`SysClubService`、`ActivityApproveFlowService` 等空壳 |
+
+### 17.0F 2026-07-16 门户设计方案 / DB 迁移 / 编号重构 / 解散修复
+
+| 包 / 文件 | 变更摘要 |
+|---|---|
+| **`sql/portal_migration.sql`** | **新增**：`notice_info` +4 字段（notice_no/cover_image/view_count/receiver_count）、`activity_apply` +2 字段（cover_image/organizer_note）、`sys_club` +1 字段（dissolve_time） |
+| **`entity/NoticeInfo.java`** | 新增 `noticeNo`、`coverImage`、`viewCount`、`receiverCount` |
+| **`entity/ActivityApply.java`** | 新增 `coverImage`、`organizerNote` |
+| **`entity/SysClub.java`** | 新增 `dissolveTime` |
+| **`entity/constants/ActivityApplyConstants.java`** | 新增 `STATUS_BLOCKED = 8`（已封锁，防篡改触发） |
+| **`entity/constants/ClubApplyConstants.java`** | 新增 `ROLE_MEMBER = "MEMBER"` |
+| **`security/ClubDissolveExecutor.java`** | 新增 `removeMemberRoleBindings` 方法；解散时写入 `dissolveTime`；同步清理 MEMBER 角色绑定 |
+| **`service/impl/SysUserServiceImpl.java`** | `deleteByUsername` 集成 `UserPermissionUtils.checkDeletePermission`（四条规则） |
+| **`utils/ActivityCodeGeneratorUtil.java`** | **重构**：`ACT{date}{random}{suffix}` → `{类别前缀}{date}{4位序列}`（如 `WH202607180032`）；方法签名改为 `generateCode(Long clubId)`，自动解析社团类别前缀 |
+| **`service/impl/ActivityApplyServiceImpl.java`** | `generateCode(dto.getCategoryId())` → `generateCode(dto.getClubId())` |
+| **`D:\冯\masss\后端.md`** | 门户设计方案定稿：方案 A（noticeNo）、签到不暴露 GPS、仅返回 topFlag、时间冻结 freezeTime、图片延迟删除、编号去下划线 |
 
 ### 17.0E 2026-07-01 角色分配校验 / 用户删除权限 / username 重构
 

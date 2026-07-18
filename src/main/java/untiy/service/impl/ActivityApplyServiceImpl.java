@@ -99,7 +99,7 @@ public class ActivityApplyServiceImpl extends ServiceImpl<ActivityApplyMapper, A
 
         LocalDateTime now = LocalDateTime.now();
         ActivityApply apply = new ActivityApply();
-        apply.setActivityNo(activityCodeGeneratorUtil.generateCode(dto.getCategoryId()));
+        apply.setActivityNo(activityCodeGeneratorUtil.generateCode(dto.getClubId()));
         apply.setClubId(dto.getClubId());
         apply.setActivityName(dto.getActivityName());
         apply.setCategoryId(dto.getCategoryId());

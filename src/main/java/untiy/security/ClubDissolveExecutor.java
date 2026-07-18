@@ -61,6 +61,7 @@ public class ClubDissolveExecutor {
             return;
         }
         club.setStatus(ClubApplyConstants.CLUB_STATUS_DISSOLVED);
+        club.setDissolveTime(LocalDateTime.now());
         sysClubMapper.updateById(club);
 
         List<SysDepartment> departments = sysDepartmentMapper.selectList(
@@ -70,6 +71,7 @@ public class ClubDissolveExecutor {
         cleanActivities(clubId);
         removeClubRoleBindings(clubId);
         removeDepartmentRoleBindings(deptIds);
+        removeMemberRoleBindings(deptIds);
 
         if (!departments.isEmpty()) {
             sysDepartmentMapper.delete(new LambdaQueryWrapper<SysDepartment>().eq(SysDepartment::getClubId, clubId));
@@ -120,6 +122,22 @@ public class ClubDissolveExecutor {
         }
         sysUserRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>()
                 .eq(SysUserRole::getRoleId, ministerRole.getId())
+                .eq(SysUserRole::getScopeType, ClubApplyConstants.SCOPE_TYPE_DEPARTMENT)
+                .in(SysUserRole::getScopeId, deptIds));
+    }
+
+    private void removeMemberRoleBindings(Set<Long> deptIds) {
+        if (deptIds.isEmpty()) {
+            return;
+        }
+        SysRole memberRole = sysRoleMapper.selectOne(new LambdaQueryWrapper<SysRole>()
+                .eq(SysRole::getRoleCode, ClubApplyConstants.ROLE_MEMBER)
+                .last("LIMIT 1"));
+        if (memberRole == null) {
+            return;
+        }
+        sysUserRoleMapper.delete(new LambdaQueryWrapper<SysUserRole>()
+                .eq(SysUserRole::getRoleId, memberRole.getId())
                 .eq(SysUserRole::getScopeType, ClubApplyConstants.SCOPE_TYPE_DEPARTMENT)
                 .in(SysUserRole::getScopeId, deptIds));
     }

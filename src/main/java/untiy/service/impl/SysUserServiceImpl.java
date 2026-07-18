@@ -25,6 +25,7 @@ import untiy.security.DataScopeHelper;
 import untiy.security.LoginUserDetails;
 import untiy.security.UserCacheHelper;
 import untiy.security.UserSecurityHelper;
+import untiy.security.UserPermissionUtils;
 import untiy.service.SysUserService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import untiy.utils.MPUtil;
@@ -48,6 +49,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private UserPermissionUtils userPermissionUtils;
 
     //注册逻辑
     @Transactional
@@ -217,9 +221,12 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (username == null || username.isEmpty()) {
             return;
         }
-        if (UserSecurityHelper.findInScope(sysUserMapper, username) == null) {
+        SysUser target = UserSecurityHelper.findInScope(sysUserMapper, username);
+        if (target == null) {
             throw new AccessDeniedException(ErrorConfig.NO_PERM_DELETE_USER_MSG + username);
         }
+        LoginUserDetails currentUser = DataScopeHelper.currentUser();
+        userPermissionUtils.checkDeletePermission(currentUser, target.getId());
         baseMapper.deleteByUsername(username);
     }
 

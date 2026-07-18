@@ -27,6 +27,7 @@ public final class ClubApplyConstants {
     public static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
     public static final String ROLE_CLUB_PRESIDENT = "CLUB_PRESIDENT";
     public static final String ROLE_CLUB_MINISTER = "CLUB_MINISTER";
+    public static final String ROLE_MEMBER = "MEMBER";
 
     private ClubApplyConstants() {
     }

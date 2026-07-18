@@ -22,6 +22,18 @@ public class NoticeInfo implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
+    /** 通知编号（NT{yyyyMMddHHmm}_{6位随机}），对外标识 */
+    private String noticeNo;
+
+    /** 通知题图路径 */
+    private String coverImage;
+
+    /** 浏览量（含匿名访问） */
+    private Integer viewCount;
+
+    /** 接收总人数（发布时预计算） */
+    private Integer receiverCount;
+
     private String title;
 
     private String content;

@@ -54,6 +54,12 @@ public class ActivityApply implements Serializable {
 
     private String activityContent;
 
+    /** 活动封面图路径 */
+    private String coverImage;
+
+    /** 主办/承办/指派说明 */
+    private String organizerNote;
+
     private String safetyPlan;
 
     /** 申请附件（本地路径） */

@@ -1,0 +1,16 @@
+/* 社团综合管理平台 Design Tokens — 蓝主金辅 */
+:root {
+  --brand-deep: #1e3a5f;
+  --brand-interactive: #4a90d9;
+  --brand-bg: #f0f4f8;
+  --brand-gold: #d4af37;
+  --brand-gold-soft: #fdf1d6;
+  --brand-danger: #e74c3c;
+  --brand-alert-bg: #fff5f5;
+  --brand-glass: rgba(255, 255, 255, 0.75);
+  --brand-hover: #f0f7ff;
+  --brand-radius: 12px;
+  --header-height: 64px;
+  --sidebar-width: 220px;
+  --sidebar-collapsed: 64px;
+}

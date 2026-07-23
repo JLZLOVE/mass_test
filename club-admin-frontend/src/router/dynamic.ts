@@ -13,12 +13,12 @@ async function registerDynamicRoutes(router: Router): Promise<void> {
     router.addRoute('layout', route)
   }
 
-  // 404 兜底：必须在动态路由注册后再添加，避免 /member 在注册前被 catch-all 无限重定向
+  // 404 兜底：必须在动态路由注册后再添加，避免动态路由未就绪时被 catch-all 误伤
   if (!router.hasRoute('not-found')) {
     router.addRoute('layout', {
       path: ':pathMatch(.*)*',
       name: 'not-found',
-      redirect: '/member',
+      redirect: '/dashboard',
     } satisfies RouteRecordRaw)
   }
 }

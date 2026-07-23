@@ -45,9 +45,9 @@ function visibleMenus(list: SysMenu[]) {
   <el-menu
     :default-active="activeMenu"
     :collapse="collapse"
-    background-color="#001529"
+    background-color="#1E3A5F"
     text-color="#ffffffa6"
-    active-text-color="#fff"
+    active-text-color="#D4AF37"
     class="sidebar-menu"
   >
     <template v-for="menu in visibleMenus(menus)" :key="menu.id">
@@ -99,7 +99,7 @@ function visibleMenus(list: SysMenu[]) {
 <style scoped>
 .sidebar-menu {
   border-right: none;
-  height: calc(100vh - 56px);
+  height: calc(100vh - 64px);
   overflow-y: auto;
 }
 

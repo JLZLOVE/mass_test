@@ -18,6 +18,8 @@ import untiy.entity.ActivitySignConfig;
 import untiy.entity.SysClub;
 import untiy.entity.SysCollege;
 import untiy.entity.SysUser;
+import untiy.security.DataScopeHelper;
+import untiy.security.LoginUserDetails;
 import untiy.entity.constants.ActivityApplyConstants;
 import untiy.entity.constants.ClubApplyConstants;
 import untiy.entity.dto.ActivityApproveDTO;
@@ -348,6 +350,13 @@ public class ActivityApplyServiceImpl extends ServiceImpl<ActivityApplyMapper, A
         Page<ActivityApply> page = MPUtil.getPage(param);
         QueryWrapper<ActivityApply> wrapper = MPUtil.sort(
                 MPUtil.between(MPUtil.likeOrEq(new QueryWrapper<>(), query), param), param);
+
+        // 数据范围过滤：Level 4 普通学生仅查看本人参与的活动
+        LoginUserDetails currentUser = DataScopeHelper.currentUser();
+        if (currentUser != null && currentUser.getEffectiveLevel() == 4) {
+            wrapper.eq("apply_user_id", currentUser.getUserId());
+        }
+
         IPage<ActivityApply> result = page(page, wrapper);
         UserExposeHelper.enrichActivityApplyList(sysUserMapper, result.getRecords());
         return result;

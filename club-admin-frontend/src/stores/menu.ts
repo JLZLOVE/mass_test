@@ -5,10 +5,13 @@ import { sysMenuApi } from '@/api/sysMenu'
 import { buildTree } from '@/utils/format'
 import type { SysMenu } from '@/types/generated'
 
-/** componentPath 到 views 路径的映射 */
 const COMPONENT_ALIASES: Record<string, string> = {
+  'dashboard/index': 'dashboard/index',
   'member/index': 'member/index',
   'statistics/index': 'statistics/index',
+  'club/list': 'club/list',
+  'activity/apply': 'activity/apply',
+  'notice/index': 'notice/index',
 }
 
 const viewModules = import.meta.glob('@/views/**/*.vue')
@@ -73,30 +76,88 @@ function menuToRoutes(menus: SysMenu[], parentFullPath = ''): RouteRecordRaw[] {
   return routes
 }
 
-/** 补充数据库菜单未覆盖的页面路由（仅包含实际存在的页面） */
+/** 补充数据库菜单未覆盖的页面路由（minLevel：数值越小权限越高，当前用户 effectiveLevel ≤ minLevel 方可访问） */
 const STATIC_ROUTES: RouteRecordRaw[] = [
+  {
+    path: 'dashboard',
+    name: 'dashboard',
+    component: () => import('@/views/dashboard/index.vue'),
+    meta: { title: '工作台', icon: 'Odometer', minLevel: 4 },
+  },
   {
     path: 'member',
     name: 'member',
     component: () => import('@/views/member/index.vue'),
-    meta: { title: '成员管理', icon: 'User' },
+    meta: { title: '成员管理', icon: 'User', minLevel: 2 },
+  },
+  {
+    path: 'club',
+    name: 'club',
+    component: () => import('@/views/club/list.vue'),
+    meta: { title: '社团管理', icon: 'OfficeBuilding', minLevel: 2 },
+  },
+  {
+    path: 'activity/apply',
+    name: 'activity-apply',
+    component: () => import('@/views/activity/apply.vue'),
+    meta: { title: '活动管理', icon: 'Calendar', minLevel: 4 },
+  },
+  {
+    path: 'activity/approve-flow/:applyId',
+    name: 'activity-approve-flow',
+    component: () => import('@/views/activity/approve-flow.vue'),
+    meta: { title: '审批详情', icon: 'Finished', minLevel: 2 },
+  },
+  {
+    path: 'activity/sign/:activityId?',
+    name: 'activity-sign',
+    component: () => import('@/views/activity/sign.vue'),
+    meta: { title: '签到管理', icon: 'Checked', minLevel: 2 },
+  },
+  {
+    path: 'notice',
+    name: 'notice',
+    component: () => import('@/views/notice/index.vue'),
+    meta: { title: '通知中心', icon: 'Bell', minLevel: 4 },
   },
   {
     path: 'statistics',
     name: 'statistics',
     component: () => import('@/views/statistics/index.vue'),
-    meta: { title: '统计看板', icon: 'DataAnalysis' },
+    meta: { title: '统计看板', icon: 'DataAnalysis', minLevel: 2 },
+  },
+  {
+    path: 'profile',
+    name: 'profile',
+    component: () => import('@/views/profile/index.vue'),
+    meta: { title: '个人中心', icon: 'User', minLevel: 4 },
+  },
+  {
+    path: 'security',
+    name: 'security',
+    component: () => import('@/views/profile/security.vue'),
+    meta: { title: '安全设置', icon: 'Lock', minLevel: 4 },
   },
 ]
 
 export const useMenuStore = defineStore('menu', () => {
   const menuTree = ref<SysMenu[]>([])
+  const permissions = ref<string[]>([])
   const routesLoaded = ref(false)
 
   async function loadMenus() {
     const res = await sysMenuApi.list()
-    const list = (res.data || []).filter((m) => m.status !== 0 && m.menuType !== 3)
-    menuTree.value = buildTree(list, 0)
+    const payload = res.data
+    if (payload && Array.isArray(payload.tree)) {
+      menuTree.value = payload.tree
+      permissions.value = payload.permissions || []
+    } else if (Array.isArray(payload)) {
+      menuTree.value = buildTree(payload as unknown as SysMenu[], 0)
+      permissions.value = []
+    } else {
+      menuTree.value = []
+      permissions.value = []
+    }
     routesLoaded.value = true
     return menuTree.value
   }
@@ -108,5 +169,5 @@ export const useMenuStore = defineStore('menu', () => {
     return [...dynamic, ...extras]
   }
 
-  return { menuTree, routesLoaded, loadMenus, getDynamicRoutes }
+  return { menuTree, permissions, routesLoaded, loadMenus, getDynamicRoutes }
 })

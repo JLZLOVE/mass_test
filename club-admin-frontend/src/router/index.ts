@@ -1,6 +1,8 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { setupDynamicRoutes } from '@/router/dynamic'
+import { levelLabel } from '@/utils/level'
 
 const MainLayout = () => import('@/layouts/MainLayout.vue')
 
@@ -18,10 +20,9 @@ const constantRoutes: RouteRecordRaw[] = [
     path: '/',
     name: 'layout',
     component: MainLayout,
-    redirect: '/member',
+    redirect: '/dashboard',
     children: [],
   },
-  // 不在此处添加 catch-all：动态路由未注册时 /member 会陷入无限重定向
 ]
 
 const router = createRouter({
@@ -32,25 +33,25 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const userStore = useUserStore()
 
-  // 1. 公开路由（如 login）
   if (to.meta.public === true) {
     if (userStore.isLoggedIn && to.path === '/login') {
-      next('/member')
+      next('/dashboard')
     } else {
       next()
     }
     return
   }
 
-  // 2. 未登录 → 跳转登录页
   if (!userStore.isLoggedIn) {
     next({ path: '/login', query: { redirect: to.fullPath } })
     return
   }
 
-  // 3. 已登录但动态路由尚未注册
   if (!dynamicAdded) {
     try {
+      if (!userStore.userInfo) {
+        await userStore.loadUserProfile().catch(() => undefined)
+      }
       await setupDynamicRoutes(router)
       dynamicAdded = true
 
@@ -58,7 +59,7 @@ router.beforeEach(async (to, _from, next) => {
       if (resolved.matched.length > 0 && resolved.name !== 'not-found') {
         next({ ...to, replace: true })
       } else {
-        next({ path: '/member', replace: true })
+        next({ path: '/dashboard', replace: true })
       }
     } catch (error) {
       console.error('动态路由注册失败:', error)
@@ -69,7 +70,17 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  // 4. 正常放行
+  // 4. 检查路由权限等级：当前 effectiveLevel ≤ meta.minLevel 方可访问
+  const minLevel = to.meta.minLevel as number | undefined
+  if (minLevel !== undefined && userStore.effectiveLevel > minLevel) {
+    ElMessage.warning(
+      `权限不足：当前身份为「${levelLabel(userStore.effectiveLevel)}」，无法访问「${to.meta.title || to.path}」`,
+    )
+    next({ path: '/dashboard', replace: true })
+    return
+  }
+
+  // 5. 正常放行
   next()
 })
 

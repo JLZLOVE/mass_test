@@ -1,7 +1,8 @@
 import type { App, DirectiveBinding } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { LEVEL } from '@/utils/level'
 
-/** 角色等级：数字越小权限越高 */
+/** 角色 ID（兼容旧权限指令，与 effectiveLevel 并存） */
 export const ROLE = {
   SUPER_ADMIN: 1,
   CLUB_PRESIDENT: 2,
@@ -11,15 +12,17 @@ export const ROLE = {
 } as const
 
 /** 是否可查看预算字段 */
-export function canViewBudget(roleIds: number[]): boolean {
+export function canViewBudget(roleIds: number[], effectiveLevel = 4): boolean {
+  if (effectiveLevel <= LEVEL.CLUB_LEADER) return true
   if (roleIds.includes(ROLE.SUPER_ADMIN) || roleIds.includes(ROLE.CLUB_PRESIDENT)) return true
   if (roleIds.includes(ROLE.ADVISOR)) return true
   return false
 }
 
 /** 预算是否只读 */
-export function isBudgetReadonly(roleIds: number[]): boolean {
-  return roleIds.includes(ROLE.CLUB_MINISTER) && !canViewBudget(roleIds)
+export function isBudgetReadonly(roleIds: number[], effectiveLevel = 4): boolean {
+  if (effectiveLevel <= LEVEL.CLUB_LEADER) return false
+  return roleIds.includes(ROLE.CLUB_MINISTER) && !canViewBudget(roleIds, effectiveLevel)
 }
 
 export function setupPermissionDirective(app: App) {

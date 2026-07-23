@@ -60,7 +60,7 @@ async function handleLogin() {
   try {
     await userStore.login(loginForm.name, loginForm.password)
     ElMessage.success('登录成功')
-    const redirect = (route.query.redirect as string) || '/member'
+    const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
   } finally {
     loading.value = false
@@ -175,7 +175,10 @@ async function handleRegister() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(74, 144, 217, 0.35), transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(212, 175, 55, 0.2), transparent 45%),
+    linear-gradient(145deg, #1e3a5f 0%, #2a4a6f 45%, #1a2f4a 100%);
 }
 
 .login-card {

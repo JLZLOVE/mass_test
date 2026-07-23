@@ -2,13 +2,12 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance } from 'element-plus'
 import { sysUserApi } from '@/api/sysUser'
-import { sysUserRoleApi } from '@/api/sysUserRole'
-import { sysRoleApi } from '@/api/sysRole'
-import { sysClubApi } from '@/api/sysClub'
+import { sysUserRoleApi, type SysUserRoleItem } from '@/api/sysUserRole'
+import { sysRoleApi, type SysRole } from '@/api/sysRole'
+import { portalApi } from '@/api/portal'
 import { useUserStore } from '@/stores/user'
 import { formatDateTime } from '@/utils/format'
-import type { SysUser, SysRole, SysClub } from '@/types/generated'
-import type { SysUserRoleItem } from '@/api/sysUserRole'
+import type { PortalClub, SysUser } from '@/types/generated'
 
 const userStore = useUserStore()
 
@@ -27,7 +26,7 @@ const query = reactive({
 const genderMap: Record<number, string> = { 1: '男', 2: '女', 0: '未知' }
 const userTypeMap: Record<number, string> = { 1: '学生', 2: '教师', 3: '管理员' }
 
-const clubs = ref<SysClub[]>([])
+const clubs = ref<PortalClub[]>([])
 const roles = ref<SysRole[]>([])
 const roleMap = ref<Record<number, string>>({})
 
@@ -44,9 +43,13 @@ const addRoleForm = reactive({
 })
 
 async function loadDicts() {
-  const [clubRes, roleRes] = await Promise.all([sysClubApi.list(), sysRoleApi.list()])
-  clubs.value = (clubRes.data || []).filter((c) => c.status === 1)
-  roles.value = (roleRes.data || []).filter((r) => r.status !== 0)
+  const [clubRes, roleRes] = await Promise.all([
+    portalApi.clubs({}),
+    sysRoleApi.list({ page: 1, limit: 100 }),
+  ])
+  const clubData = clubRes.data
+  clubs.value = Array.isArray(clubData) ? clubData : clubData?.records || []
+  roles.value = (roleRes.data?.records || []).filter((r) => r.status !== 0)
   roleMap.value = Object.fromEntries(roles.value.map((r) => [r.id!, r.roleName || '']))
   if (!addRoleForm.scopeId && userStore.clubScopeIds.length) {
     addRoleForm.scopeId = userStore.clubScopeIds[0]
@@ -56,7 +59,7 @@ async function loadDicts() {
 async function fetchList() {
   loading.value = true
   try {
-    const res = await sysUserApi.listF({
+    const res = await sysUserApi.query({
       page: query.page,
       limit: query.limit,
       username: query.username || undefined,
@@ -219,7 +222,7 @@ onMounted(async () => {
       <div v-loading="roleLoading">
         <el-table :data="userRoles" border size="small" class="role-table">
           <el-table-column label="角色" width="140">
-            <template #default="{ row }">{{ roleMap[row.roleId] || row.roleId }}</template>
+            <template #default="{ row }">{{ roleMap[row.roleId!] || row.roleName || row.roleId }}</template>
           </el-table-column>
           <el-table-column label="数据范围" min-width="160">
             <template #default="{ row }">{{ scopeLabel(row) }}</template>
@@ -240,9 +243,9 @@ onMounted(async () => {
             <el-select v-model="addRoleForm.roleId" placeholder="选择角色" style="width: 160px">
               <el-option
                 v-for="r in roles"
-                :key="r.id"
+                :key="r.id!"
                 :label="r.roleName"
-                :value="r.id"
+                :value="r.id!"
               />
             </el-select>
           </el-form-item>
@@ -256,9 +259,9 @@ onMounted(async () => {
             <el-select v-model="addRoleForm.scopeId" placeholder="选择社团" style="width: 180px">
               <el-option
                 v-for="c in clubs"
-                :key="c.id"
+                :key="c.id!"
                 :label="c.clubName"
-                :value="c.id"
+                :value="c.id!"
               />
             </el-select>
           </el-form-item>

@@ -92,15 +92,15 @@ public class ActivityApplyController {
         return R.ok("总结已保存");
     }
 
-    @RequiresLevel(minLevel = Level.ADMIN)
-    @Operation(summary = "分页查询", description = "支持条件筛选与排序")
+    @RequiresLevel(minLevel = Level.STUDENT)
+    @Operation(summary = "分页查询", description = "支持条件筛选与排序；Level 4 仅返回本人参与的活动")
     @GetMapping("/list")
     public R list(@RequestParam Map<String, Object> param, ActivityApply query) {
         IPage<ActivityApply> page = activityApplyService.pageQuery(param, query);
         return R.ok().put("data", page);
     }
 
-    @RequiresLevel(minLevel = Level.ADMIN)
+    @RequiresLevel(minLevel = Level.STUDENT)
     @Operation(summary = "活动详情", description = "含审批流与变更历史")
     @GetMapping("/detail/{id}")
     public R detail(@PathVariable Long id) {

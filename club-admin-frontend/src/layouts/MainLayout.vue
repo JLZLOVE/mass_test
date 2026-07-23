@@ -16,10 +16,8 @@ const isCollapse = ref(false)
 const pageTitle = computed(() => (route.meta.title as string) || '社团管理平台')
 
 const extraMenus = [
-  { id: 9001, parentId: 0, menuName: '\u9996\u9875', menuType: 2, routePath: '/dashboard', icon: 'HomeFilled', componentPath: 'dashboard/index', sort: 0, status: 1 },
-  { id: 9002, parentId: 0, menuName: '\u6210\u5458\u7ba1\u7406', menuType: 2, routePath: '/member', icon: 'User', componentPath: 'member/index', sort: 3, status: 1 },
-  { id: 9003, parentId: 0, menuName: '\u901a\u77e5\u7ba1\u7406', menuType: 2, routePath: '/notice', icon: 'Bell', componentPath: 'notice/index', sort: 4, status: 1 },
-  { id: 9004, parentId: 0, menuName: '\u7edf\u8ba1\u770b\u677f', menuType: 2, routePath: '/statistics', icon: 'DataAnalysis', componentPath: 'statistics/index', sort: 5, status: 1 },
+  { id: 9002, parentId: 0, menuName: '成员管理', menuType: 2, routePath: '/member', icon: 'User', componentPath: 'member/index', sort: 3, status: 1 },
+  { id: 9004, parentId: 0, menuName: '统计看板', menuType: 2, routePath: '/statistics', icon: 'DataAnalysis', componentPath: 'statistics/index', sort: 5, status: 1 },
 ]
 
 const displayMenus = computed(() => {
@@ -50,8 +48,8 @@ function handleLogout() {
   <el-container class="layout-container">
     <el-aside :width="isCollapse ? '64px' : '220px'" class="layout-aside">
       <div class="logo">
-        <span v-if="!isCollapse">\u793e\u56e2\u7ba1\u7406\u5e73\u53f0</span>
-        <span v-else>\u793e</span>
+        <span v-if="!isCollapse">社团管理平台</span>
+        <span v-else>社</span>
       </div>
       <SidebarMenu :menus="displayMenus" :collapse="isCollapse" />
     </el-aside>
@@ -74,7 +72,7 @@ function handleLogout() {
               <el-dropdown-menu>
                 <el-dropdown-item @click="handleLogout">
                   <el-icon><SwitchButton /></el-icon>
-                  \u9000\u51fa\u767b\u5f55
+                  退出登录
                 </el-dropdown-item>
               </el-dropdown-menu>
             </template>

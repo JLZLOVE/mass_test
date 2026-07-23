@@ -1,33 +1,11 @@
-import { httpGet, httpPost, httpDelete } from '@/utils/request'
+import { httpGet } from '@/utils/request'
+import type { R } from '@/types/api'
+import type { SysUserRole } from '@/types/generated'
 
-export interface SysUserRoleItem {
-  id?: number
-  username?: string
-  realName?: string
-  roleId?: number
-  roleName?: string
-  roleCode?: string
-  scopeType?: number
-  scopeId?: number
-  createTime?: string
-}
-
+/** 用户角色关联 API */
 export const sysUserRoleApi = {
-  assign(data: { username: string; roleId: number; scopeType?: number; scopeId?: number }) {
-    return httpPost('/sys-user-role/assign', data)
-  },
-
-  revoke(id: number) {
-    return httpDelete(`/sys-user-role/revoke/${id}`)
-  },
-
-  myRoles() {
-    return httpGet<SysUserRoleItem[]>('/sys-user-role/my-roles')
-  },
-
-  rolesByUsername(username: string) {
-    return httpGet<SysUserRoleItem[]>(`/sys-user-role/roles/${username}`)
+  /** 查询当前登录用户的角色列表 */
+  myRoles(): Promise<R<SysUserRole[]>> {
+    return httpGet('/sys-user-role/my-roles') as Promise<R<SysUserRole[]>>
   },
 }
-
-export default sysUserRoleApi

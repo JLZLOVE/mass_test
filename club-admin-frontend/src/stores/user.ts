@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login as loginApi } from '@/api/login'
+import { login as loginApi, logout as logoutApi } from '@/api/login'
 import { sysUserApi } from '@/api/sysUser'
 import { sysUserRoleApi } from '@/api/sysUserRole'
 import { canViewBudget } from '@/utils/permission'
@@ -37,7 +37,12 @@ export const useUserStore = defineStore('user', () => {
       .map((r) => r.scopeId!)
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      await logoutApi()
+    } catch {
+      // 即使后端注销失败也清除本地状态
+    }
     token.value = ''
     username.value = ''
     userInfo.value = null

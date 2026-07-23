@@ -18,10 +18,10 @@ const constantRoutes: RouteRecordRaw[] = [
     path: '/',
     name: 'layout',
     component: MainLayout,
-    redirect: '/dashboard',
+    redirect: '/member',
     children: [],
   },
-  // 不在此处添加 catch-all：动态路由未注册时 /dashboard 会陷入无限重定向
+  // 不在此处添加 catch-all：动态路由未注册时 /member 会陷入无限重定向
 ]
 
 const router = createRouter({
@@ -35,7 +35,7 @@ router.beforeEach(async (to, _from, next) => {
   // 1. 公开路由（如 login）
   if (to.meta.public === true) {
     if (userStore.isLoggedIn && to.path === '/login') {
-      next('/dashboard')
+      next('/member')
     } else {
       next()
     }
@@ -58,7 +58,7 @@ router.beforeEach(async (to, _from, next) => {
       if (resolved.matched.length > 0 && resolved.name !== 'not-found') {
         next({ ...to, replace: true })
       } else {
-        next({ path: '/dashboard', replace: true })
+        next({ path: '/member', replace: true })
       }
     } catch (error) {
       console.error('动态路由注册失败:', error)

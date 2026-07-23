@@ -7,14 +7,8 @@ import type { SysMenu } from '@/types/generated'
 
 /** componentPath 到 views 路径的映射 */
 const COMPONENT_ALIASES: Record<string, string> = {
-  'club/list': 'club/list',
-  'club/activity': 'activity/apply',
-  'system/user/index': 'member/index',
   'member/index': 'member/index',
-  'notice/index': 'notice/index',
   'statistics/index': 'statistics/index',
-  'activity/apply': 'activity/apply',
-  'dashboard/index': 'dashboard/index',
 }
 
 const viewModules = import.meta.glob('@/views/**/*.vue')
@@ -79,14 +73,8 @@ function menuToRoutes(menus: SysMenu[], parentFullPath = ''): RouteRecordRaw[] {
   return routes
 }
 
-/** 补充数据库菜单未覆盖的页面路由 */
+/** 补充数据库菜单未覆盖的页面路由（仅包含实际存在的页面） */
 const STATIC_ROUTES: RouteRecordRaw[] = [
-  {
-    path: 'dashboard',
-    name: 'dashboard',
-    component: () => import('@/views/dashboard/index.vue'),
-    meta: { title: '首页', icon: 'HomeFilled' },
-  },
   {
     path: 'member',
     name: 'member',
@@ -94,28 +82,10 @@ const STATIC_ROUTES: RouteRecordRaw[] = [
     meta: { title: '成员管理', icon: 'User' },
   },
   {
-    path: 'notice',
-    name: 'notice',
-    component: () => import('@/views/notice/index.vue'),
-    meta: { title: '通知管理', icon: 'Bell' },
-  },
-  {
     path: 'statistics',
     name: 'statistics',
     component: () => import('@/views/statistics/index.vue'),
     meta: { title: '统计看板', icon: 'DataAnalysis' },
-  },
-  {
-    path: 'activity/approve-flow/:applyId',
-    name: 'activity-approve-flow',
-    component: () => import('@/views/activity/approve-flow.vue'),
-    meta: { title: '审批流程', hidden: true },
-  },
-  {
-    path: 'activity/sign/:activityId',
-    name: 'activity-sign',
-    component: () => import('@/views/activity/sign.vue'),
-    meta: { title: '签到记录', hidden: true },
   },
 ]
 

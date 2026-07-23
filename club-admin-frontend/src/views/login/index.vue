@@ -60,7 +60,7 @@ async function handleLogin() {
   try {
     await userStore.login(loginForm.name, loginForm.password)
     ElMessage.success('登录成功')
-    const redirect = (route.query.redirect as string) || '/dashboard'
+    const redirect = (route.query.redirect as string) || '/member'
     router.push(redirect)
   } finally {
     loading.value = false
@@ -122,7 +122,7 @@ async function handleRegister() {
               </el-button>
             </el-form-item>
           </el-form>
-          <p class="hint">测试账号: admin / 123456</p>
+
         </el-tab-pane>
 
         <el-tab-pane label="注册" name="register">

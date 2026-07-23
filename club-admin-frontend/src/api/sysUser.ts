@@ -1,12 +1,11 @@
-import { createCrudApi } from './crudFactory'
+import { httpGet } from '@/utils/request'
+import type { R } from '@/types/api'
 import type { SysUser } from '@/types/generated'
 
-export const sysUserApi =
-  createCrudApi<SysUser>('/sys-user', 'SysUser')
-
-/** sys-user 新增仅后端接口 add_B */
-export function addSysUser(data: Partial<SysUser>) {
-  return sysUserApi.addB(data)
+/** 用户管理 API */
+export const sysUserApi = {
+  /** 分页查询用户（按权限自动过滤） */
+  query(params: Record<string, unknown>): Promise<R<{ records: SysUser[]; total: number }>> {
+    return httpGet('/sys-user/listSysUser', { params }) as Promise<R<{ records: SysUser[]; total: number }>>
+  },
 }
-
-export default sysUserApi

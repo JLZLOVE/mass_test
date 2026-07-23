@@ -31,10 +31,10 @@ public class ClubApplicationController {
     private ClubApplicationService clubApplicationService;
 
     @RequiresLevel(minLevel = Level.STUDENT)
-    @Operation(summary = "社团性质列表", description = "固定六类，创建申请 category 须从中选择")
+    @Operation(summary = "社团性质列表", description = "返回 { code, label } 六类标准枚举")
     @GetMapping("/categories")
     public R categories() {
-        return R.ok().put("data", ClubCategory.all());
+        return R.ok().put("data", ClubCategory.allItems());
     }
 
     @RequiresLevel(minLevel = Level.ADMIN)
@@ -45,8 +45,8 @@ public class ClubApplicationController {
         return R.ok("提交成功").put("data", applicationNo);
     }
 
-    @RequiresLevel(minLevel = Level.ADMIN)
-    @Operation(summary = "发起解散申请", description = "社团指导老师提交解散申请")
+    @RequiresLevel(minLevel = Level.CLUB_LEADER)
+    @Operation(summary = "发起解散申请", description = "社团指导老师或社长提交解散申请")
     @PostMapping("/apply/dissolve")
     public R dissolveApply(@Valid @RequestBody ClubDissolveApplyDTO dto) {
         clubApplicationService.dissolveApply(dto);

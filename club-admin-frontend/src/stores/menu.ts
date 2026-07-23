@@ -94,7 +94,19 @@ const STATIC_ROUTES: RouteRecordRaw[] = [
     path: 'club',
     name: 'club',
     component: () => import('@/views/club/list.vue'),
-    meta: { title: '社团管理', icon: 'OfficeBuilding', minLevel: 2 },
+    meta: { title: '社团管理', icon: 'OfficeBuilding', minLevel: 3 },
+  },
+  {
+    path: 'club/detail/:clubCode',
+    name: 'club-detail',
+    component: () => import('@/views/club/detail.vue'),
+    meta: { title: '社团详情', icon: 'OfficeBuilding', minLevel: 3 },
+  },
+  {
+    path: 'club/council/:clubId',
+    name: 'club-council',
+    component: () => import('@/views/club/council.vue'),
+    meta: { title: '合议签字', icon: 'EditPen', minLevel: 1 },
   },
   {
     path: 'activity/apply',

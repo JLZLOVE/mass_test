@@ -38,6 +38,7 @@ import untiy.security.ClubLookupHelper;
 import untiy.security.ClubSecurityHelper;
 import untiy.security.LoginUserDetails;
 import untiy.security.UserExposeHelper;
+import untiy.security.UserScopeResolver;
 import untiy.security.UserSecurityHelper;
 import untiy.service.ClubApplicationService;
 import untiy.utils.ClubCodeGeneratorUtil;
@@ -45,6 +46,7 @@ import untiy.utils.MPUtil;
 import untiy.utils.SecurityUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -156,9 +158,40 @@ public class ClubApplicationServiceImpl extends ServiceImpl<ClubApplicationMappe
     public void dissolveApply(ClubDissolveApplyDTO dto) {
         LoginUserDetails user = SecurityUtils.getCurrentUser();
         SysClub club = ClubLookupHelper.requireNormalByClubCode(sysClubMapper, dto.getClubCode());
-        if (!user.getUserId().equals(club.getAdvisorId())) {
+
+        boolean isAdvisor = user.getUserId().equals(club.getAdvisorId());
+        boolean isPresident = false;
+        if (!isAdvisor && user.getEffectiveLevel() <= Level.CLUB_LEADER) {
+            List<SysRole> roles = UserScopeResolver.loadActiveRoles(sysUserRoleMapper, sysRoleMapper, user.getUserId());
+            java.util.Set<Long> presidentRoleIds = roles.stream()
+                    .filter(r -> ClubApplyConstants.ROLE_CLUB_PRESIDENT.equals(r.getRoleCode()))
+                    .map(SysRole::getId)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (!presidentRoleIds.isEmpty()) {
+                isPresident = sysUserRoleMapper.selectCount(new LambdaQueryWrapper<SysUserRole>()
+                        .eq(SysUserRole::getUserId, user.getUserId())
+                        .eq(SysUserRole::getScopeType, ClubApplyConstants.SCOPE_TYPE_CLUB)
+                        .eq(SysUserRole::getScopeId, club.getId())
+                        .in(SysUserRole::getRoleId, presidentRoleIds)) > 0;
+            }
+        }
+        if (!isAdvisor && !isPresident) {
             throw new EIException(ErrorConfig.CLUB_NOT_ADVISOR_CODE, ErrorConfig.CLUB_NOT_ADVISOR_MSG);
         }
+
+        // 已有进行中的解散流程则拒绝
+        long activeDissolve = count(new LambdaQueryWrapper<ClubApplication>()
+                .eq(ClubApplication::getApplyType, ClubApplyConstants.APPLY_TYPE_DISSOLVE)
+                .eq(ClubApplication::getClubName, club.getClubName())
+                .eq(club.getCollegeId() != null, ClubApplication::getCollegeId, club.getCollegeId())
+                .in(ClubApplication::getStatus,
+                        ClubApplyConstants.STATUS_PENDING_COLLEGE,
+                        ClubApplyConstants.STATUS_COLLEGE_APPROVED));
+        if (activeDissolve > 0) {
+            throw new EIException(ErrorConfig.CLUB_APPLY_STATUS_INVALID_CODE,
+                    "该社团已有进行中的解散流程，请勿重复操作");
+        }
+
         if (clubDissolveExecutor.hasActiveActivities(club.getId())) {
             throw new EIException(ErrorConfig.CLUB_HAS_ACTIVE_ACTIVITY_CODE, ErrorConfig.CLUB_HAS_ACTIVE_ACTIVITY_MSG);
         }

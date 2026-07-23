@@ -37,7 +37,7 @@ const extraMenus = [
   {
     id: 9003, parentId: 0, menuName: '社团管理', menuType: 2,
     routePath: '/club', icon: 'OfficeBuilding', componentPath: 'club/list',
-    sort: 2, status: 1, minLevel: 2,
+    sort: 2, status: 1, minLevel: 3,
   },
   {
     id: 9002, parentId: 0, menuName: '成员管理', menuType: 2,
@@ -126,7 +126,7 @@ function goDashboard(forceRefresh = false) {
 
       <el-main class="layout-main">
         <router-view v-slot="{ Component }">
-          <keep-alive include="DashboardWorkbench">
+          <keep-alive include="DashboardWorkbench,ClubList">
             <component :is="Component" />
           </keep-alive>
         </router-view>

@@ -1,6 +1,8 @@
 package untiy.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,28 +13,34 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import untiy.entity.ClubCouncil;
 import untiy.entity.SysClub;
+import untiy.entity.SysCollege;
 import untiy.entity.SysRole;
+import untiy.entity.SysUserRole;
 import untiy.entity.constants.ClubApplyConstants;
 import untiy.entity.dto.CouncilInitiateDTO;
+import untiy.entity.vo.ClubCouncilDetailVO;
 import untiy.entity.vo.CouncilSignRecordVO;
 import untiy.exception.EIException;
 import untiy.exception.ErrorConfig;
 import untiy.exception.Level;
 import untiy.mapper.ClubCouncilMapper;
 import untiy.mapper.SysClubMapper;
+import untiy.mapper.SysCollegeMapper;
 import untiy.mapper.SysRoleMapper;
 import untiy.mapper.SysUserRoleMapper;
 import untiy.security.ClubDissolveExecutor;
 import untiy.security.ClubLookupHelper;
 import untiy.security.ClubSecurityHelper;
 import untiy.security.LoginUserDetails;
-import untiy.entity.SysUserRole;
 import untiy.service.ClubCouncilService;
+import untiy.utils.MPUtil;
 import untiy.utils.SecurityUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -43,6 +51,9 @@ public class ClubCouncilServiceImpl extends ServiceImpl<ClubCouncilMapper, ClubC
 
     @Autowired
     private SysClubMapper sysClubMapper;
+
+    @Autowired
+    private SysCollegeMapper sysCollegeMapper;
 
     @Autowired
     private SysUserRoleMapper sysUserRoleMapper;
@@ -136,6 +147,87 @@ public class ClubCouncilServiceImpl extends ServiceImpl<ClubCouncilMapper, ClubC
         }
     }
 
+    @Override
+    public IPage<ClubCouncilDetailVO> pageQuery(Map<String, Object> param, Long clubId) {
+        Page<ClubCouncil> page = MPUtil.getPage(param);
+        LambdaQueryWrapper<ClubCouncil> wrapper = new LambdaQueryWrapper<ClubCouncil>()
+                .eq(ClubCouncil::getStatus, ClubApplyConstants.COUNCIL_IN_PROGRESS)
+                .orderByDesc(ClubCouncil::getCreateTime);
+        if (clubId != null) {
+            wrapper.eq(ClubCouncil::getClubId, clubId);
+        }
+        IPage<ClubCouncil> raw = page(page, wrapper);
+        Page<ClubCouncilDetailVO> result = new Page<>(raw.getCurrent(), raw.getSize(), raw.getTotal());
+        result.setRecords(raw.getRecords().stream().map(this::toDetailVO).collect(Collectors.toList()));
+        return result;
+    }
+
+    @Override
+    public ClubCouncilDetailVO getDetail(Long councilId, Long clubId) {
+        ClubCouncil council = null;
+        if (councilId != null) {
+            council = getById(councilId);
+        } else if (clubId != null) {
+            council = getOne(new LambdaQueryWrapper<ClubCouncil>()
+                    .eq(ClubCouncil::getClubId, clubId)
+                    .eq(ClubCouncil::getStatus, ClubApplyConstants.COUNCIL_IN_PROGRESS)
+                    .orderByDesc(ClubCouncil::getCreateTime)
+                    .last("LIMIT 1"), false);
+        }
+        if (council == null) {
+            throw new EIException(ErrorConfig.CLUB_COUNCIL_NOT_FOUND_CODE, ErrorConfig.CLUB_COUNCIL_NOT_FOUND_MSG);
+        }
+        return toDetailVO(council);
+    }
+
+    private ClubCouncilDetailVO toDetailVO(ClubCouncil council) {
+        LoginUserDetails user = SecurityUtils.getCurrentUser();
+        ClubCouncilDetailVO vo = new ClubCouncilDetailVO();
+        vo.setId(council.getId());
+        vo.setClubId(council.getClubId());
+        vo.setCollegeId(council.getCollegeId());
+        vo.setReason(council.getReason());
+        vo.setStatus(council.getStatus());
+        vo.setInitiatorName(council.getInitiatorName());
+        vo.setExecutedAt(council.getExecutedAt());
+        vo.setCreateTime(council.getCreateTime());
+
+        SysClub club = sysClubMapper.selectById(council.getClubId());
+        if (club != null) {
+            vo.setClubCode(club.getClubCode());
+            vo.setClubName(club.getClubName());
+        }
+        if (council.getCollegeId() != null) {
+            SysCollege college = sysCollegeMapper.selectById(council.getCollegeId());
+            if (college != null) {
+                vo.setCollegeName(college.getCollegeName());
+            }
+        }
+
+        List<CouncilSignRecordVO> records = parseSignatories(council.getSignatories());
+        vo.setSignatories(records);
+        boolean alreadySigned = records.stream().anyMatch(r ->
+                user.getUsername().equals(r.getUsername())
+                        || (r.getUserId() != null && user.getUserId().equals(r.getUserId())));
+        vo.setAlreadySigned(alreadySigned);
+
+        boolean canSign = false;
+        if (!alreadySigned
+                && user.getEffectiveLevel() <= Level.ADMIN
+                && council.getStatus() != null
+                && council.getStatus() == ClubApplyConstants.COUNCIL_IN_PROGRESS) {
+            try {
+                ClubSecurityHelper.assertCollegeInScope(sysUserRoleMapper, sysRoleMapper,
+                        user.getUserId(), council.getCollegeId());
+                canSign = true;
+            } catch (EIException ignored) {
+                canSign = false;
+            }
+        }
+        vo.setCanSign(canSign);
+        return vo;
+    }
+
     private boolean isCouncilPassed(List<CouncilSignRecordVO> records) {
         long superCount = records.stream().filter(r -> r.getLevel() != null && r.getLevel() == Level.SUPER_ADMIN).count();
         long adminCount = records.stream().filter(r -> r.getLevel() != null && r.getLevel() == Level.ADMIN).count();
@@ -167,7 +259,7 @@ public class ClubCouncilServiceImpl extends ServiceImpl<ClubCouncilMapper, ClubC
     private List<SysRole> loadUserRoles(Long userId) {
         List<Long> roleIds = sysUserRoleMapper.selectList(new LambdaQueryWrapper<SysUserRole>()
                         .eq(SysUserRole::getUserId, userId))
-                .stream().map(SysUserRole::getRoleId).collect(java.util.stream.Collectors.toList());
+                .stream().map(SysUserRole::getRoleId).collect(Collectors.toList());
         if (roleIds.isEmpty()) {
             return new ArrayList<>();
         }

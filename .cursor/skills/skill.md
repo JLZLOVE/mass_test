@@ -1,7 +1,6 @@
-```markdown
 ---
 name: club-admin-frontend
-description: 社团综合管理平台前端开发技能。基于 Vue3 + TypeScript + Element Plus + Vite，实现社团/活动/审批/通知/统计/用户权限模块。API 严格遵循提供的 OpenAPI 规范，统计图表按月度/学期展示。
+description: 社团综合管理平台前端开发技能。基于 Vue3 + TypeScript + Element Plus + Vite，实现社团/活动/审批/通知/统计/用户权限模块。社团管理以 .cursor/skills/社团.md 为设计真源；API 对齐当前 Spring 控制器（非旧版 _F/_B 命名）。
 ---
 
 # 社团管理平台前端技能（Cursor 专用）
@@ -20,21 +19,24 @@ description: 社团综合管理平台前端开发技能。基于 Vue3 + TypeScri
 ```
 club-admin-frontend/
 ├── src/
-│   ├── api/               # 自动/手动生成的接口函数
+│   ├── api/               # 接口封装（按后端路径命名）
 │   ├── assets/
-│   ├── components/        # 通用组件（如权限按钮、图表容器）
-│   ├── layouts/           # 布局（左侧菜单 + 右侧内容 + 顶部栏）
-│   ├── router/            # 路由配置
-│   ├── stores/            # Pinia store（用户、菜单、权限）
-│   ├── types/             # TypeScript 类型定义（从 OpenAPI 生成或手动）
-│   ├── utils/             # 请求拦截器、权限指令、格式化
+│   ├── components/
+│   ├── composables/       # 如 useMemberCount
+│   ├── layouts/           # 左侧菜单 + 右侧内容 + 顶部栏
+│   ├── router/
+│   ├── stores/            # user / menu
+│   ├── types/             # generated.ts + api.ts（R / PageResult）
+│   ├── utils/             # request、level、permission、format
 │   ├── views/
 │   │   ├── login/
-│   │   ├── club/          # 社团管理
-│   │   ├── activity/      # 活动申请 / 审批 / 签到
-│   │   ├── member/        # 成员管理 + 角色分配
-│   │   ├── notice/        # 通知公告
-│   │   └── statistics/    # 数据统计（图表）
+│   │   ├── club/          # list / detail / council
+│   │   ├── activity/      # apply / approve-flow / sign
+│   │   ├── member/
+│   │   ├── notice/
+│   │   ├── profile/
+│   │   ├── dashboard/
+│   │   └── statistics/
 │   ├── App.vue
 │   └── main.ts
 ├── index.html
@@ -43,116 +45,215 @@ club-admin-frontend/
 └── vite.config.ts
 ```
 
-## API 集成规则（基于 OpenAPI）
+## API 集成规则
 
-### 1. 请求客户端封装 (`src/utils/request.ts`)
-- 基础 URL: `http://localhost:100/Mass_Test` （可从 OpenAPI servers 读取）
-- 请求头自动添加 `Authorization: Bearer ${token}`（token 存储在 localStorage）
-- 响应拦截器统一判断 `code === 200` 为成功，否则弹出错误提示
-- 登录接口特殊处理：**使用 `GET` 方法，参数为 query `name` 和 `password`**（不是 JSON body）
+### 1. 请求客户端 (`src/utils/request.ts`)
+- 基础 URL: `VITE_API_BASE_URL` 或默认 `/Mass_Test`
+- 请求头：`Authorization: Bearer ${token}` 与 `Token`
+- 响应成功：`code === 0`（或 `code` 未定义）；否则 `ElMessage.error`，`401` 跳转登录
+- 登录：按 `登录设计.md` / 现有 `api/login` 实现（勿再假设旧 OpenAPI 的 `_F` 命名）
 
-### 2. 接口函数生成策略
-由于 OpenAPI 文档中存在大量 `updateSysUser_F` / `add_B` 等命名不规范接口，请按以下规则**手动创建**或**使用脚本简化**：
-- **社团管理**：使用 `/sys-club/*` 路径下的 `listSysClub_F`（分页列表）、`add_F`（新增）、`updateSysClub_F`（编辑）、`deleteSysClub_F/{id}`（解散）
-- **活动申请**：使用 `/activity-apply/*`：`listActivityApply_F`（分页）、`add_F`（申请）、`updateActivityApply_F`（编辑）、`deleteActivityApply_F/{id}`（撤销）
-- **审批流程**：`/activity-approve-flow/*`：`listActivityApproveFlow_F`（某活动的审批步骤）、`updateActivityApproveFlow_F`（同意/驳回，需传 `approveResult` 和 `approveOpinion`）
-- **签到记录**：`/activity-sign/*`：`listActivitySign_F`（分页），手动补签调用 `add_F` 新增签到记录（`signType=3`）
-- **用户/角色**：`/sys-user/*`、`/sys-user-role/*` 对应成员管理和角色分配
-- **通知公告**：`/notice-info/*`
-- **社团统计**：`/club-statistics/*`（获取统计数据用于图表）
-- **菜单**：`/sys-menu/listSysMenu` 返回菜单树（`parentId` 为 0 表示根节点）
+### 2. 分页约定
+统一使用后端 `MPUtil.getPage` 约定：
+- 请求：`page`、`limit`（不是 `pageNum` / `pageSize`）
+- 响应：`R.data` 为 MyBatis-Plus 分页 → `{ records, total, size, current, pages }`
 
-> 提示：所有分页接口的查询参数格式不明确，统一设计为：`pageNum`, `pageSize` + 实体对象字段（如 `sysClub`）。请参考 OpenAPI 中的 `parameters` 定义。
+### 3. 主要接口路径（当前后端，禁止再写 listXxx_F）
 
-### 3. TypeScript 类型
-- 根据 OpenAPI `components/schemas` 手动或使用 `openapi-typescript` 生成 `src/types/generated.ts`
-- 响应格式：`R<T>`，包含 `code: number`, `data: T`, `message: string`
+| 模块 | 路径前缀 | 说明 |
+|---|---|---|
+| 社团管理 | `/sys-club/*` | `list` / `detail/{clubCode}` / `departments` / `members` |
+| 学院 | `/sys-college/list` | 远程搜索，按权限过滤 |
+| 社团申请 | `/club-application/*` | `categories`、`apply/create`、`apply/dissolve`、审批 |
+| 社团合议 | `/club-council/*` | `list`、`detail`、`council/initiate`、`council/sign/{id}` |
+| 成员数聚合 | `/club-statistics/list?clubIds=` | `{ clubId, memberCount }[]` |
+| 活动 | `/activity-apply/*`、`/activity-sign/*` | 见活动相关 skill |
+| 用户/角色 | `/sys-user/*`、`/sys-user-role/*` | 成员管理 |
+| 通知 | `/notice-info/*` | |
+| 菜单 | `/sys-menu/*` | 菜单树 + permissions |
+| 门户 | `/portal/*` | 公开数据，管理端勿作主数据源 |
 
-## 业务模块详细需求（必须实现）
+### 4. TypeScript 类型
+- `src/types/api.ts`：`R<T>`
+- `src/types/generated.ts`：业务类型（含 `SysClubItem`、`ClubCategoryItem`、`ClubMemberCount`、`ClubCouncilDetail` 等）
+- 成功字段以实际拦截器为准：`code` + `msg` + `data`
+
+---
+
+## 业务模块详细需求
 
 ### 登录认证
-- 页面：`/login`，表单字段：`name`（用户名）、`password`（密码）
-- 调用 `GET /login/allocation?name=xxx&password=xxx`，成功后存储 `token` 和用户基本信息（角色、社团ID等）
-- 跳转到首页（动态菜单加载）
+- 页面：`/login`
+- 成功后存 `token` / `username`，`loadUserProfile` 拉用户详情与角色，计算 `effectiveLevel`、`clubScopeIds`
+- 跳转工作台，动态菜单 + `STATIC_ROUTES` 补齐
 
-### 社团管理 (`/club`)
-- 列表页：展示 `SysClub` 字段（id, clubName, category, collegeId, advisorId, status等）
-- 支持按社团名称、状态筛选，分页
-- 操作按钮：新增、编辑、解散（仅社长/管理员可见）
-- 新增/编辑弹窗：包含字段 `clubName`, `clubCode`, `category`, `collegeId`, `advisorId`, `description`, `logo`（可选）
+### 社团管理（设计真源：`.cursor/skills/社团.md`）
+
+> 核心原则：**菜单隔离、流程分离、行权下沉、数据聚合解耦**。Level 4 **无菜单入口**。
+
+#### 准入
+| Level | 菜单 | 数据范围 |
+|---|---|---|
+| 0/1 | ✅ | 全量（指导老师可仅看所指导社团） |
+| 2 社长 | ✅ | 本人管辖社团 |
+| 3 部长 | ✅（`minLevel: 3`） | 本部门挂靠社团 |
+| 4 学生 | ❌ | 走门户 / 个人中心 / 活动详情 |
+
+#### 列表页 `/club`（`views/club/list.vue`，`keep-alive` 名 `ClubList`）
+- **筛选**：类别（`GET /club-application/categories` → `{code,label}`，禁止硬编码）、学院远程搜索、状态（正常/已解散，与 Tab 联动重置）、关键词防抖 300ms（名称/编号）
+- **Tab 物理隔离**：
+  - `normal`：正常运营（排除进行中解散申请与合议）
+  - `dissolving`：解散申请中（`apply_type=2` 且 `status∈{1,2}`）
+  - `council`：合议中（`club_council.status=1`）
+- **列**：编号（等宽）、名称（类别 2px 色块 + 跳转详情）、类别、指导老师（空→「待指派」）、成员数（`useMemberCount` 批量聚合）、状态圆点、操作列
+- **操作列**（可见即有权，禁止灰色禁用按钮）：
+  - 查看详情：`effectiveLevel ≤ 3` → `/club/detail/{clubCode}?from=club-list`
+  - 解散申请：以后端 `canDissolve` 为准 → 二次确认（输入社团名）+ 原因 → `POST /club-application/apply/dissolve` → 切 Tab 到「申请解散中」
+  - 合议签字：以后端 `canSignCouncil` 为准 → `/club/council/{clubId}`
+- **创建社团**：仅 Level ≤ 1，`POST /club-application/apply/create`
+- **成员数**：`composables/useMemberCount.ts`，`GET /club-statistics/list?clubIds=`，TTL 5s；失败显示 `--` + 行级重试；加载用骨架，勿提前显示 `0人`
+
+#### 详情页 `/club/detail/:clubCode`
+- 信息卡、部门架构树、成员分页（可按 `roleCode` 筛）、历史活动时间线（`/activity-apply/list?clubId=`）
+- 无权限：提示并回退 `/club`
+
+#### 合议页 `/club/council/:clubId`
+- `GET /club-council/detail?clubId=`；签字 `POST /club-council/council/sign/{id}`
+- 展示签字人列表与 `canSign` / `alreadySigned`
+
+#### 关键前端文件
+- `api/sysClub.ts`、`clubApplication.ts`、`sysCollege.ts`、`clubStatistics.ts`、`clubCouncil.ts`
+- `views/club/list.vue`、`detail.vue`、`council.vue`
+- `stores/menu.ts`：`club` minLevel **3**；子路由 `club/detail/:clubCode`、`club/council/:clubId`
 
 ### 活动管理
-#### 活动申请 (`/activity/apply`)
-- 列表：显示所有申请（`ActivityApply`），支持搜索（活动名称、状态）
-- 状态：草稿(1)、待审批(2)、审批中(3)、已通过(4)、已驳回(5)、已取消(6)
-- 操作：新增、编辑（仅草稿状态）、撤销（删除）、查看审批流程图
-- 新增/编辑表单字段：依据 `ActivityApply` 定义（activityName, categoryId, activityType, startTime, endTime, location, locationDetail, expectedPeople, budget, activityContent, safetyPlan）
-- 注意：`activityNo` 后端自动生成，前端不填写
+#### 活动申请 / 活动管理 (`/activity/apply`)
+- 列表：`ActivityApply`，搜索活动名称、状态
+- 状态：草稿(1)、待审批(2)、审批中(3)、已通过(4)、已驳回(5)、已取消(6)…
+- Level 4 可访问列表/详情，数据范围仅本人参与活动（后端过滤）
 
 #### 审批流程 (`/activity/approve-flow/:applyId`)
-- 展示某个活动申请的审批步骤列表（`ActivityApproveFlow` 按 `step` 排序）
-- 使用 `el-steps` 组件，显示每一步的审批角色、审批人、结果、意见、时间
-- 如果当前登录用户是当前步骤的审批人，显示“同意/驳回”按钮，调用 `updateActivityApproveFlow_F` 接口（需传 `id`, `approveResult`, `approveOpinion`）
+- `el-steps` 展示审批步骤；当前审批人可同意/驳回
 
-#### 签到记录 (`/activity/sign/:activityId`)
-- 列表显示已签到用户（`ActivitySign` 字段：userName, realName, signTime, signType, signStatus）
-- 手动补签：弹出用户选择器（从活动报名名单或社团成员中选取），调用 `add_F` 接口新增签到记录（`signType=3`）
+#### 签到 (`/activity/sign/:activityId?`)
+- 签到管理 minLevel: 2；学生侧签到/签退走活动详情或工作台能力
 
 ### 成员管理 (`/member`)
-- 用户列表（`SysUser`）：展示 username, realName, gender, phone, email, userType, status
-- 支持按社团、角色筛选（需要组合 `sys_user_role` 查询）
-- 角色分配：点击用户，弹出对话框显示其当前角色列表（`SysUserRole`），可新增/删除角色（调用 `/sys-user-role/add_F` 和 `deleteSysUserRole_F`）
-- 角色预设：社长(role_id=2)、部长(3)、普通成员(4)、指导老师(5)。注意 `scope_type` 和 `scope_id` 用于确定所属社团/部门。
+- 用户列表 + 角色分配（`sys-user-role`）
+- `scope_type` / `scope_id` 绑定学院/社团/部门
 
 ### 通知公告 (`/notice`)
-- 列表：`NoticeInfo` 字段（title, categoryId, importance, urgency, publishTime, status）
-- 操作：发布（新增）、编辑、撤回（删除）、查看已读确认列表
-- 发布表单：标题、内容（富文本）、分类、重要程度、紧急程度、接收类型（全体/指定角色/指定社团/指定人员）、是否需要确认阅读、过期时间
-- 已读确认列表：展示 `NoticeReadRecord`，包含用户姓名、阅读时间、确认时间、是否确认
+- 收件箱 / 发布（按等级）
 
-### 数据统计 (`/statistics`) **（严格按以下要求）**
-- **活动数量按月柱状图**：
-  - 调用 `/club-statistics/listClubStatistics_F` 获取所有社团的月度统计数据（`stat_date` 字段为 date）。
-  - 前端聚合：按月份（YYYY-MM）分组，统计每月活动数量（`activityCount` 总和）。
-  - 使用 ECharts 柱状图展示，X 轴为月份，Y 轴为活动次数。
-- **成员人数趋势折线图（逐月）**：
-  - 从相同数据源提取 `total_members`（总成员数）按月份聚合。
-  - 折线图展示近 12 个月成员人数变化。
-- **社团分类占比饼图（每学期更新）**：
-  - 获取所有社团（`/sys-club/listSysClub`），根据 `category` 字段（学术科技/文化体育/公益等）统计数量。
-  - 注意：饼图数据不需要实时更新，可在每学期初手动刷新或前端缓存。
-- **其他辅助统计**：可展示社团总数、活动总数、参与人次总和等（从 `club_statistics` 聚合）。
-- **页面布局**：上方筛选区域（社团下拉、日期范围），下方三个主要图表区域。
+### 数据统计 (`/statistics`)
+- ECharts：活动量、成员趋势、分类占比等；成员数批量能力与 `/club-statistics/list` 对齐，勿依赖已废弃的 `listClubStatistics_F`
 
-### 数据权限提示（前端实现）
-- 后端提供了 `sys_data_permission` 表，但前端可先简化处理：
-  - 普通成员（`role_id=4`）隐藏“预算金额”字段（如社团列表的 `budget`、活动申请的 `budget`）。
-  - 部长（`role_id=3`）可编辑部分数据，但预算只读。
-  - 社长（`role_id=2`）及管理员可见全部。
-- 实现方式：在组件中使用自定义指令 `v-permission` 或计算属性 `userRole` 控制 `v-if`。
-- 更精细的行级权限可后续对接后端接口动态返回字段可见性。
+### 数据权限提示
+- 预算可见性：`utils/permission.ts` 的 `canViewBudget` / `isBudgetReadonly`（基于 `effectiveLevel` + roleIds）
+- 行级操作：优先使用后端下发的布尔权限字段（如 `canDissolve`），**禁止** `v-if="role === '社长'"` 硬编码
+
+---
 
 ## 布局与动态菜单
-- 左侧菜单递归渲染，数据源来自 `GET /sys-menu/listSysMenu`（注意 `menuType`：1目录/2菜单/3按钮）
-- 构建菜单树：`parentId === 0` 为顶级，根据 `componentPath` 动态加载路由（使用 `import.meta.glob`）
-- 顶部栏：显示用户头像/名称，退出登录，暗色/亮色切换（可选）
+- 左侧菜单：`GET` 菜单树 + `MainLayout` 中 `extraMenus` 按 `minLevel` 补齐
+- `stores/menu.ts`：`STATIC_ROUTES` + `import.meta.glob` 解析 `componentPath`
+- 顶部：用户下拉、通知铃、面包屑
 
-## 开发流程（按顺序执行）
-1. 创建项目：`npm create vue@latest`，选择 TypeScript、Vue Router、Pinia。
-2. 安装依赖：`axios`, `element-plus`, `echarts`, `@vueuse/core`。
-3. 配置 `vite.config.ts` 代理解决跨域（可选）。
-4. 实现 `src/utils/request.ts` 和 `src/api/...`（根据 OpenAPI 手动编写接口函数，约 10 个主要模块）。
-5. 生成 `src/types/generated.ts`（拷贝 OpenAPI 中的 schemas 并手动调整）。
-6. 实现 `src/stores/user.ts` 和 `src/stores/menu.ts`，完成登录和菜单动态加载。
-7. 按顺序开发页面：登录 → 社团管理 → 活动申请 → 审批流程 → 签到记录 → 成员管理 → 通知公告 → 数据统计。
-8. 在每个页面中使用 Element Plus 组件，确保响应式布局。
+---
+
+## 权限等级体系（五级 RBAC）
+
+### 等级定义（`src/utils/level.ts`）
+| Level | 角色 | 说明 |
+|---|---|---|
+| 0 | 超级管理员 | 全平台无限制 |
+| 1 | 院长/指导老师 (ADMIN) | 管辖范围数据 |
+| 2 | 社团社长 (CLUB_LEADER) | 本社团数据 |
+| 3 | 部门部长 (DEPT_LEADER) | 本部门数据 |
+| 4 | 普通学生 (STUDENT) | 仅本人数据 |
+
+### 后端两层拦截
+1. **接口准入（AOP）**：`@RequiresLevel(minLevel)` → `effectiveLevel ≤ minLevel`
+2. **数据范围过滤（Service）**：按等级注入 club / college / department / userId 条件
+
+### 前端两层拦截
+1. **路由守卫**：`effectiveLevel` vs `route.meta.minLevel`
+2. **菜单可见性**：`userStore.effectiveLevel <= item.minLevel`
+
+### 社团相关接口等级（摘要）
+- `DEPT_LEADER(3)`：`/sys-club/list|detail|…`、`/sys-college/list`、`/club-statistics/list`
+- `CLUB_LEADER(2)`：`POST /club-application/apply/dissolve`（业务内再校验指导老师/社长）
+- `ADMIN(1)`：创建申请、合议签字、学院/校级审批
+- `SUPER_ADMIN(0)`：发起合议
+
+---
+
+## 开发流程（按顺序）
+1. 对齐后端真实 Controller 路径（以源码为准，不以旧 OpenAPI `_F` 为准）
+2. 补齐 `src/api/*` 与 `types`
+3. 更新 `stores/user` / `menu` 与路由 `minLevel`
+4. 按模块实现页面；社团模块严格遵循 `社团.md`
+5. 联调：列表 Tab 联动、权限按钮显隐、成员数聚合、详情/合议闭环
 
 ## 注意事项
-- 所有接口的 `update` 操作均对应 PUT 请求，`add` 对应 POST，`delete` 对应 DELETE。
-- 分页接口的返回值结构未在 OpenAPI 中明确定义，请假设后端返回 `{ records: T[], total: number }` 包装在 `data` 中。
-- 若遇到字段缺失（如用户名、社团名关联），可通过额外接口联查，或在前端 store 中缓存字典（如社团列表、角色列表）。
-- 遇到任何不符合预期的 API 行为，请在第二轮对话中提供具体的接口请求/响应示例，我会指导调整。
+- 分页参数：`page` + `limit`；响应看 `data.records` / `data.total`
+- `SysClub` 实体 `id` 可能 `@JsonIgnore`，管理端以 `SysClubListVO` 暴露 `id`（供成员数与合议跳转）
+- 类别下拉必须走接口；色块用 `categoryCode`（SZ/XS/CX/WH/GY/ZL）
+- 遇到 API 与文档不一致，以 Controller + 联调响应为准，并回写本 skill / 对应设计 md
 
---- 
+---
 
-```
+## 2026-07-23 改动：Level 4 学生工作台权限修复与活动管理重构
+
+### 问题背景
+Level 4 学生登录后工作台持续弹出「权限不足」，原因是 `fetchDashboardBundle` 调用了当时要求过高的活动列表接口，且 KPI 跳转触发路由守卫。
+
+### 改动清单
+
+#### 后端
+1. **`ActivityApplyController.java`** — `/list`、`/detail/{id}` 的 `@RequiresLevel` 降为 `Level.STUDENT`
+2. **`ActivityApplyServiceImpl.java`** — Level 4 列表追加本人数据范围
+
+#### 前端
+3. **`stores/menu.ts`** — `activity-apply` 标题「活动管理」，`minLevel: 4`
+4. **`views/dashboard/index.vue`** — KPI 路由准入与只读样式
+
+### 当时 Level 4 行为快照
+| 页面/功能 | 可访问 | 数据范围 |
+|---|---|---|
+| 工作台 | ✅ | KPI（活动总数、签到次数、未读通知） |
+| 活动管理 `/activity/apply` | ✅ | 仅本人参与 |
+| 签到管理 `/activity/sign` | ❌ (minLevel:2) | — |
+| 社团管理 `/club` | ❌ | 菜单不可见（后已调整为 minLevel:3，仍对 Level 4 不可见） |
+| 成员管理 `/member` | ❌ (minLevel:2) | — |
+| 统计看板 `/statistics` | ❌ (minLevel:2) | — |
+| 通知中心 `/notice` | ✅ | 收件箱 |
+| 个人中心 `/profile` | ✅ | 本人 |
+
+---
+
+## 2026-07-23 改动：社团管理模块按 `社团.md` 全量构建
+
+### 设计对齐
+依据 `.cursor/skills/社团.md`：Tab 流程隔离、操作列后端权限标识、成员数前端批量聚合、详情/合议独立页、Level 4 无后台入口。
+
+### 后端
+1. **`SysClubController`** — `GET /sys-club/list|detail|departments|members|member-count`
+2. **`SysCollegeController`** — `GET /sys-college/list`
+3. **`ClubStatisticsController`** — `GET /club-statistics/list?clubIds=`
+4. **`ClubApplicationController`** — `categories` 返回 `{code,label}`；解散申请允许指导老师或社长（`minLevel=CLUB_LEADER`）；并发解散冲突 7207
+5. **`ClubCouncilController`** — 新增 `GET /list`、`GET /detail`
+6. **VO / Service** — `SysClubListVO`（含 `advisorName`、`canDissolve`、`canSignCouncil`、`activeCouncilId` 等）、`SysClubServiceImpl.adminPageQuery(tabMode)`、`use` 批量成员数 SQL
+
+### 前端
+1. API：`sysClub` / `clubApplication` / `sysCollege` / `clubStatistics` / `clubCouncil`
+2. `composables/useMemberCount.ts`
+3. `views/club/list.vue`、`detail.vue`、`council.vue`
+4. 路由与菜单：`club` **minLevel: 3**；详情/合议静态路由；`keep-alive` 包含 `ClubList`
+
+### 验收要点
+- [x] 类别下拉无前端硬编码枚举
+- [x] 操作列由 `canDissolve` / `canSignCouncil` 驱动
+- [x] 三 Tab 数据互不污染，解散成功自动切 Tab
+- [x] 成员数统一走 `useMemberCount`
+- [x] Level 4 无「社团管理」菜单；部长可见

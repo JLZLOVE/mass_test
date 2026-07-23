@@ -1,17 +1,19 @@
 package untiy.controller;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
 import untiy.annotation.RequiresLevel;
 import untiy.entity.dto.CouncilInitiateDTO;
+import untiy.entity.vo.ClubCouncilDetailVO;
 import untiy.exception.Level;
 import untiy.service.ClubCouncilService;
 import untiy.utils.R;
 
 import javax.validation.Valid;
+import java.util.Map;
 
 @RestController
 @Tag(name = "社团合议", description = "合议解散发起与签字")
@@ -35,5 +37,22 @@ public class ClubCouncilController {
     public R sign(@PathVariable Long id) {
         clubCouncilService.sign(id);
         return R.ok("签字成功");
+    }
+
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "合议列表", description = "默认仅合议中；可按 clubId 过滤")
+    @GetMapping("/list")
+    public R list(@RequestParam Map<String, Object> param,
+                  @RequestParam(required = false) Long clubId) {
+        IPage<ClubCouncilDetailVO> page = clubCouncilService.pageQuery(param, clubId);
+        return R.ok().put("data", page);
+    }
+
+    @RequiresLevel(minLevel = Level.ADMIN)
+    @Operation(summary = "合议详情", description = "传 id 或 clubId（取进行中合议）")
+    @GetMapping("/detail")
+    public R detail(@RequestParam(required = false) Long id,
+                    @RequestParam(required = false) Long clubId) {
+        return R.ok().put("data", clubCouncilService.getDetail(id, clubId));
     }
 }

@@ -61,4 +61,38 @@
         ORDER BY ur.create_time DESC
     </select>
 
+    <select id="selectPageByClubScope" resultType="untiy.entity.vo.SysUserRoleVO">
+        SELECT ur.id,
+               ur.user_id   AS userId,
+               u.username   AS username,
+               u.real_name  AS realName,
+               ur.role_id   AS roleId,
+               r.role_name  AS roleName,
+               r.role_code  AS roleCode,
+               ur.scope_type AS scopeType,
+               ur.scope_id  AS scopeId,
+               ur.create_time AS createTime
+        FROM sys_user_role ur
+        INNER JOIN sys_user u ON ur.user_id = u.id
+        INNER JOIN sys_role r ON ur.role_id = r.id
+        WHERE ur.scope_type = 2
+          AND ur.scope_id = #{clubId}
+        <if test="roleCode != null and roleCode != ''">
+            AND r.role_code = #{roleCode}
+        </if>
+        ORDER BY ur.create_time DESC
+    </select>
+
+    <select id="countMembersByClubIds" resultType="untiy.entity.vo.ClubMemberCountVO">
+        SELECT ur.scope_id AS clubId,
+               COUNT(DISTINCT ur.user_id) AS memberCount
+        FROM sys_user_role ur
+        WHERE ur.scope_type = 2
+          AND ur.scope_id IN
+        <foreach collection="clubIds" item="cid" open="(" separator="," close=")">
+            #{cid}
+        </foreach>
+        GROUP BY ur.scope_id
+    </select>
+
 </mapper>

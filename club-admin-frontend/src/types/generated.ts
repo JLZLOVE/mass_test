@@ -131,6 +131,86 @@ export interface PortalClub {
   memberCount?: number
 }
 
+/** 管理端社团列表项 */
+export interface SysClubItem {
+  id?: number
+  clubCode?: string
+  clubName?: string
+  category?: string
+  categoryCode?: string
+  collegeId?: number
+  collegeName?: string
+  advisorId?: number
+  advisorName?: string | null
+  status?: number
+  description?: string
+  logo?: string
+  dissolveApplicationNo?: string
+  activeCouncilId?: number
+  canDissolve?: boolean
+  canSignCouncil?: boolean
+  dissolveTime?: string
+  createTime?: string
+}
+
+/** 社团类别枚举项 */
+export interface ClubCategoryItem {
+  code: string
+  label: string
+}
+
+/** 学院 */
+export interface SysCollege {
+  id?: number
+  collegeName?: string
+  collegeCode?: string
+  deanId?: number
+  status?: number
+}
+
+/** 成员数聚合 */
+export interface ClubMemberCount {
+  clubId: number
+  memberCount: number
+}
+
+/** 社团部门 */
+export interface SysDepartment {
+  id?: number
+  deptName?: string
+  clubId?: number
+  parentId?: number
+  leaderId?: number
+  description?: string
+  status?: number
+  createTime?: string
+}
+
+/** 合议详情 */
+export interface ClubCouncilDetail {
+  id?: number
+  clubId?: number
+  clubCode?: string
+  clubName?: string
+  collegeId?: number
+  collegeName?: string
+  reason?: string
+  status?: number
+  initiatorName?: string
+  signatories?: CouncilSignRecord[]
+  alreadySigned?: boolean
+  canSign?: boolean
+  executedAt?: string
+  createTime?: string
+}
+
+export interface CouncilSignRecord {
+  username?: string
+  roleCode?: string
+  level?: number
+  signTime?: string
+}
+
 /** 工作台 KPI 卡片 */
 export interface DashboardKpiCard {
   key: string

@@ -1,10 +1,13 @@
 package untiy.entity;
 
+import untiy.entity.vo.ClubCategoryItemVO;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 社团性质枚举（固定六类，不可自定义）。
@@ -45,6 +48,13 @@ public final class ClubCategory {
                 IDEOLOGY, ACADEMIC, INNOVATION, CULTURE_SPORTS, VOLUNTEER, SELF_DISCIPLINE);
     }
 
+    /** 返回 { code, label } 结构，供管理端下拉框渲染 */
+    public static List<ClubCategoryItemVO> allItems() {
+        return PREFIX_BY_CATEGORY.entrySet().stream()
+                .map(e -> new ClubCategoryItemVO(e.getValue(), e.getKey()))
+                .collect(Collectors.toList());
+    }
+
     public static boolean isValid(String category) {
         return category != null && PREFIX_BY_CATEGORY.containsKey(category);
     }
@@ -52,6 +62,14 @@ public final class ClubCategory {
     public static String prefixOf(String category) {
         if (!isValid(category)) {
             throw new IllegalArgumentException("无效的社团类别: " + category);
+        }
+        return PREFIX_BY_CATEGORY.get(category);
+    }
+
+    /** 安全取前缀，无效类别返回 null（列表展示用） */
+    public static String prefixOfOrNull(String category) {
+        if (!isValid(category)) {
+            return null;
         }
         return PREFIX_BY_CATEGORY.get(category);
     }

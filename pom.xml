@@ -303,7 +303,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <skipTests>true</skipTests>
+                    <!-- 默认跑单测；集成/慢测可用 -DskipTests 跳过 -->
+                    <skipTests>false</skipTests>
                 </configuration>
             </plugin>
         </plugins>

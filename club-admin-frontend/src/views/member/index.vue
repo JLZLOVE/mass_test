@@ -7,6 +7,8 @@ import { sysRoleApi, type SysRole } from '@/api/sysRole'
 import { sysClubApi } from '@/api/sysClub'
 import { sysCollegeApi } from '@/api/sysCollege'
 import { portalApi } from '@/api/portal'
+import { useUserStore } from '@/stores/user'
+import { LEVEL } from '@/utils/level'
 import { formatDateTime } from '@/utils/format'
 import type { SysClubItem, SysCollege, SysDepartment, SysUser } from '@/types/generated'
 
@@ -34,6 +36,27 @@ const ROLE_CODE_DATA_SCOPE: Record<string, number> = {
   CLUB_MINISTER: DATA_SCOPE_DEPARTMENT,
   MEMBER: DATA_SCOPE_SELF,
 }
+
+/** role_code → 允许分配的 userType（1=学生 2=教师），null=无限制 */
+const ROLE_USER_TYPE_RESTRICTION: Record<string, number | null> = {
+  SUPER_ADMIN: 2,
+  ADMIN: 2,
+  ADVISOR: 2,
+  CLUB_PRESIDENT: 1,
+  CLUB_MINISTER: 1,
+  MEMBER: null,
+}
+
+const userStore = useUserStore()
+
+/** 管理员及以上可管理用户（新增/删除） */
+const canManageUsers = computed(() => userStore.effectiveLevel <= LEVEL.ADMIN)
+
+/** 管理员及以上可分配角色（Level 4 学生不可见；社长/部长也不开放分配入口） */
+const canManageRoles = computed(() => userStore.effectiveLevel <= LEVEL.ADMIN)
+
+/** 创建时间仅 Level 0/1 可见 */
+const canViewCreateTime = computed(() => userStore.effectiveLevel <= LEVEL.ADMIN)
 
 const loading = ref(false)
 const tableData = ref<SysUser[]>([])
@@ -66,6 +89,20 @@ const addRoleForm = reactive({
   roleId: undefined as number | undefined,
   scopeId: undefined as number | undefined,
   scopeClubId: undefined as number | undefined,
+})
+
+// —— 新增用户 ——
+const createUserVisible = ref(false)
+const createUserFormRef = ref<FormInstance>()
+const createUserSubmitting = ref(false)
+const createUserForm = reactive({
+  username: '',
+  realName: '',
+  password: '',
+  userType: 1 as number,
+  gender: 1 as number,
+  phone: '',
+  email: '',
 })
 
 function resolveDataScope(role?: SysRole | null): number | undefined {
@@ -226,6 +263,23 @@ async function handleAddRole() {
     return
   }
   const code = (role.roleCode || '').toUpperCase()
+  const name = role.roleName || ''
+
+  // 检查被分配人的身份类型是否匹配角色要求
+  const targetUserType = currentUser.value.userType
+  let requiredUserType = ROLE_USER_TYPE_RESTRICTION[code]
+  if (requiredUserType === undefined) {
+    if (name.includes('社长') || name.includes('部长')) requiredUserType = 1
+    else if (name.includes('指导') || name.includes('管理员')) requiredUserType = 2
+    else requiredUserType = null
+  }
+  if (requiredUserType != null && targetUserType !== requiredUserType) {
+    const requiredLabel = requiredUserType === 1 ? '学生' : '教师'
+    const actualLabel = targetUserType === 1 ? '学生' : targetUserType === 2 ? '教师' : '其他'
+    ElMessage.warning(`「${role.roleName}」角色只能分配给${requiredLabel}，当前用户身份为${actualLabel}`)
+    return
+  }
+
   const ds = resolveDataScope(role)
   if (ds == null) {
     ElMessage.warning(`无法解析数据范围（roleCode=${role.roleCode || '空'}, name=${role.roleName || ''}）`)
@@ -290,6 +344,71 @@ async function handleRemoveRole(row: SysUserRoleItem) {
   }
 }
 
+// —— 新增用户 ——
+function openCreateUser() {
+  createUserForm.username = ''
+  createUserForm.realName = ''
+  createUserForm.password = ''
+  createUserForm.userType = 1
+  createUserForm.gender = 1
+  createUserForm.phone = ''
+  createUserForm.email = ''
+  createUserVisible.value = true
+}
+
+async function submitCreateUser() {
+  if (!createUserForm.username || !createUserForm.realName || !createUserForm.password) {
+    ElMessage.warning('请填写用户名、真实姓名和密码')
+    return
+  }
+  createUserSubmitting.value = true
+  try {
+    await sysUserApi.add({
+      username: createUserForm.username.trim(),
+      realName: createUserForm.realName.trim(),
+      password: createUserForm.password,
+      userType: createUserForm.userType,
+      gender: createUserForm.gender,
+      phone: createUserForm.phone || undefined,
+      email: createUserForm.email || undefined,
+    })
+    ElMessage.success('用户创建成功')
+    createUserVisible.value = false
+    await fetchList()
+  } finally {
+    createUserSubmitting.value = false
+  }
+}
+
+// —— 删除用户 ——
+async function handleDeleteUser(row: SysUser) {
+  if (!row.username) return
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `请输入用户名「${row.username}」以确认删除`,
+      '删除用户确认',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        inputPattern: new RegExp(`^${escapeRegExp(row.username)}$`),
+        inputErrorMessage: '用户名不匹配',
+        type: 'error',
+        inputPlaceholder: '请输入用户名',
+      },
+    )
+    if (value !== row.username) return
+    await sysUserApi.delete(row.username)
+    ElMessage.success('用户已删除')
+    await fetchList()
+  } catch (e: unknown) {
+    if (e === 'cancel' || e === 'close') return
+  }
+}
+
+function escapeRegExp(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function scopeLabel(row: SysUserRoleItem): string {
   if (row.scopeType == null && row.scopeId == null) return '全部 / 仅自己'
   if (row.scopeType === DATA_SCOPE_COLLEGE) {
@@ -331,6 +450,7 @@ onMounted(async () => {
         <el-form-item>
           <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
+          <el-button v-if="canManageUsers" type="success" @click="openCreateUser">新增用户</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -354,12 +474,13 @@ onMounted(async () => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="170">
+        <el-table-column v-if="canViewCreateTime" label="创建时间" width="170">
           <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column v-if="canManageRoles || canManageUsers" label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openRoleDialog(row)">角色分配</el-button>
+            <el-button v-if="canManageRoles" link type="primary" @click="openRoleDialog(row)">角色分配</el-button>
+            <el-button v-if="canManageUsers" link type="danger" @click="handleDeleteUser(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -501,6 +622,45 @@ onMounted(async () => {
           暂无可用社团，请确认账号有社团管理权限且存在正常社团。
         </p>
       </div>
+    </el-dialog>
+
+    <!-- 新增用户对话框 -->
+    <el-dialog v-model="createUserVisible" title="新增用户" width="500px" destroy-on-close>
+      <el-form ref="createUserFormRef" :model="createUserForm" label-width="100px">
+        <el-form-item label="用户名" required>
+          <el-input v-model="createUserForm.username" maxlength="30" placeholder="登录用户名" />
+        </el-form-item>
+        <el-form-item label="真实姓名" required>
+          <el-input v-model="createUserForm.realName" maxlength="20" />
+        </el-form-item>
+        <el-form-item label="密码" required>
+          <el-input v-model="createUserForm.password" type="password" show-password maxlength="30" />
+        </el-form-item>
+        <el-form-item label="身份类型" required>
+          <el-select v-model="createUserForm.userType" style="width: 100%">
+            <el-option label="学生" :value="1" />
+            <el-option label="教师" :value="2" />
+            <el-option label="管理员" :value="3" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="性别">
+          <el-select v-model="createUserForm.gender" style="width: 100%">
+            <el-option label="男" :value="1" />
+            <el-option label="女" :value="2" />
+            <el-option label="未知" :value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="createUserForm.phone" maxlength="20" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="createUserForm.email" maxlength="50" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createUserVisible = false">取消</el-button>
+        <el-button type="primary" :loading="createUserSubmitting" @click="submitCreateUser">提交</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>

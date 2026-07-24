@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import untiy.entity.SysClub;
 import untiy.entity.SysRole;
 import untiy.entity.SysUser;
 import untiy.entity.SysUserRole;
@@ -69,6 +70,9 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
             throw new EIException(ErrorConfig.BAD_REQUEST_CODE, ErrorConfig.BAD_REQUEST_MSG);
         }
 
+        // 前端传 clubName → 服务端内部转为 scopeId
+        resolveClubName(dto);
+
         SysUser user = UserSecurityHelper.findActiveInScopeByUsername(sysUserMapper, dto.getUsername());
 
         // role_code 为常量（如 ADVISOR / ADVISOR_SZ_XXX），分配时不动态拼接；社团/学院上下文由 scope 表达
@@ -90,6 +94,9 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
             throw new EIException(ErrorConfig.ROLE_SCOPE_NOT_CONFIGURED_CODE,
                     ErrorConfig.ROLE_SCOPE_NOT_CONFIGURED_MSG + "（roleCode=" + role.getRoleCode() + "）");
         }
+
+        assertUserTypeMatchesRole(user, role);
+
         log.info("分配角色 user={} roleId={} roleCode={} dataScope={} scopeType={} scopeId={}",
                 dto.getUsername(), role.getId(), role.getRoleCode(), dataScope, dto.getScopeType(), dto.getScopeId());
         UserRoleScopeHelper.validateScope(dataScope, dto.getScopeType(), dto.getScopeId(),
@@ -104,6 +111,43 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
         entity.setScopeId(dto.getScopeId());
         entity.setCreateTime(LocalDateTime.now());
         save(entity);
+    }
+
+    /**
+     * 角色与用户类型匹配：社长/部长→学生；指导老师/管理员→教师；MEMBER 无限制。
+     */
+    private void assertUserTypeMatchesRole(SysUser user, SysRole role) {
+        Integer required = requiredUserTypeForRole(role);
+        if (required == null) {
+            return;
+        }
+        Integer actual = user.getUserType();
+        if (actual == null || !actual.equals(required)) {
+            String need = required == 1 ? "学生" : "教师";
+            String got = actual == null ? "未知" : (actual == 1 ? "学生" : actual == 2 ? "教师" : "其他");
+            throw new EIException(ErrorConfig.BAD_REQUEST_CODE,
+                    "「" + role.getRoleName() + "」角色只能分配给" + need + "，当前用户身份为" + got);
+        }
+    }
+
+    private Integer requiredUserTypeForRole(SysRole role) {
+        if (role == null) {
+            return null;
+        }
+        String code = role.getRoleCode() == null ? "" : role.getRoleCode().trim().toUpperCase(java.util.Locale.ROOT);
+        String name = role.getRoleName() == null ? "" : role.getRoleName();
+        if (ClubApplyConstants.ROLE_CLUB_PRESIDENT.equals(code)
+                || ClubApplyConstants.ROLE_CLUB_MINISTER.equals(code)
+                || name.contains("社长") || name.contains("部长")) {
+            return 1;
+        }
+        if (ClubApplyConstants.ROLE_ADMIN.equals(code)
+                || ClubApplyConstants.ROLE_SUPER_ADMIN.equals(code)
+                || UserScopeResolver.isAdvisorRoleCode(code)
+                || name.contains("指导") || name.contains("管理员")) {
+            return 2;
+        }
+        return null;
     }
 
     @Transactional
@@ -159,6 +203,17 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
     public List<SysUserRoleVO> listByUsername(String username) {
         SysUser user = UserSecurityHelper.requireInScopeByUsername(sysUserMapper, username);
         return sysUserRoleMapper.selectListByUserId(user.getId());
+    }
+
+    private void resolveClubName(AssignRoleDTO dto) {
+        if (StringUtils.isNotBlank(dto.getClubName())) {
+            SysClub club = sysClubMapper.selectOne(new LambdaQueryWrapper<SysClub>().eq(SysClub::getClubName, dto.getClubName()));
+            if (club == null) {
+                throw new EIException(ErrorConfig.CLUB_NOT_FOUND_CODE, ErrorConfig.CLUB_NOT_FOUND_MSG);
+            }
+            dto.setScopeId(club.getId());
+            dto.setScopeType(2);
+        }
     }
 
     private void assertNotRevokingOwnRole(String roleCode) {

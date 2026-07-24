@@ -148,16 +148,24 @@ club-admin-frontend/
 - 签到管理 minLevel: 2；学生侧签到/签退走活动详情或工作台能力
 
 ### 成员管理 (`/member`)
-- 用户列表 + 角色分配（`sys-user-role`）
-- **数据范围由角色 `data_scope` 驱动**（禁止前端自选“全局/社团”随意组合）：
-  | data_scope | 含义 | 分配时 scopeType / scopeId |
+- 用户列表 + 角色分配（`sys-user-role`）；菜单 `minLevel: 2`，**角色分配/新增/删除仅 Level ≤ 1**
+- **数据范围由角色 `data_scope` 驱动**（禁止前端自选"全局/社团"随意组合）：
+  | data_scope | 含义 | 分配时传参 |
   |---|---|---|
-  | 0 | 全部 | 均为 null |
-  | 1 | 本学院 | scopeType=1 + 学院 id |
-  | 2 | 本社团 | scopeType=2 + 社团 id（社团列表走 `/sys-club/list`，勿用门户） |
-  | 3 | 本部门 | scopeType=3 + 部门 id（先选社团再选部门） |
-  | 4 | 仅自己 | 均为 null |
-- `role_code` 为常量（`SUPER_ADMIN` / `ADVISOR` / `ADVISOR_{类别}_{缩写}` 等），**分配时不得动态拼接/新建 role_code**；社团上下文只写在 `sys_user_role.scope_*`
+  | 0 | 全部 | scopeType=null, scopeId=null |
+  | 1 | 本学院 | scopeType=1 + collegeId |
+  | 2 | 本社团 | scopeType=2 + clubId（或 clubName，服务端可解析） |
+  | 3 | 本部门 | scopeType=3 + departmentId |
+  | 4 | 仅自己 | scopeType=null, scopeId=null |
+- **角色 ↔ userType**：社长/部长仅学生(`userType=1`)；指导老师/管理员仅教师(`userType=2`)；MEMBER 不限；前后端双重校验
+- **创建时间**：接口 `SysUserDTO.createTime`；列表列仅 Level 0/1 可见
+- **新增/删除用户**：仅 Level ≤ 1；删除需输入用户名二次确认
+- `role_code` 为常量，**分配时不得动态拼接/新建 role_code**
+
+### 社团列表数据范围（社长/部长）
+- 后端按 JWT `effectiveLevel` + `primaryClubId` / `primaryDepartmentId` 行级过滤
+- 前端请求额外传 `scopeType`+`scopeId`（社长=2+社团ID，部长=3+部门ID）收紧范围；超管/院长不传
+- 列表页 `keep-alive` 名 `ClubList`，从详情返回保留筛选条件
 
 ### 通知公告 (`/notice`)
 - 收件箱 / 发布（按等级）
@@ -235,9 +243,47 @@ club-admin-frontend/
 
 ## 注意事项
 - 分页参数：`page` + `limit`；响应看 `data.records` / `data.total`
-- `SysClub` 实体 `id` 可能 `@JsonIgnore`，管理端以 `SysClubListVO` 暴露 `id`（供成员数与合议跳转）
 - 类别下拉必须走接口；色块用 `categoryCode`（SZ/XS/CX/WH/GY/ZL）
 - 遇到 API 与文档不一致，以 Controller + 联调响应为准，并回写本 skill / 对应设计 md
+
+---
+
+## 🔴 核心铁律：ID 对外暴露禁令（2026-07-24 强制执行）
+
+> **无论在任何模块、任何接口、任何 VO/DTO，数据库主键 `id` 只允许服务器内部使用，绝对禁止通过 JSON 响应暴露给前端。**
+
+### 适用范围
+- 所有 VO（`*VO.java`）：`id`、`userId`、`roleId`、`scopeId`、`clubId` 等数据库主键/外键字段 → 必须加 `@JsonIgnore`
+- 所有 DTO（`*DTO.java`）：前端不传 `id`/`scopeId`，改用业务名称字段（如 `clubName`）
+
+### 替代方案
+| 禁止暴露 | 替代字段 | 说明 |
+|---|---|---|
+| `clubId` / `scopeId` (scopeType=2) | `clubName` (社团名称) | 前端传名称，服务端内部转 id |
+| `scopeId` (scopeType=1) | `collegeName` (学院名称) | 同上 |
+| `scopeId` (scopeType=3) | `departmentName` (部门名称) | 同上 |
+| `id` (关联表主键) | 不暴露 | 撤销等操作改用其他唯一标识 |
+| `roleId` | `roleName` / `roleCode` | 展示用名称即可 |
+
+### 已执行变更
+- `SysUserRoleVO`：`id`/`userId`/`roleId`/`scopeId` → `@JsonIgnore`；新增 `clubName`/`collegeName`/`departmentName`
+- `SysUserRoleMapper.xml`：三个 SELECT 全量 LEFT JOIN `sys_club`/`sys_college`/`sys_department` 获取名称
+- `AssignRoleDTO`：新增 `clubName` 字段，前端传社团名称替代 `scopeId`
+- `SysUserRoleServiceImpl.assign()`：新增 `resolveClubName()` 内部转换 `clubName` → `clubId` + `scopeType=2`
+- `SysClub`：`id` 已标记 `@JsonIgnore`（仅 `SysClubListVO` 等管理端 VO 内部使用，前端不依赖）
+
+### 前端适配
+```json
+// ❌ 旧：分配角色时传 scopeId
+POST /sys-user-role/assign
+{ "username": "zhangsan", "roleId": 5, "scopeType": 2, "scopeId": 123 }
+
+// ✅ 新：传 clubName，服务端内部解析
+POST /sys-user-role/assign
+{ "username": "zhangsan", "roleId": 5, "clubName": "篮球社" }
+```
+
+角色列表响应不再包含 `id`/`roleId`/`scopeId`，改为 `clubName`/`collegeName`/`departmentName`。
 
 ---
 

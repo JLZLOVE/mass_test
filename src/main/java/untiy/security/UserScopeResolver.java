@@ -79,16 +79,34 @@ public final class UserScopeResolver {
     }
 
     private static Integer mapRoleLevel(SysRole role) {
-        if (role == null || role.getRoleCode() == null) {
+        if (role == null) {
             return null;
         }
-        Integer mapped = ROLE_EFFECTIVE_LEVEL.get(role.getRoleCode());
-        if (mapped != null) {
-            return mapped;
+        if (role.getRoleCode() != null) {
+            String code = role.getRoleCode().trim().toUpperCase(Locale.ROOT);
+            Integer mapped = ROLE_EFFECTIVE_LEVEL.get(code);
+            if (mapped != null) {
+                return mapped;
+            }
+            if (isAdvisorRoleCode(code)) {
+                return 1;
+            }
         }
-        String code = role.getRoleCode().toUpperCase();
-        if (isAdvisorRoleCode(code)) {
+        String name = role.getRoleName() == null ? "" : role.getRoleName();
+        if (name.contains("超级")) {
+            return 0;
+        }
+        if (name.contains("指导") || name.contains("学院管理")) {
             return 1;
+        }
+        if (name.contains("社长")) {
+            return 2;
+        }
+        if (name.contains("部长")) {
+            return 3;
+        }
+        if (name.contains("成员") || name.contains("学生")) {
+            return 4;
         }
         if (role.getRoleLevel() != null) {
             return role.getRoleLevel();
@@ -101,7 +119,9 @@ public final class UserScopeResolver {
      */
     public static Long resolvePrimaryClubId(List<SysUserRole> userRoles, List<SysRole> roles) {
         Set<Long> presidentRoleIds = roles.stream()
-                .filter(r -> ClubApplyConstants.ROLE_CLUB_PRESIDENT.equals(r.getRoleCode()))
+                .filter(r -> ClubApplyConstants.ROLE_CLUB_PRESIDENT.equals(
+                        r.getRoleCode() == null ? null : r.getRoleCode().trim().toUpperCase(Locale.ROOT))
+                        || (r.getRoleName() != null && r.getRoleName().contains("社长")))
                 .map(SysRole::getId)
                 .collect(Collectors.toSet());
         return userRoles.stream()
@@ -117,7 +137,9 @@ public final class UserScopeResolver {
      */
     public static Long resolvePrimaryDepartmentId(List<SysUserRole> userRoles, List<SysRole> roles) {
         Set<Long> ministerRoleIds = roles.stream()
-                .filter(r -> ClubApplyConstants.ROLE_CLUB_MINISTER.equals(r.getRoleCode()))
+                .filter(r -> ClubApplyConstants.ROLE_CLUB_MINISTER.equals(
+                        r.getRoleCode() == null ? null : r.getRoleCode().trim().toUpperCase(Locale.ROOT))
+                        || (r.getRoleName() != null && r.getRoleName().contains("部长")))
                 .map(SysRole::getId)
                 .collect(Collectors.toSet());
         return userRoles.stream()

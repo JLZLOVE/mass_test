@@ -9,6 +9,7 @@ import { sysCollegeApi } from '@/api/sysCollege'
 import { useUserStore } from '@/stores/user'
 import { useMemberCount } from '@/composables/useMemberCount'
 import { LEVEL } from '@/utils/level'
+import { formatDateTime } from '@/utils/format'
 import type { ClubCategoryItem, SysClubItem, SysCollege } from '@/types/generated'
 
 defineOptions({ name: 'ClubList' })
@@ -53,6 +54,9 @@ const canCreate = computed(() => userStore.effectiveLevel <= LEVEL.ADMIN)
 /** Level 3 部长：只读视图，仅可查看挂靠社团基本信息 */
 const isDeptLeader = computed(() => userStore.effectiveLevel === LEVEL.DEPT_LEADER)
 
+/** Level 0/1 超管/管理员：可查看创建时间 */
+const canViewCreateTime = computed(() => userStore.effectiveLevel <= LEVEL.ADMIN)
+
 async function loadDicts() {
   const [catRes] = await Promise.all([clubApplicationApi.categories(), searchColleges('')])
   const raw = catRes.data
@@ -79,7 +83,7 @@ async function searchColleges(keyword: string) {
 async function fetchList() {
   loading.value = true
   try {
-    const res = await sysClubApi.list({
+    const params: Record<string, unknown> = {
       page: query.page,
       limit: query.limit,
       tabMode: activeTab.value,
@@ -87,7 +91,23 @@ async function fetchList() {
       collegeId: query.collegeId,
       status: activeTab.value === 'normal' ? query.status : undefined,
       keyword: query.keyword || undefined,
-    })
+    }
+
+    // 社长传社团ID，部长传部门ID做数据范围过滤（与 JWT 范围取交集，不得扩大）
+    const level = userStore.effectiveLevel
+    if (level === LEVEL.CLUB_LEADER) {
+      const clubId = userStore.primaryClubId ?? userStore.clubScopeIds[0]
+      if (clubId != null) {
+        params.scopeType = 2
+        params.scopeId = clubId
+      }
+    } else if (level === LEVEL.DEPT_LEADER && userStore.primaryDepartmentId != null) {
+      params.scopeType = 3
+      params.scopeId = userStore.primaryDepartmentId
+    }
+    // 超管/院长不传，看全量
+
+    const res = await sysClubApi.list(params)
     tableData.value = res.data?.records || []
     total.value = res.data?.total || 0
     const ids = tableData.value.map((r) => r.id!).filter(Boolean)
@@ -246,7 +266,7 @@ onMounted(async () => {
 })
 
 onActivated(() => {
-  invalidate()
+  // keep-alive 保留筛选条件，仅按当前 query 静默刷新列表
   fetchList()
 })
 </script>
@@ -361,6 +381,9 @@ onActivated(() => {
             <span class="status-dot" :class="row.status === 1 ? 'ok' : 'off'" />
             {{ row.status === 1 ? '正常' : '已解散' }}
           </template>
+        </el-table-column>
+        <el-table-column v-if="canViewCreateTime" label="创建时间" width="170">
+          <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">

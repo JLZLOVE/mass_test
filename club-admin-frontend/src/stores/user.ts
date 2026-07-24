@@ -24,7 +24,11 @@ export const useUserStore = defineStore('user', () => {
   const primaryClubId = ref<number | null>(
     localStorage.getItem('primaryClubId') ? Number(localStorage.getItem('primaryClubId')) : null,
   )
-  const primaryDepartmentId = ref<number | null>(null)
+  const primaryDepartmentId = ref<number | null>(
+    localStorage.getItem('primaryDepartmentId')
+      ? Number(localStorage.getItem('primaryDepartmentId'))
+      : null,
+  )
   const unreadCount = ref(0)
 
   const isLoggedIn = computed(() => !!token.value)
@@ -74,6 +78,11 @@ export const useUserStore = defineStore('user', () => {
     } else {
       localStorage.removeItem('primaryClubId')
     }
+    if (primaryDepartmentId.value != null) {
+      localStorage.setItem('primaryDepartmentId', String(primaryDepartmentId.value))
+    } else {
+      localStorage.removeItem('primaryDepartmentId')
+    }
   }
 
   function switchPrimaryClub(clubId: number) {
@@ -106,6 +115,7 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('username')
     localStorage.removeItem('effectiveLevel')
     localStorage.removeItem('primaryClubId')
+    localStorage.removeItem('primaryDepartmentId')
   }
 
   return {

@@ -127,6 +127,7 @@ public class SysClubServiceImpl extends ServiceImpl<SysClubMapper, SysClub> impl
         LambdaQueryWrapper<SysClub> wrapper = new LambdaQueryWrapper<>();
 
         applyDataScope(wrapper, user);
+        applyClientScopeHint(wrapper, param, user);
 
         if (query != null) {
             if (StringUtils.isNotBlank(query.getCategory())) {
@@ -284,6 +285,11 @@ public class SysClubServiceImpl extends ServiceImpl<SysClubMapper, SysClub> impl
         }
         if (level == Level.CLUB_LEADER) {
             Set<Long> clubIds = resolvePresidentClubIds(user.getUserId());
+            // 登录态主社团作为兜底，防止 role_code 解析失败时看到全量
+            if (user.getPrimaryClubId() != null) {
+                clubIds = new java.util.HashSet<>(clubIds);
+                clubIds.add(user.getPrimaryClubId());
+            }
             if (clubIds.isEmpty()) {
                 wrapper.eq(SysClub::getId, -1L);
             } else {
@@ -306,6 +312,47 @@ public class SysClubServiceImpl extends ServiceImpl<SysClubMapper, SysClub> impl
         }
     }
 
+    /**
+     * 前端传入的 scopeType/scopeId 作为额外收紧条件（不得扩大 JWT 已限定范围）。
+     */
+    private void applyClientScopeHint(LambdaQueryWrapper<SysClub> wrapper, Map<String, Object> param,
+                                      LoginUserDetails user) {
+        if (param == null) {
+            return;
+        }
+        Object stObj = param.get("scopeType");
+        Object sidObj = param.get("scopeId");
+        if (stObj == null || sidObj == null) {
+            return;
+        }
+        int scopeType;
+        long scopeId;
+        try {
+            scopeType = Integer.parseInt(String.valueOf(stObj));
+            scopeId = Long.parseLong(String.valueOf(sidObj));
+        } catch (NumberFormatException e) {
+            return;
+        }
+        int level = user.getEffectiveLevel();
+        if (scopeType == ClubApplyConstants.SCOPE_TYPE_CLUB && level == Level.CLUB_LEADER) {
+            Set<Long> allowed = resolvePresidentClubIds(user.getUserId());
+            if (user.getPrimaryClubId() != null) {
+                allowed = new java.util.HashSet<>(allowed);
+                allowed.add(user.getPrimaryClubId());
+            }
+            if (allowed.contains(scopeId)) {
+                wrapper.eq(SysClub::getId, scopeId);
+            }
+        } else if (scopeType == ClubApplyConstants.SCOPE_TYPE_DEPARTMENT && level == Level.DEPT_LEADER) {
+            if (user.getPrimaryDepartmentId() != null && user.getPrimaryDepartmentId().equals(scopeId)) {
+                SysDepartment dept = sysDepartmentMapper.selectById(scopeId);
+                if (dept != null && dept.getClubId() != null) {
+                    wrapper.eq(SysClub::getId, dept.getClubId());
+                }
+            }
+        }
+    }
+
     private boolean isSchoolAdmin(Long userId) {
         List<SysRole> roles = UserScopeResolver.loadActiveRoles(sysUserRoleMapper, sysRoleMapper, userId);
         int level = UserScopeResolver.resolveEffectiveLevel(roles);
@@ -318,7 +365,8 @@ public class SysClubServiceImpl extends ServiceImpl<SysClubMapper, SysClub> impl
     private Set<Long> resolvePresidentClubIds(Long userId) {
         List<SysRole> roles = UserScopeResolver.loadActiveRoles(sysUserRoleMapper, sysRoleMapper, userId);
         Set<Long> presidentRoleIds = roles.stream()
-                .filter(r -> ClubApplyConstants.ROLE_CLUB_PRESIDENT.equals(r.getRoleCode()))
+                .filter(r -> ClubApplyConstants.ROLE_CLUB_PRESIDENT.equals(r.getRoleCode())
+                        || (r.getRoleName() != null && r.getRoleName().contains("社长")))
                 .map(SysRole::getId)
                 .collect(Collectors.toSet());
         if (presidentRoleIds.isEmpty()) {

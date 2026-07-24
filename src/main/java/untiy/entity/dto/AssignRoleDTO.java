@@ -17,6 +17,9 @@ public class AssignRoleDTO {
     /** 数据范围类型：1=学院 2=社团 3=部门；data_scope 为全部/仅自己时须为空 */
     private Integer scopeType;
 
-    /** 数据范围 ID（学院/社团/部门主键；全局范围须为空） */
+    /** 数据范围 ID（学院/社团/部门主键；全局范围须为空）—— 服务器内部使用，前端不传 */
     private Long scopeId;
+
+    /** scope_type=2 时，前端传入社团名称，服务端内部转为 scopeId */
+    private String clubName;
 }

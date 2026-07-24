@@ -142,6 +142,8 @@ sys_menu
 
 对外用户标识优先 **username**（见暴露规范）；内部表仍用 `user_id`。
 
+**🔴 ID 对外暴露禁令（2026-07-24）**：分配角色时前端传 `clubName`（社团名称），服务端 `resolveClubName()` 内部转为 `scopeId`。响应 VO 不暴露 `id`/`roleId`/`scopeId`，改为 `clubName`/`collegeName`/`departmentName`。详见 `skill.md` 核心铁律章节。
+
 分配业务规则补充：
 
 - 社长类角色通常仅学生账号  

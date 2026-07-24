@@ -37,6 +37,8 @@ public final class FieldMaskHelper {
         if (level <= Level.ADMIN || isSelf) {
             return;
         }
+        // Level 2+：创建时间仅管理人员可见
+        dto.setCreateTime(null);
         if (level == Level.CLUB_LEADER) {
             maskContactFields(dto);
             return;
@@ -57,6 +59,7 @@ public final class FieldMaskHelper {
         dto.setEmail(null);
         dto.setStudentNo(null);
         dto.setTeacherNo(null);
+        dto.setCreateTime(null);
     }
 
     private static void maskContactFields(SysUserDTO dto) {

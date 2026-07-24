@@ -25,10 +25,16 @@
                r.role_code  AS roleCode,
                ur.scope_type AS scopeType,
                ur.scope_id  AS scopeId,
+               sc.club_name AS clubName,
+               col.college_name AS collegeName,
+               dept.dept_name AS departmentName,
                ur.create_time AS createTime
         FROM sys_user_role ur
         INNER JOIN sys_user u ON ur.user_id = u.id
         INNER JOIN sys_role r ON ur.role_id = r.id
+        LEFT JOIN sys_club sc ON ur.scope_type = 2 AND ur.scope_id = sc.id
+        LEFT JOIN sys_college col ON ur.scope_type = 1 AND ur.scope_id = col.id
+        LEFT JOIN sys_department dept ON ur.scope_type = 3 AND ur.scope_id = dept.id
         WHERE ur.user_id IN
         <foreach collection="userIds" item="uid" open="(" separator="," close=")">
             #{uid}
@@ -53,10 +59,16 @@
                r.role_code  AS roleCode,
                ur.scope_type AS scopeType,
                ur.scope_id  AS scopeId,
+               sc.club_name AS clubName,
+               col.college_name AS collegeName,
+               dept.dept_name AS departmentName,
                ur.create_time AS createTime
         FROM sys_user_role ur
         INNER JOIN sys_user u ON ur.user_id = u.id
         INNER JOIN sys_role r ON ur.role_id = r.id
+        LEFT JOIN sys_club sc ON ur.scope_type = 2 AND ur.scope_id = sc.id
+        LEFT JOIN sys_college col ON ur.scope_type = 1 AND ur.scope_id = col.id
+        LEFT JOIN sys_department dept ON ur.scope_type = 3 AND ur.scope_id = dept.id
         WHERE ur.user_id = #{userId}
         ORDER BY ur.create_time DESC
     </select>
@@ -71,10 +83,16 @@
                r.role_code  AS roleCode,
                ur.scope_type AS scopeType,
                ur.scope_id  AS scopeId,
+               sc.club_name AS clubName,
+               col.college_name AS collegeName,
+               dept.dept_name AS departmentName,
                ur.create_time AS createTime
         FROM sys_user_role ur
         INNER JOIN sys_user u ON ur.user_id = u.id
         INNER JOIN sys_role r ON ur.role_id = r.id
+        LEFT JOIN sys_club sc ON ur.scope_type = 2 AND ur.scope_id = sc.id
+        LEFT JOIN sys_college col ON ur.scope_type = 1 AND ur.scope_id = col.id
+        LEFT JOIN sys_department dept ON ur.scope_type = 3 AND ur.scope_id = dept.id
         WHERE ur.scope_type = 2
           AND ur.scope_id = #{clubId}
         <if test="roleCode != null and roleCode != ''">

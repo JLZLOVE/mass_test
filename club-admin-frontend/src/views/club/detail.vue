@@ -4,13 +4,19 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { sysClubApi } from '@/api/sysClub'
 import { activityApplyApi } from '@/api/activityApply'
+import { useUserStore } from '@/stores/user'
+import { LEVEL } from '@/utils/level'
 import { formatDateTime } from '@/utils/format'
 import type { ActivityApply, SysClubItem, SysDepartment, SysUserRole } from '@/types/generated'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 const clubCode = computed(() => String(route.params.clubCode || ''))
+
+/** Level 3 部长：只读视图，仅可查看本部门成员 */
+const isDeptLeader = computed(() => userStore.effectiveLevel === LEVEL.DEPT_LEADER)
 const loading = ref(false)
 const club = ref<SysClubItem | null>(null)
 const departments = ref<SysDepartment[]>([])
@@ -122,6 +128,16 @@ onMounted(loadDetail)
         <span v-if="club?.clubName" class="page-sub">{{ club.clubName }}</span>
       </template>
     </el-page-header>
+
+    <el-alert
+      v-if="isDeptLeader"
+      type="info"
+      :closable="true"
+      show-icon
+      class="dept-notice"
+    >
+      当前为只读视图，如需管理成员请前往「成员管理」。
+    </el-alert>
 
     <el-card v-if="club" shadow="never" class="info-card">
       <div class="info-head">
@@ -281,5 +297,8 @@ onMounted(loadDetail)
   margin: 4px 0 0;
   color: #909399;
   font-size: 12px;
+}
+.dept-notice {
+  margin-bottom: 12px;
 }
 </style>

@@ -460,7 +460,7 @@ CREATE TABLE `sys_role`  (
   `role_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '角色名称',
   `role_code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '角色编码（如：CLUB_PRESIDENT）',
   `role_level` int NULL DEFAULT 0 COMMENT '角色等级（数字越小权限越高）',
-  `data_scope` tinyint NULL DEFAULT NULL COMMENT '默认数据范围 1:全部 2:本学院 3:本社团 4:本部门 5:仅自己',
+  `data_scope` tinyint NULL DEFAULT NULL COMMENT '默认数据范围 0:全部 1:本学院 2:本社团 3:本部门 4:仅自己',
   `description` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
   `status` tinyint NULL DEFAULT 1,
   `create_time` datetime NULL DEFAULT CURRENT_TIMESTAMP,
@@ -471,11 +471,12 @@ CREATE TABLE `sys_role`  (
 -- ----------------------------
 -- Records of sys_role
 -- ----------------------------
-INSERT INTO `sys_role` VALUES (1, '超级管理员', 'SUPER_ADMIN', 0, 1, '系统管理员', 1, '2026-02-11 21:48:57');
-INSERT INTO `sys_role` VALUES (2, '教师', 'advisor5', 4, 2, '教师', 1, '2026-02-11 21:48:57');
-INSERT INTO `sys_role` VALUES (3, '老师', 'ADVISOR2', 0, 1, '指导老师', 1, '2026-02-11 21:48:57');
-INSERT INTO `sys_role` VALUES (4, '老师', 'ADVISOR3', 2, 1, '普通老师', 1, '2026-02-11 21:48:57');
-INSERT INTO `sys_role` VALUES (5, '社长', 'ADVISOR4', 2, 1, '社长', 1, '2026-07-04 11:52:21');
+INSERT INTO `sys_role` VALUES (1, '超级管理员', 'SUPER_ADMIN', 0, 0, '系统管理员', 1, '2026-02-11 21:48:57');
+INSERT INTO `sys_role` VALUES (2, '普通成员', 'MEMBER', 4, 4, '普通成员', 1, '2026-02-11 21:48:57');
+INSERT INTO `sys_role` VALUES (3, '指导老师', 'ADVISOR', 1, 2, '指导老师（基础模板，具体社团见 ADVISOR_类别_社团缩写）', 1, '2026-02-11 21:48:57');
+INSERT INTO `sys_role` VALUES (4, '学院管理员', 'ADMIN', 1, 1, '校级/学院管理员', 1, '2026-02-11 21:48:57');
+INSERT INTO `sys_role` VALUES (5, '社长', 'CLUB_PRESIDENT', 2, 2, '社团社长', 1, '2026-07-04 11:52:21');
+INSERT INTO `sys_role` VALUES (6, '部长', 'CLUB_MINISTER', 3, 3, '部门部长', 1, '2026-07-24 00:00:00');
 
 -- ----------------------------
 -- Table structure for sys_role_menu

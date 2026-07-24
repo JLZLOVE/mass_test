@@ -14,9 +14,9 @@ public class AssignRoleDTO {
     @NotNull(message = "角色ID不能为空")
     private Long roleId;
 
-    /** 数据范围类型（2=社团，3=部门；其他角色须为空） */
+    /** 数据范围类型：1=学院 2=社团 3=部门；data_scope 为全部/仅自己时须为空 */
     private Integer scopeType;
 
-    /** 数据范围ID（可空） */
+    /** 数据范围 ID（学院/社团/部门主键；全局范围须为空） */
     private Long scopeId;
 }

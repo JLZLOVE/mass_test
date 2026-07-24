@@ -14,6 +14,9 @@ public class PortalClubVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 社团ID */
+    private Long id;
+
     /** 社团名称 */
     private String clubName;
 

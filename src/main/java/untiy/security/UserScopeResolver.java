@@ -24,11 +24,12 @@ public final class UserScopeResolver {
     private static final Map<String, Integer> ROLE_EFFECTIVE_LEVEL = new HashMap<>();
 
     static {
-        ROLE_EFFECTIVE_LEVEL.put("SUPER_ADMIN", 0);
-        ROLE_EFFECTIVE_LEVEL.put("ADVISOR", 1);
-        ROLE_EFFECTIVE_LEVEL.put("CLUB_PRESIDENT", 2);
-        ROLE_EFFECTIVE_LEVEL.put("CLUB_MINISTER", 3);
-        ROLE_EFFECTIVE_LEVEL.put("MEMBER", 4);
+        ROLE_EFFECTIVE_LEVEL.put(ClubApplyConstants.ROLE_SUPER_ADMIN, 0);
+        ROLE_EFFECTIVE_LEVEL.put(ClubApplyConstants.ROLE_ADMIN, 1);
+        ROLE_EFFECTIVE_LEVEL.put(ClubApplyConstants.ROLE_ADVISOR, 1);
+        ROLE_EFFECTIVE_LEVEL.put(ClubApplyConstants.ROLE_CLUB_PRESIDENT, 2);
+        ROLE_EFFECTIVE_LEVEL.put(ClubApplyConstants.ROLE_CLUB_MINISTER, 3);
+        ROLE_EFFECTIVE_LEVEL.put(ClubApplyConstants.ROLE_MEMBER, 4);
     }
 
     private UserScopeResolver() {
@@ -100,7 +101,7 @@ public final class UserScopeResolver {
      */
     public static Long resolvePrimaryClubId(List<SysUserRole> userRoles, List<SysRole> roles) {
         Set<Long> presidentRoleIds = roles.stream()
-                .filter(r -> "CLUB_PRESIDENT".equals(r.getRoleCode()))
+                .filter(r -> ClubApplyConstants.ROLE_CLUB_PRESIDENT.equals(r.getRoleCode()))
                 .map(SysRole::getId)
                 .collect(Collectors.toSet());
         return userRoles.stream()
@@ -116,7 +117,7 @@ public final class UserScopeResolver {
      */
     public static Long resolvePrimaryDepartmentId(List<SysUserRole> userRoles, List<SysRole> roles) {
         Set<Long> ministerRoleIds = roles.stream()
-                .filter(r -> "CLUB_MINISTER".equals(r.getRoleCode()))
+                .filter(r -> ClubApplyConstants.ROLE_CLUB_MINISTER.equals(r.getRoleCode()))
                 .map(SysRole::getId)
                 .collect(Collectors.toSet());
         return userRoles.stream()

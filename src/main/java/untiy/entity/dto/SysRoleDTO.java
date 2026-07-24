@@ -44,7 +44,7 @@ public class SysRoleDTO implements Serializable {
     private Integer roleLevel;
 
     /**
-     * 默认数据范围 1:全部 2:本学院 3:本社团 4:本部门 5:仅自己
+     * 默认数据范围 0:全部 1:本学院 2:本社团 3:本部门 4:仅自己
      */
     private Integer dataScope;
 

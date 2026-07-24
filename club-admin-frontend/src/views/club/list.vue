@@ -50,6 +50,9 @@ const CATEGORY_COLOR: Record<string, string> = {
 
 const canCreate = computed(() => userStore.effectiveLevel <= LEVEL.ADMIN)
 
+/** Level 3 部长：只读视图，仅可查看挂靠社团基本信息 */
+const isDeptLeader = computed(() => userStore.effectiveLevel === LEVEL.DEPT_LEADER)
+
 async function loadDicts() {
   const [catRes] = await Promise.all([clubApplicationApi.categories(), searchColleges('')])
   const raw = catRes.data
@@ -307,10 +310,19 @@ onActivated(() => {
     </el-card>
 
     <el-card shadow="never">
+      <el-alert
+        v-if="isDeptLeader"
+        type="info"
+        :closable="true"
+        show-icon
+        class="dept-notice"
+      >
+        当前为只读视图。如需管理本部门成员，请前往「成员管理」；如需发起活动，请前往「活动管理」。
+      </el-alert>
       <el-tabs v-model="activeTab" @tab-change="onTabChange">
         <el-tab-pane label="正常社团" name="normal" />
-        <el-tab-pane label="申请解散中" name="dissolving" />
-        <el-tab-pane label="合议中" name="council" />
+        <el-tab-pane v-if="!isDeptLeader" label="申请解散中" name="dissolving" />
+        <el-tab-pane v-if="!isDeptLeader" label="合议中" name="council" />
       </el-tabs>
 
       <el-table v-loading="loading" :data="tableData" border stripe empty-text=" ">
@@ -494,5 +506,8 @@ onActivated(() => {
   margin: 0;
   color: #909399;
   font-size: 13px;
+}
+.dept-notice {
+  margin-bottom: 16px;
 }
 </style>

@@ -98,6 +98,7 @@ public class SysClubServiceImpl extends ServiceImpl<SysClubMapper, SysClub> impl
         List<SysClub> clubs = list(wrapper);
         return clubs.stream().map(club -> {
             PortalClubVO vo = new PortalClubVO();
+            vo.setId(club.getId());
             vo.setClubName(club.getClubName());
             vo.setCategory(club.getCategory());
             vo.setDescription(club.getDescription());

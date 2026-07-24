@@ -1,6 +1,6 @@
 ---
 name: club-admin-frontend
-description: 社团综合管理平台前端开发技能。基于 Vue3 + TypeScript + Element Plus + Vite，实现社团/活动/审批/通知/统计/用户权限模块。社团管理以 .cursor/skills/社团.md 为设计真源；API 对齐当前 Spring 控制器（非旧版 _F/_B 命名）。
+description: 社团综合管理平台前端开发技能。基于 Vue3 + TypeScript + Element Plus + Vite，实现社团/活动/审批/通知/统计/用户权限模块。社团管理以 .cursor/skills/社团权限过滤加强.md 为设计真源；API 对齐当前 Spring 控制器（非旧版 _F/_B 命名）。
 ---
 
 # 社团管理平台前端技能（Cursor 专用）
@@ -87,34 +87,43 @@ club-admin-frontend/
 - 成功后存 `token` / `username`，`loadUserProfile` 拉用户详情与角色，计算 `effectiveLevel`、`clubScopeIds`
 - 跳转工作台，动态菜单 + `STATIC_ROUTES` 补齐
 
-### 社团管理（设计真源：`.cursor/skills/社团.md`）
+### 社团管理（设计真源：`.cursor/skills/社团权限过滤加强.md`）
 
-> 核心原则：**菜单隔离、流程分离、行权下沉、数据聚合解耦**。Level 4 **无菜单入口**。
+> 核心原则：**菜单隔离、流程分离、行权下沉、数据聚合解耦**。Level 4 **无菜单入口**。**部长（Level 3）≠ 社长（Level 2），权限域严格分离。**
 
-#### 准入
-| Level | 菜单 | 数据范围 |
-|---|---|---|
-| 0/1 | ✅ | 全量（指导老师可仅看所指导社团） |
-| 2 社长 | ✅ | 本人管辖社团 |
-| 3 部长 | ✅（`minLevel: 3`） | 本部门挂靠社团 |
-| 4 学生 | ❌ | 走门户 / 个人中心 / 活动详情 |
+#### 用户分层与准入
+| Level | 角色 | 菜单可见 | 数据范围 | 操作列 | Tab 可见性 |
+|---|---|---|---|---|---|
+| 0/1 | 超管/管理员 | ✅ | 全量社团（含已解散） | 查看详情 + 解散申请 + 合议签字 | 全部三个 Tab |
+| 2 | 社长 | ✅ | 本人管辖社团（`scope_type=2`） | 查看详情 + 解散申请 + 合议签字 | 全部三个 Tab |
+| 3 | 部长 | ✅（`minLevel: 3`） | 本部门挂靠社团（`scope_type=3`） | **仅「查看详情」** | **仅「正常社团」Tab** |
+| 4 | 学生 | ❌ | — | — | — |
+
+> **部长（Level 3）进入社团管理页面的唯一业务目的**：只读查看本部门挂靠社团基本信息，作为跳转至「成员管理」和「活动申请」的路由锚点。**不是社团管理者。**
+
+#### 部长进入社团列表页的特殊交互（来自 `社团权限过滤加强.md` §1.3）
+- 顶部显示静默提示条（`el-alert` 类型 `info`，可关闭）：
+  > "当前为只读视图。如需管理本部门成员，请前往「成员管理」；如需发起活动，请前往「活动申请」。"
+- 仅显示「正常社团」Tab，「申请解散中」和「合议中」Tab 完全隐藏
+- 操作列仅显示「查看详情」按钮，禁止灰色禁用按钮
 
 #### 列表页 `/club`（`views/club/list.vue`，`keep-alive` 名 `ClubList`）
 - **筛选**：类别（`GET /club-application/categories` → `{code,label}`，禁止硬编码）、学院远程搜索、状态（正常/已解散，与 Tab 联动重置）、关键词防抖 300ms（名称/编号）
 - **Tab 物理隔离**：
   - `normal`：正常运营（排除进行中解散申请与合议）
-  - `dissolving`：解散申请中（`apply_type=2` 且 `status∈{1,2}`）
-  - `council`：合议中（`club_council.status=1`）
+  - `dissolving`：解散申请中（`apply_type=2` 且 `status∈{1,2}`）— **Level 3 不可见**
+  - `council`：合议中（`club_council.status=1`）— **Level 3 不可见**
 - **列**：编号（等宽）、名称（类别 2px 色块 + 跳转详情）、类别、指导老师（空→「待指派」）、成员数（`useMemberCount` 批量聚合）、状态圆点、操作列
-- **操作列**（可见即有权，禁止灰色禁用按钮）：
-  - 查看详情：`effectiveLevel ≤ 3` → `/club/detail/{clubCode}?from=club-list`
-  - 解散申请：以后端 `canDissolve` 为准 → 二次确认（输入社团名）+ 原因 → `POST /club-application/apply/dissolve` → 切 Tab 到「申请解散中」
-  - 合议签字：以后端 `canSignCouncil` 为准 → `/club/council/{clubId}`
+- **操作列**（可见即有权，**禁止灰色禁用按钮**，按钮显隐由后端下发的布尔字段驱动）：
+  - `canViewDetail` → 查看详情：`effectiveLevel ≤ 3` → `/club/detail/{clubCode}?from=club-list`
+  - `canDissolve` → 解散申请：仅 Level 0/1/2，二次确认（输入社团名）+ 原因 → `POST /club-application/apply/dissolve` → 切 Tab
+  - `canSignCouncil` → 合议签字：仅 Level 0/1，`/club/council/{clubId}`
 - **创建社团**：仅 Level ≤ 1，`POST /club-application/apply/create`
 - **成员数**：`composables/useMemberCount.ts`，`GET /club-statistics/list?clubIds=`，TTL 5s；失败显示 `--` + 行级重试；加载用骨架，勿提前显示 `0人`
 
-#### 详情页 `/club/detail/:clubCode`
-- 信息卡、部门架构树、成员分页（可按 `roleCode` 筛）、历史活动时间线（`/activity-apply/list?clubId=`）
+#### 详情页 `/club/detail/:clubCode`（社长/部长差异化，来自 `社团权限过滤加强.md` §5）
+- **社长（Level 2）进入**：展示社团信息卡、部门架构树、全社团成员列表（分页）、历史活动时间线。操作按钮：解散申请、合议签字（如满足条件）、编辑社团信息。
+- **部长（Level 3）进入**：展示社团信息卡（不含编辑入口）、历史活动时间线。成员列表**仅显示本部门成员**（后端 `scope_type=3` 自动过滤）。顶部提示条："当前为只读视图，如需管理成员请前往成员管理。" **操作按钮全部隐藏**（无解散、无合议、无编辑）。
 - 无权限：提示并回退 `/club`
 
 #### 合议页 `/club/council/:clubId`
@@ -140,7 +149,15 @@ club-admin-frontend/
 
 ### 成员管理 (`/member`)
 - 用户列表 + 角色分配（`sys-user-role`）
-- `scope_type` / `scope_id` 绑定学院/社团/部门
+- **数据范围由角色 `data_scope` 驱动**（禁止前端自选“全局/社团”随意组合）：
+  | data_scope | 含义 | 分配时 scopeType / scopeId |
+  |---|---|---|
+  | 0 | 全部 | 均为 null |
+  | 1 | 本学院 | scopeType=1 + 学院 id |
+  | 2 | 本社团 | scopeType=2 + 社团 id（社团列表走 `/sys-club/list`，勿用门户） |
+  | 3 | 本部门 | scopeType=3 + 部门 id（先选社团再选部门） |
+  | 4 | 仅自己 | 均为 null |
+- `role_code` 为常量（`SUPER_ADMIN` / `ADVISOR` / `ADVISOR_{类别}_{缩写}` 等），**分配时不得动态拼接/新建 role_code**；社团上下文只写在 `sys_user_role.scope_*`
 
 ### 通知公告 (`/notice`)
 - 收件箱 / 发布（按等级）
@@ -164,13 +181,34 @@ club-admin-frontend/
 ## 权限等级体系（五级 RBAC）
 
 ### 等级定义（`src/utils/level.ts`）
-| Level | 角色 | 说明 |
-|---|---|---|
-| 0 | 超级管理员 | 全平台无限制 |
-| 1 | 院长/指导老师 (ADMIN) | 管辖范围数据 |
-| 2 | 社团社长 (CLUB_LEADER) | 本社团数据 |
-| 3 | 部门部长 (DEPT_LEADER) | 本部门数据 |
-| 4 | 普通学生 (STUDENT) | 仅本人数据 |
+| Level | 角色 | role_code | 说明 |
+|---|---|---|---|
+| 0 | 超级管理员 | `SUPER_ADMIN` | 全平台无限制 |
+| 1 | 院长/指导老师 | `ADVISOR` / `ADVISOR_*` | 管辖范围数据 |
+| 2 | 社团社长 | `CLUB_PRESIDENT` | 本社团数据 |
+| 3 | 部门部长 | `CLUB_MINISTER` | 本部门数据 |
+| 4 | 普通学生 | `MEMBER` | 仅本人数据 |
+| 1 | 学院管理员 | `ADMIN` | 校级/学院管理 |
+
+### role_code 命名规范（2026-07-24 统一）
+- **全大写 + 下划线**，禁止数字后缀、大小写混用
+- `SUPER_ADMIN` — 超级管理员
+- `ADMIN` — 校级/学院管理员（可扩展为 `ADMIN_COLLEGE` 等）
+- `ADVISOR` — 指导老师基础模板（`isAdvisorRoleCode` 匹配 `startsWith('ADVISOR')`）
+- `ADVISOR_{类别缩写}_{社团英文缩写}` — 具体社团指导老师，类别缩写来自 `ClubCategory`（SZ/XS/CX/WH/GY/ZL），社团缩写取英文名首字母大写
+- `CLUB_PRESIDENT` — 社长
+- `CLUB_MINISTER` — 部长
+- `MEMBER` — 普通成员
+
+### 数据库 seed 角色（`mysql/mass_test1.sql`）
+| id | role_name | role_code | role_level | data_scope |
+|---|---|---|---|---|
+| 1 | 超级管理员 | `SUPER_ADMIN` | 0 | 0 全部 |
+| 2 | 普通成员 | `MEMBER` | 4 | 4 仅自己 |
+| 3 | 指导老师 | `ADVISOR` | 1 | 2 本社团 |
+| 4 | 学院管理员 | `ADMIN` | 1 | 1 本学院 |
+| 5 | 社长 | `CLUB_PRESIDENT` | 2 | 2 本社团 |
+| 6 | 部长 | `CLUB_MINISTER` | 3 | 3 本部门 |
 
 ### 后端两层拦截
 1. **接口准入（AOP）**：`@RequiresLevel(minLevel)` → `effectiveLevel ≤ minLevel`
@@ -192,7 +230,7 @@ club-admin-frontend/
 1. 对齐后端真实 Controller 路径（以源码为准，不以旧 OpenAPI `_F` 为准）
 2. 补齐 `src/api/*` 与 `types`
 3. 更新 `stores/user` / `menu` 与路由 `minLevel`
-4. 按模块实现页面；社团模块严格遵循 `社团.md`
+4. 按模块实现页面；社团模块严格遵循 `社团权限过滤加强.md`
 5. 联调：列表 Tab 联动、权限按钮显隐、成员数聚合、详情/合议闭环
 
 ## 注意事项
@@ -232,10 +270,10 @@ Level 4 学生登录后工作台持续弹出「权限不足」，原因是 `fetc
 
 ---
 
-## 2026-07-23 改动：社团管理模块按 `社团.md` 全量构建
+## 2026-07-23 改动：社团管理模块按 `社团权限过滤加强.md` 全量构建
 
 ### 设计对齐
-依据 `.cursor/skills/社团.md`：Tab 流程隔离、操作列后端权限标识、成员数前端批量聚合、详情/合议独立页、Level 4 无后台入口。
+依据 `.cursor/skills/社团权限过滤加强.md`（v1.1）：明确区分社长（Level 2）与部长（Level 3）权限边界，部长仅只读查看本部门挂靠社团的「正常社团」Tab，操作列仅「查看详情」；Tab 流程隔离、操作列后端权限标识、成员数前端批量聚合、详情/合议独立页、Level 4 无后台入口。
 
 ### 后端
 1. **`SysClubController`** — `GET /sys-club/list|detail|departments|members|member-count`

@@ -71,6 +71,7 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
 
         SysUser user = UserSecurityHelper.findActiveInScopeByUsername(sysUserMapper, dto.getUsername());
 
+        // role_code 为常量（如 ADVISOR / ADVISOR_SZ_XXX），分配时不动态拼接；社团/学院上下文由 scope 表达
         SysRole role = sysRoleService.getById(dto.getRoleId());
         if (role == null) {
             throw new EIException(ErrorConfig.ROLE_NOT_FOUND_CODE, ErrorConfig.ROLE_NOT_FOUND_MSG);
@@ -86,11 +87,11 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
         UserRoleScopeHelper.validateScope(role.getDataScope(), dto.getScopeType(), dto.getScopeId(),
                 sysCollegeMapper, sysClubMapper, sysDepartmentMapper);
         UserRoleScopeHelper.assertNoDuplicateAssignment(sysUserRoleMapper,
-                user.getId(), dto.getRoleId(), dto.getScopeType(), dto.getScopeId());
+                user.getId(), role.getId(), dto.getScopeType(), dto.getScopeId());
 
         SysUserRole entity = new SysUserRole();
         entity.setUserId(user.getId());
-        entity.setRoleId(dto.getRoleId());
+        entity.setRoleId(role.getId());
         entity.setScopeType(dto.getScopeType());
         entity.setScopeId(dto.getScopeId());
         entity.setCreateTime(LocalDateTime.now());

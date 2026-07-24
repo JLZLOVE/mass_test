@@ -84,7 +84,15 @@ public class SysUserRoleServiceImpl extends ServiceImpl<SysUserRoleMapper, SysUs
             LevelBasedAccess.checkNewLevel(currentLevel, targetRoleLevel);
         }
 
-        UserRoleScopeHelper.validateScope(role.getDataScope(), dto.getScopeType(), dto.getScopeId(),
+        Integer dataScope = UserRoleScopeHelper.resolveDataScope(role);
+        if (dataScope == null) {
+            log.error("角色 id={} roleCode={} dataScope 为空且无法按 role_code 推断", role.getId(), role.getRoleCode());
+            throw new EIException(ErrorConfig.ROLE_SCOPE_NOT_CONFIGURED_CODE,
+                    ErrorConfig.ROLE_SCOPE_NOT_CONFIGURED_MSG + "（roleCode=" + role.getRoleCode() + "）");
+        }
+        log.info("分配角色 user={} roleId={} roleCode={} dataScope={} scopeType={} scopeId={}",
+                dto.getUsername(), role.getId(), role.getRoleCode(), dataScope, dto.getScopeType(), dto.getScopeId());
+        UserRoleScopeHelper.validateScope(dataScope, dto.getScopeType(), dto.getScopeId(),
                 sysCollegeMapper, sysClubMapper, sysDepartmentMapper);
         UserRoleScopeHelper.assertNoDuplicateAssignment(sysUserRoleMapper,
                 user.getId(), role.getId(), dto.getScopeType(), dto.getScopeId());

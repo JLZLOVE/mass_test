@@ -18,8 +18,8 @@ export const sysUserRoleApi = {
   assign(data: {
     username: string
     roleId: number
-    scopeType?: number
-    scopeId?: number
+    scopeType?: number | null
+    scopeId?: number | null
   }): Promise<R> {
     return httpPost('/sys-user-role/assign', data)
   },

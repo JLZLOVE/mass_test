@@ -6,10 +6,11 @@ import { sysUserRoleApi, type SysUserRoleItem } from '@/api/sysUserRole'
 import { sysRoleApi, type SysRole } from '@/api/sysRole'
 import { sysClubApi } from '@/api/sysClub'
 import { sysCollegeApi } from '@/api/sysCollege'
+import { portalApi } from '@/api/portal'
 import { formatDateTime } from '@/utils/format'
 import type { SysClubItem, SysCollege, SysDepartment, SysUser } from '@/types/generated'
 
-/** 与后端 UserRoleScopeHelper / SysRole.dataScope 一致：0全部 1本学院 2本社团 3本部门 4仅自己 */
+/** 与后端 UserRoleScopeHelper 一致：0全部 1本学院 2本社团 3本部门 4仅自己 */
 const DATA_SCOPE_ALL = 0
 const DATA_SCOPE_COLLEGE = 1
 const DATA_SCOPE_CLUB = 2
@@ -24,7 +25,15 @@ const DATA_SCOPE_LABEL: Record<number, string> = {
   [DATA_SCOPE_SELF]: '仅自己',
 }
 
-const BASE_ROLE_CODES = ['SUPER_ADMIN', 'MEMBER', 'ADVISOR', 'ADMIN', 'CLUB_PRESIDENT', 'CLUB_MINISTER']
+/** role_code → 默认 data_scope */
+const ROLE_CODE_DATA_SCOPE: Record<string, number> = {
+  SUPER_ADMIN: DATA_SCOPE_ALL,
+  ADMIN: DATA_SCOPE_COLLEGE,
+  ADVISOR: DATA_SCOPE_CLUB,
+  CLUB_PRESIDENT: DATA_SCOPE_CLUB,
+  CLUB_MINISTER: DATA_SCOPE_DEPARTMENT,
+  MEMBER: DATA_SCOPE_SELF,
+}
 
 const loading = ref(false)
 const tableData = ref<SysUser[]>([])
@@ -55,20 +64,43 @@ const roleLoading = ref(false)
 const addRoleFormRef = ref<FormInstance>()
 const addRoleForm = reactive({
   roleId: undefined as number | undefined,
-  /** 学院/社团/部门最终 scopeId */
   scopeId: undefined as number | undefined,
-  /** 部长分配时先选社团再选部门 */
   scopeClubId: undefined as number | undefined,
 })
 
-const selectedRole = computed(() => roles.value.find((r) => r.id === addRoleForm.roleId))
-const selectedDataScope = computed(() => selectedRole.value?.dataScope)
+function resolveDataScope(role?: SysRole | null): number | undefined {
+  if (!role) return undefined
+  const code = (role.roleCode || '').toUpperCase().trim()
+  if (code && ROLE_CODE_DATA_SCOPE[code] != null) {
+    return ROLE_CODE_DATA_SCOPE[code]
+  }
+  const name = role.roleName || ''
+  if (name.includes('超级') || name.includes('超管')) return DATA_SCOPE_ALL
+  if (name.includes('指导')) return DATA_SCOPE_CLUB
+  if (name.includes('社长')) return DATA_SCOPE_CLUB
+  if (name.includes('部长')) return DATA_SCOPE_DEPARTMENT
+  if (name.includes('学院') || name.includes('管理员')) return DATA_SCOPE_COLLEGE
+  if (name.includes('成员') || name.includes('学生')) return DATA_SCOPE_SELF
+  if (typeof role.dataScope === 'number' && role.dataScope >= 0 && role.dataScope <= 4) {
+    return role.dataScope
+  }
+  return undefined
+}
+
+const selectedRole = computed(() =>
+  roles.value.find((r) => Number(r.id) === Number(addRoleForm.roleId)),
+)
+const selectedDataScope = computed(() => resolveDataScope(selectedRole.value))
 const needsCollege = computed(() => selectedDataScope.value === DATA_SCOPE_COLLEGE)
 const needsClub = computed(() => selectedDataScope.value === DATA_SCOPE_CLUB)
 const needsDepartment = computed(() => selectedDataScope.value === DATA_SCOPE_DEPARTMENT)
 const isGlobalScope = computed(
   () => selectedDataScope.value === DATA_SCOPE_ALL || selectedDataScope.value === DATA_SCOPE_SELF,
 )
+const dataScopeLabel = computed(() => {
+  const ds = selectedDataScope.value
+  return ds == null ? '未配置' : DATA_SCOPE_LABEL[ds] || '未配置'
+})
 
 watch(
   () => addRoleForm.roleId,
@@ -85,25 +117,54 @@ watch(
     addRoleForm.scopeId = undefined
     departments.value = []
     if (!clubId || !needsDepartment.value) return
-    const club = clubs.value.find((c) => c.id === clubId)
+    const club = clubs.value.find((c) => Number(c.id) === Number(clubId))
     if (!club?.clubCode) return
-    const res = await sysClubApi.departments(club.clubCode)
-    departments.value = res.data || []
+    try {
+      const res = await sysClubApi.departments(club.clubCode)
+      departments.value = res.data || []
+    } catch {
+      departments.value = []
+    }
   },
 )
 
+async function loadClubs() {
+  try {
+    const clubRes = await sysClubApi.list({ page: 1, limit: 200, tabMode: 'normal' })
+    const list = (clubRes.data?.records || []).filter((c) => c.id != null)
+    if (list.length) {
+      clubs.value = list
+      return
+    }
+  } catch {
+    // 管理端列表不可用时回退门户
+  }
+  try {
+    const portalRes = await portalApi.clubs({})
+    const raw = portalRes.data
+    const list = Array.isArray(raw) ? raw : raw?.records || []
+    clubs.value = list
+      .filter((c) => c.id != null)
+      .map((c) => ({ id: c.id, clubName: c.clubName, category: c.category }))
+  } catch {
+    clubs.value = []
+  }
+}
+
 async function loadDicts() {
-  const [clubRes, collegeRes, roleRes] = await Promise.all([
-    sysClubApi.list({ page: 1, limit: 200, tabMode: 'normal' }),
-    sysCollegeApi.list({}),
+  const [, collegeRes, roleRes] = await Promise.all([
+    loadClubs(),
+    sysCollegeApi.list({}).catch(() => ({ data: [] as SysCollege[] })),
     sysRoleApi.list({ page: 1, limit: 100 }),
   ])
-  clubs.value = (clubRes.data?.records || []).filter((c) => c.id != null)
   colleges.value = Array.isArray(collegeRes.data) ? collegeRes.data : []
-  // 仅展示基础角色模板，不展示 ADVISOR_类别_缩写 等具体常量角色（若已 seed）
-  roles.value = (roleRes.data?.records || []).filter(
-    (r) => r.status !== 0 && BASE_ROLE_CODES.includes((r.roleCode || '').toUpperCase()),
-  )
+  // 列表不过滤死 role_code：名称可能已中文化，只要启用即可
+  roles.value = (roleRes.data?.records || []).filter((r) => r.status !== 0)
+  // 规范化 dataScope，保证下拉后能识别范围
+  roles.value = roles.value.map((r) => ({
+    ...r,
+    dataScope: resolveDataScope(r) ?? r.dataScope,
+  }))
   roleMap.value = Object.fromEntries(roles.value.map((r) => [r.id!, r.roleName || '']))
 }
 
@@ -155,55 +216,62 @@ async function openRoleDialog(row: SysUser) {
 }
 
 async function handleAddRole() {
-  if (!currentUser.value?.username || !addRoleForm.roleId) {
+  if (!currentUser.value?.username || addRoleForm.roleId == null) {
     ElMessage.warning('请选择角色')
     return
   }
   const role = selectedRole.value
-  if (!role || role.dataScope == null) {
-    ElMessage.warning('角色未配置数据范围')
+  if (!role) {
+    ElMessage.warning('角色不存在或未加载')
+    return
+  }
+  const code = (role.roleCode || '').toUpperCase()
+  const ds = resolveDataScope(role)
+  if (ds == null) {
+    ElMessage.warning(`无法解析数据范围（roleCode=${role.roleCode || '空'}, name=${role.roleName || ''}）`)
     return
   }
 
-  const ds = role.dataScope
-  let scopeType: number | undefined
-  let scopeId: number | undefined
+  const payload: {
+    username: string
+    roleId: number
+    scopeType?: number | null
+    scopeId?: number | null
+  } = {
+    username: currentUser.value.username,
+    roleId: Number(addRoleForm.roleId),
+  }
 
   if (ds === DATA_SCOPE_ALL || ds === DATA_SCOPE_SELF) {
-    scopeType = undefined
-    scopeId = undefined
+    payload.scopeType = null
+    payload.scopeId = null
   } else if (ds === DATA_SCOPE_COLLEGE) {
-    if (!addRoleForm.scopeId) {
+    if (addRoleForm.scopeId == null) {
       ElMessage.warning('请选择所属学院')
       return
     }
-    scopeType = DATA_SCOPE_COLLEGE
-    scopeId = addRoleForm.scopeId
+    payload.scopeType = DATA_SCOPE_COLLEGE
+    payload.scopeId = Number(addRoleForm.scopeId)
   } else if (ds === DATA_SCOPE_CLUB) {
-    if (!addRoleForm.scopeId) {
+    if (addRoleForm.scopeId == null) {
       ElMessage.warning('请选择所属社团')
       return
     }
-    scopeType = DATA_SCOPE_CLUB
-    scopeId = addRoleForm.scopeId
+    payload.scopeType = DATA_SCOPE_CLUB
+    payload.scopeId = Number(addRoleForm.scopeId)
   } else if (ds === DATA_SCOPE_DEPARTMENT) {
-    if (!addRoleForm.scopeId) {
+    if (addRoleForm.scopeId == null) {
       ElMessage.warning('请选择所属部门')
       return
     }
-    scopeType = DATA_SCOPE_DEPARTMENT
-    scopeId = addRoleForm.scopeId
+    payload.scopeType = DATA_SCOPE_DEPARTMENT
+    payload.scopeId = Number(addRoleForm.scopeId)
   } else {
     ElMessage.warning('角色数据范围配置无效')
     return
   }
 
-  await sysUserRoleApi.assign({
-    username: currentUser.value.username,
-    roleId: addRoleForm.roleId,
-    scopeType,
-    scopeId,
-  })
+  await sysUserRoleApi.assign(payload)
   ElMessage.success('角色分配成功')
   const res = await sysUserRoleApi.rolesByUsername(currentUser.value.username)
   userRoles.value = res.data || []
@@ -225,17 +293,17 @@ async function handleRemoveRole(row: SysUserRoleItem) {
 function scopeLabel(row: SysUserRoleItem): string {
   if (row.scopeType == null && row.scopeId == null) return '全部 / 仅自己'
   if (row.scopeType === DATA_SCOPE_COLLEGE) {
-    const college = colleges.value.find((c) => c.id === row.scopeId)
+    const college = colleges.value.find((c) => Number(c.id) === Number(row.scopeId))
     return college ? `学院: ${college.collegeName}` : `学院ID: ${row.scopeId}`
   }
   if (row.scopeType === DATA_SCOPE_CLUB) {
-    const club = clubs.value.find((c) => c.id === row.scopeId)
+    const club = clubs.value.find((c) => Number(c.id) === Number(row.scopeId))
     return club ? `社团: ${club.clubName}` : `社团ID: ${row.scopeId}`
   }
   if (row.scopeType === DATA_SCOPE_DEPARTMENT) {
     return `部门ID: ${row.scopeId}`
   }
-  return row.scopeId ? `范围: ${row.scopeId}` : '—'
+  return row.scopeId != null ? `范围: ${row.scopeId}` : '—'
 }
 
 onMounted(async () => {
@@ -312,7 +380,7 @@ onMounted(async () => {
     <el-dialog
       v-model="roleDialogVisible"
       :title="`角色分配 - ${currentUser?.realName || currentUser?.username}`"
-      width="680px"
+      width="720px"
       destroy-on-close
     >
       <div v-loading="roleLoading">
@@ -334,7 +402,7 @@ onMounted(async () => {
         </el-table>
 
         <el-divider>新增角色</el-divider>
-        <el-form ref="addRoleFormRef" :model="addRoleForm" :inline="true">
+        <el-form ref="addRoleFormRef" :model="addRoleForm" :inline="true" class="add-role-form">
           <el-form-item label="角色">
             <el-select v-model="addRoleForm.roleId" placeholder="选择角色" style="width: 160px" clearable>
               <el-option
@@ -347,11 +415,11 @@ onMounted(async () => {
           </el-form-item>
 
           <el-form-item v-if="selectedRole" label="数据范围">
-            <el-tag type="info">{{ DATA_SCOPE_LABEL[selectedDataScope!] || '未配置' }}</el-tag>
+            <el-tag type="info">{{ dataScopeLabel }}</el-tag>
           </el-form-item>
 
           <el-form-item v-if="isGlobalScope">
-            <span class="scope-hint">无需指定学院/社团，scope 为空</span>
+            <span class="scope-hint">无需指定学院/社团</span>
           </el-form-item>
 
           <el-form-item v-if="needsCollege" label="所属学院">
@@ -359,6 +427,7 @@ onMounted(async () => {
               v-model="addRoleForm.scopeId"
               placeholder="选择学院"
               filterable
+              clearable
               style="width: 200px"
             >
               <el-option
@@ -375,12 +444,13 @@ onMounted(async () => {
               v-model="addRoleForm.scopeId"
               placeholder="选择社团"
               filterable
+              clearable
               style="width: 200px"
             >
               <el-option
                 v-for="c in clubs"
                 :key="c.id!"
-                :label="c.clubName"
+                :label="c.clubName || c.clubCode"
                 :value="c.id!"
               />
             </el-select>
@@ -392,12 +462,13 @@ onMounted(async () => {
                 v-model="addRoleForm.scopeClubId"
                 placeholder="先选社团"
                 filterable
+                clearable
                 style="width: 180px"
               >
                 <el-option
                   v-for="c in clubs"
                   :key="c.id!"
-                  :label="c.clubName"
+                  :label="c.clubName || c.clubCode"
                   :value="c.id!"
                 />
               </el-select>
@@ -407,6 +478,7 @@ onMounted(async () => {
                 v-model="addRoleForm.scopeId"
                 placeholder="选择部门"
                 filterable
+                clearable
                 :disabled="!addRoleForm.scopeClubId"
                 style="width: 180px"
               >
@@ -424,6 +496,10 @@ onMounted(async () => {
             <el-button type="primary" @click="handleAddRole">添加</el-button>
           </el-form-item>
         </el-form>
+
+        <p v-if="needsClub && clubs.length === 0" class="scope-warn">
+          暂无可用社团，请确认账号有社团管理权限且存在正常社团。
+        </p>
       </div>
     </el-dialog>
   </div>
@@ -446,8 +522,18 @@ onMounted(async () => {
   margin-bottom: 8px;
 }
 
+.add-role-form {
+  flex-wrap: wrap;
+}
+
 .scope-hint {
   color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.scope-warn {
+  margin: 0;
+  color: var(--el-color-warning);
   font-size: 13px;
 }
 </style>

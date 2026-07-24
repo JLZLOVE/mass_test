@@ -18,6 +18,7 @@ import untiy.exception.ErrorConfig;
 import untiy.mapper.SysRoleMapper;
 import untiy.mapper.SysUserRoleMapper;
 import untiy.security.LevelBasedAccess;
+import untiy.security.UserRoleScopeHelper;
 import untiy.service.SysRoleService;
 import untiy.utils.MPUtil;
 import untiy.utils.SecurityUtils;
@@ -58,7 +59,15 @@ public class SysRoleServiceImpl extends ServiceImpl<SysRoleMapper, SysRole> impl
             }
         }
 
-        return baseMapper.selectPage(page, wrapper);
+        IPage<SysRole> result = baseMapper.selectPage(page, wrapper);
+        // 回填规范化 data_scope，避免库字段为空/旧值导致前端「未配置」
+        for (SysRole r : result.getRecords()) {
+            Integer resolved = UserRoleScopeHelper.resolveDataScope(r);
+            if (resolved != null) {
+                r.setDataScope(resolved);
+            }
+        }
+        return result;
     }
 
     // ==================== 查询详情 ====================

@@ -1,10 +1,13 @@
 package untiy.security;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.apache.commons.lang3.StringUtils;
 import untiy.entity.SysClub;
 import untiy.entity.SysCollege;
 import untiy.entity.SysDepartment;
+import untiy.entity.SysRole;
 import untiy.entity.SysUserRole;
+import untiy.entity.constants.ClubApplyConstants;
 import untiy.exception.EIException;
 import untiy.exception.ErrorConfig;
 import untiy.mapper.SysClubMapper;
@@ -13,6 +16,7 @@ import untiy.mapper.SysDepartmentMapper;
 import untiy.mapper.SysUserRoleMapper;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -21,31 +25,117 @@ import java.util.Objects;
 public final class UserRoleScopeHelper {
 
     /** 全部数据 */
-    private static final int DATA_SCOPE_ALL = 0;
+    public static final int DATA_SCOPE_ALL = 0;
     /** 本学院 */
-    private static final int DATA_SCOPE_COLLEGE = 1;
+    public static final int DATA_SCOPE_COLLEGE = 1;
     /** 本社团 */
-    private static final int DATA_SCOPE_CLUB = 2;
+    public static final int DATA_SCOPE_CLUB = 2;
     /** 本部门 */
-    private static final int DATA_SCOPE_DEPARTMENT = 3;
+    public static final int DATA_SCOPE_DEPARTMENT = 3;
     /** 仅自己 */
-    private static final int DATA_SCOPE_SELF = 4;
+    public static final int DATA_SCOPE_SELF = 4;
 
-    /** sys_user_role.scope_type：1 学院 */
     private static final int SCOPE_TYPE_COLLEGE = 1;
-    /** sys_user_role.scope_type：2 社团 */
     private static final int SCOPE_TYPE_CLUB = 2;
-    /** sys_user_role.scope_type：3 部门 */
     private static final int SCOPE_TYPE_DEPARTMENT = 3;
 
     private UserRoleScopeHelper() {
     }
 
     /**
-     * 根据角色 {@code dataScope} 校验 scopeType/scopeId 组合是否合法，并校验 scope 实体存在。
-     * <p>
-     * dataScope：0 全部、1 本学院、2 本社团、3 本部门、4 仅自己
+     * 解析分配校验用的 data_scope：优先 role_code 常量，其次角色名兼容，最后库字段。
      */
+    public static Integer resolveDataScope(SysRole role) {
+        if (role == null) {
+            return null;
+        }
+        Integer byCode = mapDataScopeByRoleCode(role.getRoleCode());
+        if (byCode != null) {
+            return byCode;
+        }
+        Integer byName = mapDataScopeByRoleName(role.getRoleName());
+        if (byName != null) {
+            return byName;
+        }
+        if (role.getDataScope() != null) {
+            return role.getDataScope();
+        }
+        return mapDataScopeByRoleLevel(role.getRoleLevel());
+    }
+
+    /**
+     * 按 role_code（含 ADVISOR_*）映射默认数据范围。
+     */
+    public static Integer mapDataScopeByRoleCode(String roleCode) {
+        if (StringUtils.isBlank(roleCode)) {
+            return null;
+        }
+        String code = roleCode.trim().toUpperCase(Locale.ROOT);
+        if (ClubApplyConstants.ROLE_SUPER_ADMIN.equals(code)) {
+            return DATA_SCOPE_ALL;
+        }
+        if (ClubApplyConstants.ROLE_ADMIN.equals(code)) {
+            return DATA_SCOPE_COLLEGE;
+        }
+        if (ClubApplyConstants.ROLE_ADVISOR.equals(code) || code.startsWith(ClubApplyConstants.ROLE_ADVISOR + "_")) {
+            return DATA_SCOPE_CLUB;
+        }
+        if (ClubApplyConstants.ROLE_CLUB_PRESIDENT.equals(code)) {
+            return DATA_SCOPE_CLUB;
+        }
+        if (ClubApplyConstants.ROLE_CLUB_MINISTER.equals(code)) {
+            return DATA_SCOPE_DEPARTMENT;
+        }
+        if (ClubApplyConstants.ROLE_MEMBER.equals(code)) {
+            return DATA_SCOPE_SELF;
+        }
+        return null;
+    }
+
+    /** 兼容库中自定义中文角色名（截图：普通学生成员 / 社团社长 / 通用指导老师） */
+    public static Integer mapDataScopeByRoleName(String roleName) {
+        if (StringUtils.isBlank(roleName)) {
+            return null;
+        }
+        String name = roleName.trim();
+        if (name.contains("超级管理")) {
+            return DATA_SCOPE_ALL;
+        }
+        if (name.contains("学院管理") || name.contains("校级管理")) {
+            return DATA_SCOPE_COLLEGE;
+        }
+        if (name.contains("指导") || name.contains("社长")) {
+            return DATA_SCOPE_CLUB;
+        }
+        if (name.contains("部长")) {
+            return DATA_SCOPE_DEPARTMENT;
+        }
+        if (name.contains("成员") || name.contains("学生")) {
+            return DATA_SCOPE_SELF;
+        }
+        return null;
+    }
+
+    private static Integer mapDataScopeByRoleLevel(Integer roleLevel) {
+        if (roleLevel == null) {
+            return null;
+        }
+        switch (roleLevel) {
+            case 0:
+                return DATA_SCOPE_ALL;
+            case 1:
+                return DATA_SCOPE_COLLEGE;
+            case 2:
+                return DATA_SCOPE_CLUB;
+            case 3:
+                return DATA_SCOPE_DEPARTMENT;
+            case 4:
+                return DATA_SCOPE_SELF;
+            default:
+                return null;
+        }
+    }
+
     public static void validateScope(Integer dataScope, Integer scopeType, Long scopeId,
                                      SysCollegeMapper collegeMapper,
                                      SysClubMapper clubMapper,
@@ -90,9 +180,6 @@ public final class UserRoleScopeHelper {
         }
     }
 
-    /**
-     * 防重复分配：精确匹配、全局与特定范围互斥。
-     */
     public static void assertNoDuplicateAssignment(SysUserRoleMapper mapper,
                                                    Long userId, Long roleId,
                                                    Integer scopeType, Long scopeId) {
